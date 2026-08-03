@@ -1,0 +1,31 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum AccountStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+  BANNED
+}
+
+model User {
+  id              String        @id @db.Uuid
+  email           String        @unique
+  passwordHash    String
+  username        String        @unique
+  displayName     String
+  isHost          Boolean       @default(false)
+  isAdmin          Boolean       @default(false)
+  accountStatus   AccountStatus @default(PENDING)
+  emailVerified   Boolean       @default(false)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@map("users")
+}

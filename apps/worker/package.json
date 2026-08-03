@@ -1,0 +1,31 @@
+{
+  "name": "worker",
+  "version": "0.1.0",
+  "private": true,
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc -b",
+    "dev": "tsx src/index.ts",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "bullmq": "^5.14.0",
+    "ioredis": "^5.4.1",
+    "express": "^4.21.1",
+    "@platform/config": "workspace:*",
+    "@platform/types": "workspace:*",
+    "@platform/logger": "workspace:*",
+    "@platform/database": "workspace:*",
+    "@platform/validation": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "@types/node": "^20.11.0",
+    "@types/express": "^5.0.0",
+    "tsx": "^4.19.1",
+    "supertest": "^7.0.0",
+    "@types/supertest": "^6.0.2"
+  }
+}
