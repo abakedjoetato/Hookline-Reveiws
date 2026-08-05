@@ -1,6 +1,6 @@
-import * as React from 'react';
-import { EmptyState, Button } from '@platform/ui';
-import Link from 'next/link';
+import * as React from "react";
+import { EmptyState, Button } from "@platform/ui";
+import Link from "next/link";
 
 export default function NotFoundPage() {
   return (

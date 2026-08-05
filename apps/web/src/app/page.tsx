@@ -1,7 +1,7 @@
-import * as React from 'react';
-import { Card, Button, Badge } from '@platform/ui';
-import { Music, Radio, Send, Play, Users, Disc } from 'lucide-react';
-import Link from 'next/link';
+import * as React from "react";
+import { Card, Button, Badge } from "@platform/ui";
+import { Music, Radio, Send, Play, Users, Disc } from "lucide-react";
+import Link from "next/link";
 
 export default function HomePage() {
   return (
@@ -15,10 +15,16 @@ export default function HomePage() {
           Connect Your Music Directly to Live Streams
         </h1>
         <p className="text-lg text-zinc-400 max-w-xl mx-auto leading-relaxed">
-          The ultimate foundation for music submission and live stream management. Build your library, submit tracks to approved hosts, and listen along live.
+          The ultimate foundation for music submission and live stream
+          management. Build your library, submit tracks to approved hosts, and
+          listen along live.
         </p>
         <div className="flex items-center justify-center gap-4">
-          <Button variant="primary" size="lg" className="shadow-lg shadow-violet-500/20">
+          <Button
+            variant="primary"
+            size="lg"
+            className="shadow-lg shadow-violet-500/20"
+          >
             <Music className="mr-2 h-4 w-4" /> Get Started
           </Button>
           <Button variant="outline" size="lg">
@@ -32,15 +38,24 @@ export default function HomePage() {
         <Card className="flex flex-col justify-between">
           <div className="space-y-4">
             <div className="h-10 w-10 rounded-md bg-violet-600/10 flex items-center justify-center text-violet-400">
-              <Disc className="h-5 w-5 animate-spin" style={{ animationDuration: '4s' }} />
+              <Disc
+                className="h-5 w-5 animate-spin"
+                style={{ animationDuration: "4s" }}
+              />
             </div>
-            <h3 className="text-xl font-bold text-zinc-100">Reusable Music Library</h3>
+            <h3 className="text-xl font-bold text-zinc-100">
+              Reusable Music Library
+            </h3>
             <p className="text-zinc-400 text-sm leading-relaxed">
-              Upload your tracks once and keep them safe in your secure personal library. Keep metadata, artwork, and streaming profiles completely sync'd.
+              Upload your tracks once and keep them safe in your secure personal
+              library. Keep metadata, artwork, and streaming profiles completely
+              sync'd.
             </p>
           </div>
           <div className="pt-6">
-            <Button variant="outline" size="sm" className="w-full">Manage Library</Button>
+            <Button variant="outline" size="sm" className="w-full">
+              Manage Library
+            </Button>
           </div>
         </Card>
 
@@ -49,13 +64,19 @@ export default function HomePage() {
             <div className="h-10 w-10 rounded-md bg-green-600/10 flex items-center justify-center text-green-400">
               <Send className="h-5 w-5" />
             </div>
-            <h3 className="text-xl font-bold text-zinc-100">Smart Submission Queue</h3>
+            <h3 className="text-xl font-bold text-zinc-100">
+              Smart Submission Queue
+            </h3>
             <p className="text-zinc-400 text-sm leading-relaxed">
-              Submit your music via flexible queues. Unlock premium features, leverage priority tiers, and receive notifications when your track hits the deck.
+              Submit your music via flexible queues. Unlock premium features,
+              leverage priority tiers, and receive notifications when your track
+              hits the deck.
             </p>
           </div>
           <div className="pt-6">
-            <Button variant="outline" size="sm" className="w-full">Submit Track</Button>
+            <Button variant="outline" size="sm" className="w-full">
+              Submit Track
+            </Button>
           </div>
         </Card>
 
@@ -64,13 +85,19 @@ export default function HomePage() {
             <div className="h-10 w-10 rounded-md bg-indigo-600/10 flex items-center justify-center text-indigo-400">
               <Radio className="h-5 w-5" />
             </div>
-            <h3 className="text-xl font-bold text-zinc-100">Live Host Directory</h3>
+            <h3 className="text-xl font-bold text-zinc-100">
+              Live Host Directory
+            </h3>
             <p className="text-zinc-400 text-sm leading-relaxed">
-              Find hosts who are currently broadcasting live on Twitch, TikTok, YouTube, or Facebook. Join their queues and interact with the stream.
+              Find hosts who are currently broadcasting live on Twitch, TikTok,
+              YouTube, or Facebook. Join their queues and interact with the
+              stream.
             </p>
           </div>
           <div className="pt-6">
-            <Button variant="outline" size="sm" className="w-full">Browse Stations</Button>
+            <Button variant="outline" size="sm" className="w-full">
+              Browse Stations
+            </Button>
           </div>
         </Card>
       </section>
@@ -79,7 +106,11 @@ export default function HomePage() {
       <section className="bg-zinc-900/40 border border-zinc-800 rounded-lg p-6 space-y-4">
         <h3 className="text-lg font-bold text-zinc-200">Architectural Note</h3>
         <p className="text-zinc-400 text-sm leading-relaxed">
-          This application shell serves as the foundation for the standard user and public website interface. Fully configured with <strong>TypeScript Strict Mode</strong>, <strong>Tailwind CSS v4</strong>, and integrated with the shared <strong>@platform/ui</strong> component package.
+          This application shell serves as the foundation for the standard user
+          and public website interface. Fully configured with{" "}
+          <strong>TypeScript Strict Mode</strong>,{" "}
+          <strong>Tailwind CSS v4</strong>, and integrated with the shared{" "}
+          <strong>@platform/ui</strong> component package.
         </p>
       </section>
     </div>

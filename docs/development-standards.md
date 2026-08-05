@@ -7,11 +7,13 @@ To maintain high code quality, system safety, and maintainability across **TheQu
 ## 1. Naming Conventions
 
 ### File & Directory Structure
+
 - **React Components**: PascalCase (e.g., `Button.tsx`, `Tabs.tsx`).
 - **TypeScript Modules/Utilities**: kebab-case (e.g., `test-db-connection.ts`, `uuid-v7.ts`).
 - **Prisma Schema Mapping**: Database tables must map to plural, lowercase snake_case names using `@@map` (e.g., `@@map("users")`), while fields should be standard camelCase.
 
 ### Coding Style
+
 - **TypeScript Strict Mode**: Strict type-checking is enabled globally. The use of `any` is strictly prohibited unless accompanied by a written, compelling technical justification.
 - **Timestamp Formatting**: All timestamps stored in the database or processed in code must utilize UTC standards.
 

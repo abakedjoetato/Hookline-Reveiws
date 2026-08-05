@@ -9,6 +9,7 @@ This document outlines the core architectural components, boundaries, data flows
 The platform is designed as a TypeScript monorepo to ensure maximum code reusability, consistent dependency versions, and fast build times.
 
 ### Applications (`apps/`)
+
 - **`web` (Port 3000)**: Next.js App Router public portal. Used by listeners to browse live streams, register, upload music to their libraries, and submit tracks to hosts.
 - **`host` (Port 3001)**: Next.js App Router host dashboard. Used by broadcasters to set queues, review incoming submissions, play track audio (the DJ panel), edit priorities, and configure overlays.
 - **`admin` (Port 3002)**: Next.js App Router admin HQ. High-security dashboard for approving hosts, managing user accounts, checking audit trails, and reconciling payouts.
@@ -16,6 +17,7 @@ The platform is designed as a TypeScript monorepo to ensure maximum code reusabi
 - **`worker` (Port 4001)**: Standalone Node.js worker processing heavy asynchronous background tasks (e.g., audio encoding, virus scanning, and payment payouts) via BullMQ queues.
 
 ### Shared Packages (`packages/`)
+
 - **`config`**: Baseline ESLint, Prettier, and strict TSConfig templates.
 - **`types`**: System-wide domain types and state machine enums.
 - **`logger`**: High-performance structured Pino logger supporting correlation request tracing.
@@ -32,6 +34,7 @@ The platform is designed as a TypeScript monorepo to ensure maximum code reusabi
 Standard API interactions utilize strict RESTful patterns combined with highly secure session controls.
 
 ### Authentication Boundary & Session Lifecycle (Opaque Cookies)
+
 To ensure the highest level of security, **TheQueue** utilizes **Opaque Cookie-based Session Validation**:
 
 1. **Session Creation**:
@@ -52,19 +55,25 @@ To ensure the highest level of security, **TheQueue** utilizes **Opaque Cookie-b
 ## 3. Data Systems Boundaries
 
 ### PostgreSQL & Prisma (Source of Truth)
+
 PostgreSQL is the single authoritative source of truth for persistent domain models (Users, Stations, Submissions, Transactions, Sessions, Audit Records).
+
 - All primary keys are **UUIDv7** generated inside the application service layer before write operations.
 - Direct database communication occurs exclusively via the `@platform/database` package loaded on the NestJS API and worker nodes.
 
 ### Redis (Cache & Queue Broker)
+
 Redis is utilized exclusively as a transient performance enhancer:
+
 - **Sessions**: Caching hashed session sessions for instant NestJS auth checks.
 - **BullMQ**: Queue broker managing job metadata and scheduling states.
 - **Rate-limiting**: Storing sliding-window API request counters.
 - Redis is NEVER the primary datastore; any item in Redis is designed to be fully recoverable or reconstructible if Redis is flushed.
 
 ### S3 Object Storage (Media Assets)
+
 Audio uploads and track artworks are stored in private, secure, S3-compatible buckets.
+
 - Standard clients request temporary, time-limited **S3 pre-signed URLs** from the NestJS API to perform direct secure uploads.
 - Clients never receive raw write credentials.
 
@@ -75,12 +84,20 @@ Audio uploads and track artworks are stored in private, secure, S3-compatible bu
 These interfaces are designed as architectural placeholders to be expanded in later development milestones:
 
 ### Real-Time Communication (Socket.IO)
+
 - **Station Live State**: Real-time broadcasts when hosts mark themselves online.
 - **DJ Queue Updates**: Instantly pushing new track submissions to the host’s browser-based DJ control panel.
 - **Live Overlays**: Pushing active song artwork and title changes to the OBS browser-source overlay.
 
-### Payment Integration (Stripe Connect)
-- Standard users submit paid priority submissions through Stripe checkout gateways.
+### Payment Integration (Stripe Connect Only)
+
+- **Stripe Connect Destination Charges**: Stripe is the sole enabled payment and payout provider for our production release. Standard users submit paid priority submissions through Stripe checkout gateways.
 - Broadcasters set custom priority pricing.
-- Stripe Connect is utilized to securely onboarding hosts and distribute earnings, maintaining minor-unit (integer cents) calculations throughout.
+- 85% is immediately allocated to the host's Stripe Connected account balance, and 15% is retained by TheQueue. All Stripe processing and Connect fees are paid from TheQueue's 15% application fee.
+- **No Platform Wallet**: The platform does not maintain a host balance, bank settlement timing scheduler, or payout queue. Stripe Connect handles bank transfers to broadcasters directly.
 - Mock payment structures are strictly forbidden; only sandboxed Stripe webhook endpoints will drive state transitions.
+
+### Broadcaster Station Management & Cardinality
+
+- **Multi-Station Support**: Each HostProfile can own multiple `Station` profiles over time (`1:N` cardinality). Each station belongs to exactly one host.
+- **Station Lifecycle Status**: Stations support lifecycle status (`ACTIVE`, `INACTIVE`, `ARCHIVED`). Archiving a station preserves historical live sessions, queue entries, submissions, payments, and other historical data, enforced via restrictive database foreign key constraints (`onDelete: Restrict`).

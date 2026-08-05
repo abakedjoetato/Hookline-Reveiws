@@ -1,18 +1,29 @@
-import * as React from 'react';
-import { cn } from './utils';
-import { Loader2, AlertCircle, X } from 'lucide-react';
+import * as React from "react";
+import { cn } from "./utils";
+import { Loader2, AlertCircle, X } from "lucide-react";
 
 // ============================================================================
 // 1. Button Component
 // ============================================================================
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'danger' | 'ghost' | 'outline';
-  size?: 'sm' | 'md' | 'lg';
+  variant?: "primary" | "secondary" | "danger" | "ghost" | "outline";
+  size?: "sm" | "md" | "lg";
   isLoading?: boolean;
 }
 
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant = 'primary', size = 'md', isLoading, disabled, children, ...props }, ref) => {
+  (
+    {
+      className,
+      variant = "primary",
+      size = "md",
+      isLoading,
+      disabled,
+      children,
+      ...props
+    },
+    ref,
+  ) => {
     return (
       <button
         ref={ref}
@@ -21,19 +32,24 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
           "inline-flex items-center justify-center rounded-md font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 disabled:pointer-events-none disabled:opacity-50 cursor-pointer",
           // Variant classes
           {
-            "bg-violet-600 text-white hover:bg-violet-700 active:bg-violet-800": variant === 'primary',
-            "bg-zinc-800 text-zinc-100 hover:bg-zinc-700 active:bg-zinc-600": variant === 'secondary',
-            "bg-red-600 text-white hover:bg-red-700 active:bg-red-800": variant === 'danger',
-            "border border-zinc-700 text-zinc-100 hover:bg-zinc-800 active:bg-zinc-700": variant === 'outline',
-            "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100": variant === 'ghost',
+            "bg-violet-600 text-white hover:bg-violet-700 active:bg-violet-800":
+              variant === "primary",
+            "bg-zinc-800 text-zinc-100 hover:bg-zinc-700 active:bg-zinc-600":
+              variant === "secondary",
+            "bg-red-600 text-white hover:bg-red-700 active:bg-red-800":
+              variant === "danger",
+            "border border-zinc-700 text-zinc-100 hover:bg-zinc-800 active:bg-zinc-700":
+              variant === "outline",
+            "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100":
+              variant === "ghost",
           },
           // Size classes
           {
-            "h-8 px-3 text-xs": size === 'sm',
-            "h-10 px-4 text-sm": size === 'md',
-            "h-12 px-6 text-base": size === 'lg',
+            "h-8 px-3 text-xs": size === "sm",
+            "h-10 px-4 text-sm": size === "md",
+            "h-12 px-6 text-base": size === "lg",
           },
-          className
+          className,
         )}
         {...props}
       >
@@ -41,9 +57,9 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         {children}
       </button>
     );
-  }
+  },
 );
-Button.displayName = 'Button';
+Button.displayName = "Button";
 
 // ============================================================================
 // 2. Input Component
@@ -53,7 +69,7 @@ export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> 
 }
 
 export const Input = React.forwardRef<HTMLInputElement, InputProps>(
-  ({ className, type = 'text', error, ...props }, ref) => {
+  ({ className, type = "text", error, ...props }, ref) => {
     return (
       <input
         type={type}
@@ -61,14 +77,14 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
         className={cn(
           "flex h-10 w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus-visible:outline-none focus-visible:border-violet-500 disabled:cursor-not-allowed disabled:opacity-50",
           error && "border-red-500 focus-visible:border-red-500",
-          className
+          className,
         )}
         {...props}
       />
     );
-  }
+  },
 );
-Input.displayName = 'Input';
+Input.displayName = "Input";
 
 // ============================================================================
 // 3. Select Component
@@ -85,16 +101,16 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
         className={cn(
           "flex h-10 w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 focus-visible:outline-none focus-visible:border-violet-500 disabled:cursor-not-allowed disabled:opacity-50 appearance-none",
           error && "border-red-500 focus-visible:border-red-500",
-          className
+          className,
         )}
         {...props}
       >
         {children}
       </select>
     );
-  }
+  },
 );
-Select.displayName = 'Select';
+Select.displayName = "Select";
 
 // ============================================================================
 // 4. Checkbox Component
@@ -109,14 +125,14 @@ export const Checkbox = React.forwardRef<HTMLInputElement, CheckboxProps>(
         ref={ref}
         className={cn(
           "h-4 w-4 rounded border-zinc-700 bg-zinc-950 text-violet-600 focus:ring-violet-500 focus:ring-offset-zinc-950 disabled:opacity-50 cursor-pointer",
-          className
+          className,
         )}
         {...props}
       />
     );
-  }
+  },
 );
-Checkbox.displayName = 'Checkbox';
+Checkbox.displayName = "Checkbox";
 
 // ============================================================================
 // 5. Radio Group Component
@@ -135,11 +151,23 @@ export interface RadioGroupProps {
   className?: string;
 }
 
-export const RadioGroup: React.FC<RadioGroupProps> = ({ name, options, value, onChange, className }) => {
+export const RadioGroup: React.FC<RadioGroupProps> = ({
+  name,
+  options,
+  value,
+  onChange,
+  className,
+}) => {
   return (
     <div className={cn("flex flex-col gap-2", className)}>
       {options.map((opt) => (
-        <label key={opt.value} className={cn("flex items-center gap-2 cursor-pointer text-sm text-zinc-200", opt.disabled && "opacity-50 cursor-not-allowed")}>
+        <label
+          key={opt.value}
+          className={cn(
+            "flex items-center gap-2 cursor-pointer text-sm text-zinc-200",
+            opt.disabled && "opacity-50 cursor-not-allowed",
+          )}
+        >
           <input
             type="radio"
             name={name}
@@ -166,14 +194,22 @@ export interface DialogProps {
   children: React.ReactNode;
 }
 
-export const Dialog: React.FC<DialogProps> = ({ isOpen, onClose, title, children }) => {
+export const Dialog: React.FC<DialogProps> = ({
+  isOpen,
+  onClose,
+  title,
+  children,
+}) => {
   if (!isOpen) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
       <div className="w-full max-w-md rounded-lg border border-zinc-800 bg-zinc-950 p-6 shadow-xl animate-in fade-in zoom-in-95 duration-150">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold text-zinc-50">{title}</h3>
-          <button onClick={onClose} className="p-1 rounded-md text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100 transition-colors">
+          <button
+            onClick={onClose}
+            className="p-1 rounded-md text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100 transition-colors"
+          >
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -191,19 +227,31 @@ export interface DrawerProps {
   onClose: () => void;
   title: string;
   children: React.ReactNode;
-  position?: 'left' | 'right';
+  position?: "left" | "right";
 }
 
-export const Drawer: React.FC<DrawerProps> = ({ isOpen, onClose, title, children, position = 'right' }) => {
+export const Drawer: React.FC<DrawerProps> = ({
+  isOpen,
+  onClose,
+  title,
+  children,
+  position = "right",
+}) => {
   if (!isOpen) return null;
   return (
     <div className="fixed inset-0 z-50 flex bg-black/60 backdrop-blur-sm">
-      <div className={cn("fixed inset-y-0 w-80 bg-zinc-950 border-zinc-800 p-6 flex flex-col shadow-xl transition-transform duration-300",
-        position === 'right' ? "right-0 border-l" : "left-0 border-r"
-      )}>
+      <div
+        className={cn(
+          "fixed inset-y-0 w-80 bg-zinc-950 border-zinc-800 p-6 flex flex-col shadow-xl transition-transform duration-300",
+          position === "right" ? "right-0 border-l" : "left-0 border-r",
+        )}
+      >
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-lg font-semibold text-zinc-50">{title}</h3>
-          <button onClick={onClose} className="p-1 rounded-md text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100 transition-colors">
+          <button
+            onClick={onClose}
+            className="p-1 rounded-md text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100 transition-colors"
+          >
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -216,9 +264,19 @@ export const Drawer: React.FC<DrawerProps> = ({ isOpen, onClose, title, children
 // ============================================================================
 // 8. Card Component
 // ============================================================================
-export const Card: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ className, children, ...props }) => {
+export const Card: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({
+  className,
+  children,
+  ...props
+}) => {
   return (
-    <div className={cn("rounded-lg border border-zinc-800 bg-zinc-950 p-6 shadow-sm", className)} {...props}>
+    <div
+      className={cn(
+        "rounded-lg border border-zinc-800 bg-zinc-950 p-6 shadow-sm",
+        className,
+      )}
+      {...props}
+    >
       {children}
     </div>
   );
@@ -227,54 +285,96 @@ export const Card: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ className
 // ============================================================================
 // 9. Table Components
 // ============================================================================
-export const Table: React.FC<React.TableHTMLAttributes<HTMLTableElement>> = ({ className, children, ...props }) => (
+export const Table: React.FC<React.TableHTMLAttributes<HTMLTableElement>> = ({
+  className,
+  children,
+  ...props
+}) => (
   <div className="w-full overflow-x-auto">
-    <table className={cn("w-full text-left border-collapse text-sm text-zinc-100", className)} {...props}>
+    <table
+      className={cn(
+        "w-full text-left border-collapse text-sm text-zinc-100",
+        className,
+      )}
+      {...props}
+    >
       {children}
     </table>
   </div>
 );
 
-export const TableHeader: React.FC<React.HTMLAttributes<HTMLTableSectionElement>> = ({ className, ...props }) => (
-  <thead className={cn("border-b border-zinc-800 bg-zinc-900/50 text-zinc-400 font-medium", className)} {...props} />
+export const TableHeader: React.FC<
+  React.HTMLAttributes<HTMLTableSectionElement>
+> = ({ className, ...props }) => (
+  <thead
+    className={cn(
+      "border-b border-zinc-800 bg-zinc-900/50 text-zinc-400 font-medium",
+      className,
+    )}
+    {...props}
+  />
 );
 
-export const TableBody: React.FC<React.HTMLAttributes<HTMLTableSectionElement>> = ({ className, ...props }) => (
+export const TableBody: React.FC<
+  React.HTMLAttributes<HTMLTableSectionElement>
+> = ({ className, ...props }) => (
   <tbody className={cn("divide-y divide-zinc-800/60", className)} {...props} />
 );
 
-export const TableRow: React.FC<React.HTMLAttributes<HTMLTableRowElement>> = ({ className, ...props }) => (
-  <tr className={cn("hover:bg-zinc-900/30 transition-colors", className)} {...props} />
+export const TableRow: React.FC<React.HTMLAttributes<HTMLTableRowElement>> = ({
+  className,
+  ...props
+}) => (
+  <tr
+    className={cn("hover:bg-zinc-900/30 transition-colors", className)}
+    {...props}
+  />
 );
 
-export const TableCell: React.FC<React.TdHTMLAttributes<HTMLTableCellElement>> = ({ className, ...props }) => (
+export const TableCell: React.FC<
+  React.TdHTMLAttributes<HTMLTableCellElement>
+> = ({ className, ...props }) => (
   <td className={cn("p-4 align-middle", className)} {...props} />
 );
 
-export const TableHead: React.FC<React.ThHTMLAttributes<HTMLTableCellElement>> = ({ className, ...props }) => (
-  <th className={cn("p-4 align-middle font-semibold text-zinc-300", className)} {...props} />
+export const TableHead: React.FC<
+  React.ThHTMLAttributes<HTMLTableCellElement>
+> = ({ className, ...props }) => (
+  <th
+    className={cn("p-4 align-middle font-semibold text-zinc-300", className)}
+    {...props}
+  />
 );
 
 // ============================================================================
 // 10. Badge Component
 // ============================================================================
 export interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
-  variant?: 'success' | 'warning' | 'danger' | 'info' | 'secondary';
+  variant?: "success" | "warning" | "danger" | "info" | "secondary";
 }
 
-export const Badge: React.FC<BadgeProps> = ({ className, variant = 'info', ...props }) => {
+export const Badge: React.FC<BadgeProps> = ({
+  className,
+  variant = "info",
+  ...props
+}) => {
   return (
     <span
       className={cn(
         "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold",
         {
-          "bg-green-500/10 text-green-400 border border-green-500/20": variant === 'success',
-          "bg-amber-500/10 text-amber-400 border border-amber-500/20": variant === 'warning',
-          "bg-red-500/10 text-red-400 border border-red-500/20": variant === 'danger',
-          "bg-violet-500/10 text-violet-400 border border-violet-500/20": variant === 'info',
-          "bg-zinc-800 text-zinc-300 border border-zinc-700": variant === 'secondary',
+          "bg-green-500/10 text-green-400 border border-green-500/20":
+            variant === "success",
+          "bg-amber-500/10 text-amber-400 border border-amber-500/20":
+            variant === "warning",
+          "bg-red-500/10 text-red-400 border border-red-500/20":
+            variant === "danger",
+          "bg-violet-500/10 text-violet-400 border border-violet-500/20":
+            variant === "info",
+          "bg-zinc-800 text-zinc-300 border border-zinc-700":
+            variant === "secondary",
         },
-        className
+        className,
       )}
       {...props}
     />
@@ -296,7 +396,12 @@ export interface TabsProps {
   className?: string;
 }
 
-export const Tabs: React.FC<TabsProps> = ({ tabs, activeTab, onChange, className }) => {
+export const Tabs: React.FC<TabsProps> = ({
+  tabs,
+  activeTab,
+  onChange,
+  className,
+}) => {
   return (
     <div className={cn("flex border-b border-zinc-800 gap-6", className)}>
       {tabs.map((tab) => (
@@ -305,7 +410,9 @@ export const Tabs: React.FC<TabsProps> = ({ tabs, activeTab, onChange, className
           onClick={() => onChange(tab.id)}
           className={cn(
             "pb-3 text-sm font-medium transition-colors border-b-2 border-transparent hover:text-zinc-100",
-            activeTab === tab.id ? "border-violet-500 text-zinc-100" : "text-zinc-400"
+            activeTab === tab.id
+              ? "border-violet-500 text-zinc-100"
+              : "text-zinc-400",
           )}
         >
           {tab.label}
@@ -339,20 +446,26 @@ export const Tooltip: React.FC<TooltipProps> = ({ content, children }) => {
 // ============================================================================
 export interface ToastProps {
   message: string;
-  type?: 'success' | 'error' | 'info';
+  type?: "success" | "error" | "info";
   onClose?: () => void;
 }
 
-export const Toast: React.FC<ToastProps> = ({ message, type = 'info', onClose }) => {
+export const Toast: React.FC<ToastProps> = ({
+  message,
+  type = "info",
+  onClose,
+}) => {
   return (
-    <div className={cn(
-      "flex items-center justify-between gap-4 p-4 rounded-lg shadow-lg border text-sm max-w-sm animate-in fade-in slide-in-from-bottom-5",
-      {
-        "bg-green-950/80 border-green-800 text-green-200": type === 'success',
-        "bg-red-950/80 border-red-800 text-red-200": type === 'error',
-        "bg-zinc-900/90 border-zinc-800 text-zinc-100": type === 'info',
-      }
-    )}>
+    <div
+      className={cn(
+        "flex items-center justify-between gap-4 p-4 rounded-lg shadow-lg border text-sm max-w-sm animate-in fade-in slide-in-from-bottom-5",
+        {
+          "bg-green-950/80 border-green-800 text-green-200": type === "success",
+          "bg-red-950/80 border-red-800 text-red-200": type === "error",
+          "bg-zinc-900/90 border-zinc-800 text-zinc-100": type === "info",
+        },
+      )}
+    >
       <span>{message}</span>
       {onClose && (
         <button onClick={onClose} className="text-zinc-400 hover:text-zinc-200">
@@ -373,12 +486,21 @@ export interface FormFieldProps {
   className?: string;
 }
 
-export const FormField: React.FC<FormFieldProps> = ({ label, error, children, className }) => {
+export const FormField: React.FC<FormFieldProps> = ({
+  label,
+  error,
+  children,
+  className,
+}) => {
   return (
     <div className={cn("flex flex-col gap-1.5", className)}>
       <label className="text-sm font-medium text-zinc-300">{label}</label>
       {children}
-      {error && <span className="text-xs text-red-500 flex items-center gap-1"><AlertCircle className="h-3 w-3" /> {error}</span>}
+      {error && (
+        <span className="text-xs text-red-500 flex items-center gap-1">
+          <AlertCircle className="h-3 w-3" /> {error}
+        </span>
+      )}
     </div>
   );
 };
@@ -392,7 +514,11 @@ export interface EmptyStateProps {
   action?: React.ReactNode;
 }
 
-export const EmptyState: React.FC<EmptyStateProps> = ({ title, description, action }) => {
+export const EmptyState: React.FC<EmptyStateProps> = ({
+  title,
+  description,
+  action,
+}) => {
   return (
     <div className="flex flex-col items-center justify-center p-8 text-center border border-dashed border-zinc-800 rounded-lg">
       <AlertCircle className="h-8 w-8 text-zinc-500 mb-3" />
@@ -410,7 +536,9 @@ export interface LoadingStateProps {
   message?: string;
 }
 
-export const LoadingState: React.FC<LoadingStateProps> = ({ message = 'Loading...' }) => {
+export const LoadingState: React.FC<LoadingStateProps> = ({
+  message = "Loading...",
+}) => {
   return (
     <div className="flex flex-col items-center justify-center p-12 text-center">
       <Loader2 className="h-8 w-8 text-violet-500 animate-spin mb-3" />
@@ -428,13 +556,21 @@ export interface ErrorStateProps {
   retry?: () => void;
 }
 
-export const ErrorState: React.FC<ErrorStateProps> = ({ title = 'Something went wrong', message, retry }) => {
+export const ErrorState: React.FC<ErrorStateProps> = ({
+  title = "Something went wrong",
+  message,
+  retry,
+}) => {
   return (
     <div className="flex flex-col items-center justify-center p-8 text-center border border-red-500/20 bg-red-500/5 rounded-lg max-w-md mx-auto">
       <AlertCircle className="h-8 w-8 text-red-500 mb-3" />
       <h3 className="text-md font-semibold text-red-400 mb-1">{title}</h3>
       <p className="text-sm text-zinc-300 mb-4">{message}</p>
-      {retry && <Button variant="outline" size="sm" onClick={retry}>Retry</Button>}
+      {retry && (
+        <Button variant="outline" size="sm" onClick={retry}>
+          Retry
+        </Button>
+      )}
     </div>
   );
 };

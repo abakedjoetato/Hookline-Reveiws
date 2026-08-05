@@ -1,4 +1,4 @@
-import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
+import axios, { AxiosInstance, AxiosRequestConfig } from "axios";
 
 export interface ApiClientOptions {
   baseURL?: string;
@@ -10,16 +10,17 @@ export class ApiClient {
   private instance: AxiosInstance;
 
   constructor(options: ApiClientOptions = {}) {
-    const defaultApiUrl = typeof window !== 'undefined'
-      ? '/api/v1'
-      : process.env.API_URL || 'http://localhost:4000/api/v1';
+    const defaultApiUrl =
+      typeof window !== "undefined"
+        ? "/api/v1"
+        : process.env.API_URL || "http://localhost:4000/api/v1";
 
     this.instance = axios.create({
       baseURL: options.baseURL || defaultApiUrl,
       timeout: options.timeout || 10000,
       withCredentials: true,
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
         ...options.headers,
       },
     });
@@ -28,12 +29,12 @@ export class ApiClient {
     this.instance.interceptors.request.use(
       (config) => {
         // If we are in the server environment (e.g. Next.js SSR), we can forward trace headers if they exist
-        if (typeof window === 'undefined') {
+        if (typeof window === "undefined") {
           // Server-side trace context can be fetched or generated if needed
         }
         return config;
       },
-      (error) => Promise.reject(error)
+      (error) => Promise.reject(error),
     );
 
     // Response interceptor for unified error parsing
@@ -41,13 +42,16 @@ export class ApiClient {
       (response) => response,
       (error) => {
         const parsedError = {
-          message: error.response?.data?.message || error.message || 'An unexpected error occurred',
+          message:
+            error.response?.data?.message ||
+            error.message ||
+            "An unexpected error occurred",
           status: error.response?.status || 500,
-          code: error.response?.data?.code || 'INTERNAL_ERROR',
+          code: error.response?.data?.code || "INTERNAL_ERROR",
           details: error.response?.data?.details || null,
         };
         return Promise.reject(parsedError);
-      }
+      },
     );
   }
 
@@ -56,17 +60,29 @@ export class ApiClient {
     return response.data;
   }
 
-  public async post<T>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
+  public async post<T>(
+    url: string,
+    data?: unknown,
+    config?: AxiosRequestConfig,
+  ): Promise<T> {
     const response = await this.instance.post<T>(url, data, config);
     return response.data;
   }
 
-  public async put<T>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
+  public async put<T>(
+    url: string,
+    data?: unknown,
+    config?: AxiosRequestConfig,
+  ): Promise<T> {
     const response = await this.instance.put<T>(url, data, config);
     return response.data;
   }
 
-  public async patch<T>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
+  public async patch<T>(
+    url: string,
+    data?: unknown,
+    config?: AxiosRequestConfig,
+  ): Promise<T> {
     const response = await this.instance.patch<T>(url, data, config);
     return response.data;
   }
@@ -78,11 +94,16 @@ export class ApiClient {
 
   // Health and readiness endpoints access
   public async getHealth(): Promise<{ status: string; timestamp: string }> {
-    return this.get<{ status: string; timestamp: string }>('/health');
+    return this.get<{ status: string; timestamp: string }>("/health");
   }
 
-  public async getReadiness(): Promise<{ status: string; services: Record<string, string> }> {
-    return this.get<{ status: string; services: Record<string, string> }>('/readiness');
+  public async getReadiness(): Promise<{
+    status: string;
+    services: Record<string, string>;
+  }> {
+    return this.get<{ status: string; services: Record<string, string> }>(
+      "/readiness",
+    );
   }
 }
 

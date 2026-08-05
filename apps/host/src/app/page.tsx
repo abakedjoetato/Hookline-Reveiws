@@ -1,6 +1,14 @@
-import * as React from 'react';
-import { Card, Button, Badge } from '@platform/ui';
-import { Radio, Users, Sparkles, Sliders, Play, Settings, DollarSign } from 'lucide-react';
+import * as React from "react";
+import { Card, Button, Badge } from "@platform/ui";
+import {
+  Radio,
+  Users,
+  Sparkles,
+  Sliders,
+  Play,
+  Settings,
+  DollarSign,
+} from "lucide-react";
 
 export default function HostPage() {
   return (
@@ -16,10 +24,15 @@ export default function HostPage() {
               Welcome Back, Stream Host
             </h1>
             <p className="text-zinc-400 max-w-xl leading-relaxed text-sm md:text-base">
-              Set up your live stream overlay, configure submission tiers, open your public queues, and manage submitted tracks with the browser-based DJ panel.
+              Set up your live stream overlay, configure submission tiers, open
+              your public queues, and manage submitted tracks with the
+              browser-based DJ panel.
             </p>
           </div>
-          <Button variant="primary" className="bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white shadow-lg shadow-amber-500/10">
+          <Button
+            variant="primary"
+            className="bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white shadow-lg shadow-amber-500/10"
+          >
             <Radio className="mr-2 h-4 w-4" /> Go Live
           </Button>
         </div>
@@ -32,7 +45,9 @@ export default function HostPage() {
             <Users className="h-6 w-6" />
           </div>
           <div>
-            <span className="text-xs text-zinc-500 font-medium">Queue Status</span>
+            <span className="text-xs text-zinc-500 font-medium">
+              Queue Status
+            </span>
             <h4 className="text-xl font-bold text-zinc-100">0 Tracks</h4>
           </div>
         </Card>
@@ -42,7 +57,9 @@ export default function HostPage() {
             <Sparkles className="h-6 w-6" />
           </div>
           <div>
-            <span className="text-xs text-zinc-500 font-medium">Priority Tier</span>
+            <span className="text-xs text-zinc-500 font-medium">
+              Priority Tier
+            </span>
             <h4 className="text-xl font-bold text-zinc-100">Active</h4>
           </div>
         </Card>
@@ -52,7 +69,9 @@ export default function HostPage() {
             <DollarSign className="h-6 w-6" />
           </div>
           <div>
-            <span className="text-xs text-zinc-500 font-medium">Monthly Revenue</span>
+            <span className="text-xs text-zinc-500 font-medium">
+              Monthly Revenue
+            </span>
             <h4 className="text-xl font-bold text-zinc-100">$0.00</h4>
           </div>
         </Card>
@@ -62,7 +81,9 @@ export default function HostPage() {
             <Play className="h-6 w-6" />
           </div>
           <div>
-            <span className="text-xs text-zinc-500 font-medium">Streaming On</span>
+            <span className="text-xs text-zinc-500 font-medium">
+              Streaming On
+            </span>
             <h4 className="text-xl font-bold text-zinc-100">None</h4>
           </div>
         </Card>
@@ -74,13 +95,21 @@ export default function HostPage() {
           <div className="h-10 w-10 rounded-md bg-amber-600/10 flex items-center justify-center text-amber-500">
             <Sliders className="h-5 w-5" />
           </div>
-          <h3 className="text-xl font-bold text-zinc-100">Station Configuration</h3>
+          <h3 className="text-xl font-bold text-zinc-100">
+            Station Configuration
+          </h3>
           <p className="text-zinc-400 text-sm leading-relaxed">
-            Configure stream branding, submission thresholds, upload formats, free line settings, and priority tier structures. Centralize your overlay browser source settings.
+            Configure stream branding, submission thresholds, upload formats,
+            free line settings, and priority tier structures. Centralize your
+            overlay browser source settings.
           </p>
           <div className="pt-4 flex gap-3">
-            <Button variant="outline" size="sm">Edit Settings</Button>
-            <Button variant="ghost" size="sm">View Live Preview</Button>
+            <Button variant="outline" size="sm">
+              Edit Settings
+            </Button>
+            <Button variant="ghost" size="sm">
+              View Live Preview
+            </Button>
           </div>
         </Card>
 
@@ -88,12 +117,18 @@ export default function HostPage() {
           <div className="h-10 w-10 rounded-md bg-violet-600/10 flex items-center justify-center text-violet-500">
             <Play className="h-5 w-5" />
           </div>
-          <h3 className="text-xl font-bold text-zinc-100">Browser-based DJ Panel</h3>
+          <h3 className="text-xl font-bold text-zinc-100">
+            Browser-based DJ Panel
+          </h3>
           <p className="text-zinc-400 text-sm leading-relaxed">
-            Manage your submissions live. Reorder, skip, play, preview metadata, and monitor host audio directly inside the browser. Feed active stream artwork to overlays.
+            Manage your submissions live. Reorder, skip, play, preview metadata,
+            and monitor host audio directly inside the browser. Feed active
+            stream artwork to overlays.
           </p>
           <div className="pt-4">
-            <Button variant="outline" size="sm" className="w-full">Open DJ Control Panel</Button>
+            <Button variant="outline" size="sm" className="w-full">
+              Open DJ Control Panel
+            </Button>
           </div>
         </Card>
       </section>

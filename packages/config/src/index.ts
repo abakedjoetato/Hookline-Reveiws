@@ -7,7 +7,10 @@ export const APP_PORTS = {
 } as const;
 
 export const COOKIE_NAMES = {
-  session: process.env.NODE_ENV === 'production' ? '__Host-platform_session' : 'platform_session',
+  session:
+    process.env.NODE_ENV === "production"
+      ? "__Host-platform_session"
+      : "platform_session",
 } as const;
 
 export const SESSION_EXPIRY = {

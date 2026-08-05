@@ -1,6 +1,6 @@
-import { AccountStatus } from '@platform/types';
-import * as crypto from 'crypto';
-import * as argon2 from 'argon2';
+import { AccountStatus } from "@platform/types";
+import * as crypto from "crypto";
+import * as argon2 from "argon2";
 
 // 1. Authenticated User interface
 export interface AuthenticatedUser {
@@ -20,7 +20,9 @@ export function isUserAdmin(user: AuthenticatedUser): boolean {
 }
 
 export function isUserHost(user: AuthenticatedUser): boolean {
-  return (user.isHost || user.isAdmin) && user.accountStatus === AccountStatus.ACTIVE;
+  return (
+    (user.isHost || user.isAdmin) && user.accountStatus === AccountStatus.ACTIVE
+  );
 }
 
 export function isUserActive(user: AuthenticatedUser): boolean {
@@ -30,11 +32,11 @@ export function isUserActive(user: AuthenticatedUser): boolean {
 // 3. Cryptographically secure random token generator for sessions/secrets
 // Secure tokens (session tokens, password resets) use secure bytes, NOT UUIDs.
 export function generateSecureToken(bytes = 32): string {
-  return crypto.randomBytes(bytes).toString('hex');
+  return crypto.randomBytes(bytes).toString("hex");
 }
 
 export function hashToken(token: string): string {
-  return crypto.createHash('sha256').update(token).digest('hex');
+  return crypto.createHash("sha256").update(token).digest("hex");
 }
 
 // 4. Argon2 Password Hashing
@@ -48,7 +50,10 @@ export async function hashPassword(password: string): Promise<string> {
   });
 }
 
-export async function verifyPassword(passwordHash: string, passwordAttempt: string): Promise<boolean> {
+export async function verifyPassword(
+  passwordHash: string,
+  passwordAttempt: string,
+): Promise<boolean> {
   try {
     return await argon2.verify(passwordHash, passwordAttempt);
   } catch (err) {
@@ -73,26 +78,30 @@ export interface Session {
 
 // 6. Authentication Error Types
 export class AuthError extends Error {
-  constructor(message: string, public readonly code: string, public readonly status = 401) {
+  constructor(
+    message: string,
+    public readonly code: string,
+    public readonly status = 401,
+  ) {
     super(message);
-    this.name = 'AuthError';
+    this.name = "AuthError";
   }
 }
 
 export class UnauthorizedError extends AuthError {
-  constructor(message = 'Authentication required') {
-    super(message, 'UNAUTHORIZED', 401);
+  constructor(message = "Authentication required") {
+    super(message, "UNAUTHORIZED", 401);
   }
 }
 
 export class ForbiddenError extends AuthError {
-  constructor(message = 'Access denied') {
-    super(message, 'FORBIDDEN', 403);
+  constructor(message = "Access denied") {
+    super(message, "FORBIDDEN", 403);
   }
 }
 
 export class SessionExpiredError extends AuthError {
-  constructor(message = 'Session has expired') {
-    super(message, 'SESSION_EXPIRED', 401);
+  constructor(message = "Session has expired") {
+    super(message, "SESSION_EXPIRED", 401);
   }
 }

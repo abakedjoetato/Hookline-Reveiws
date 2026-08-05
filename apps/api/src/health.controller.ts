@@ -1,35 +1,45 @@
-import { Controller, Get, ServiceUnavailableException, Req } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
-import { testDbConnection } from '@platform/database';
-import Redis from 'ioredis';
+import {
+  Controller,
+  Get,
+  ServiceUnavailableException,
+  Req,
+} from "@nestjs/common";
+import { ApiTags, ApiOperation, ApiResponse } from "@nestjs/swagger";
+import { testDbConnection } from "@platform/database";
+import Redis from "ioredis";
 
-@ApiTags('Health & Diagnostics')
+@ApiTags("Health & Diagnostics")
 @Controller({
-  path: '',
-  version: '1',
+  path: "",
+  version: "1",
 })
 export class HealthController {
-
-  @Get('health')
-  @ApiOperation({ summary: 'Liveness probe' })
-  @ApiResponse({ status: 200, description: 'Service is alive and running' })
+  @Get("health")
+  @ApiOperation({ summary: "Liveness probe" })
+  @ApiResponse({ status: 200, description: "Service is alive and running" })
   getHealth(@Req() req: any) {
     return {
-      status: 'UP',
+      status: "UP",
       timestamp: new Date().toISOString(),
-      requestId: req.requestId || 'mock-request-id',
+      requestId: req.requestId || "mock-request-id",
     };
   }
 
-  @Get('readiness')
-  @ApiOperation({ summary: 'Readiness probe' })
-  @ApiResponse({ status: 200, description: 'Service and all dependencies are fully operational' })
-  @ApiResponse({ status: 503, description: 'One or more required dependencies are offline' })
+  @Get("readiness")
+  @ApiOperation({ summary: "Readiness probe" })
+  @ApiResponse({
+    status: 200,
+    description: "Service and all dependencies are fully operational",
+  })
+  @ApiResponse({
+    status: 503,
+    description: "One or more required dependencies are offline",
+  })
   async getReadiness() {
-    const services: Record<string, 'UP' | 'DOWN'> = {
-      database: 'DOWN',
-      redis: 'DOWN',
-      storage: 'DOWN',
+    const services: Record<string, "UP" | "DOWN"> = {
+      database: "DOWN",
+      redis: "DOWN",
+      storage: "DOWN",
     };
 
     let allHealthy = true;
@@ -38,7 +48,7 @@ export class HealthController {
     try {
       const isDbHealthy = await testDbConnection();
       if (isDbHealthy) {
-        services.database = 'UP';
+        services.database = "UP";
       } else {
         allHealthy = false;
       }
@@ -49,14 +59,14 @@ export class HealthController {
     // 2. Verify Redis Client
     let redisClient: Redis | null = null;
     try {
-      const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
+      const redisUrl = process.env.REDIS_URL || "redis://localhost:6379";
       redisClient = new Redis(redisUrl, {
         maxRetriesPerRequest: 0,
         connectTimeout: 2000,
       });
       const pingResponse = await redisClient.ping();
-      if (pingResponse === 'PONG') {
-        services.redis = 'UP';
+      if (pingResponse === "PONG") {
+        services.redis = "UP";
       } else {
         allHealthy = false;
       }
@@ -78,12 +88,14 @@ export class HealthController {
         process.env.S3_SECRET_KEY
       );
       if (hasS3Config) {
-        services.storage = 'UP';
+        services.storage = "UP";
       } else {
         // Fallback for dev and test environments
-        const isDevOrTest = process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test';
-        services.storage = isDevOrTest ? 'UP' : 'DOWN';
-        if (services.storage === 'DOWN') {
+        const isDevOrTest =
+          process.env.NODE_ENV === "development" ||
+          process.env.NODE_ENV === "test";
+        services.storage = isDevOrTest ? "UP" : "DOWN";
+        if (services.storage === "DOWN") {
           allHealthy = false;
         }
       }
@@ -92,7 +104,7 @@ export class HealthController {
     }
 
     const response = {
-      status: allHealthy ? 'UP' : 'DOWN',
+      status: allHealthy ? "UP" : "DOWN",
       timestamp: new Date().toISOString(),
       services,
     };

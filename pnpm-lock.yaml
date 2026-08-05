@@ -352,9 +352,15 @@ importers:
       '@types/node':
         specifier: ^20.11.0
         version: 20.19.43
+      argon2:
+        specifier: ^0.40.1
+        version: 0.40.3
       prisma:
         specifier: ^5.21.1
         version: 5.22.0
+      tsx:
+        specifier: ^4.19.1
+        version: 4.23.5
       typescript:
         specifier: ^5.6.3
         version: 5.9.3

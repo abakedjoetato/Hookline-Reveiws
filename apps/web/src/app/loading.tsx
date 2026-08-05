@@ -1,5 +1,5 @@
-import * as React from 'react';
-import { LoadingState } from '@platform/ui';
+import * as React from "react";
+import { LoadingState } from "@platform/ui";
 
 export default function LoadingPage() {
   return (

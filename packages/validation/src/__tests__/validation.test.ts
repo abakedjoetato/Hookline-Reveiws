@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { validateApiEnv, validateWorkerEnv, validateFrontendEnv } from '../index';
+import { validateApiEnv, validateWorkerEnv, hostSlugSchema } from '../index';
 
 describe('Central Zod Environment Validation', () => {
   const validApiEnv = {
@@ -14,7 +14,7 @@ describe('Central Zod Environment Validation', () => {
     SMTP_HOST: 'localhost',
     SMTP_PORT: '1025',
     SMTP_FROM: 'noreply@thequeue.com',
-    STRIPE_SECRET_KEY: 'sk_test_key',
+    STRIPE_SECRET_KEY: 'TEST_STRIPE_KEY_PLACEHOLDER',
     STRIPE_WEBHOOK_SECRET: 'whsec_key',
     PORT: '4000',
     CORS_ALLOWED_ORIGINS: 'http://localhost:3000,http://localhost:3001',
@@ -72,6 +72,34 @@ describe('Central Zod Environment Validation', () => {
     it('should fail if Redis connection URL is missing', () => {
       const { REDIS_URL, ...invalidEnv } = validWorkerEnv;
       expect(() => validateWorkerEnv(invalidEnv)).toThrow();
+    });
+  });
+
+  describe('hostSlugSchema', () => {
+    it('should validate a correct non-reserved host slug', () => {
+      const result = hostSlugSchema.safeParse('Emerald');
+      expect(result.success).toBe(true);
+      expect(result.data).toBe('Emerald');
+    });
+
+    it('should block host slugs matching reserved routes case-insensitively', () => {
+      const resultAdminUpper = hostSlugSchema.safeParse('Admin');
+      const resultApiLower = hostSlugSchema.safeParse('api');
+      const resultRegisterMixed = hostSlugSchema.safeParse('rEgIsTeR');
+
+      expect(resultAdminUpper.success).toBe(false);
+      expect(resultApiLower.success).toBe(false);
+      expect(resultRegisterMixed.success).toBe(false);
+    });
+
+    it('should block host slugs that contain invalid characters', () => {
+      const resultInvalidChars = hostSlugSchema.safeParse('Emerald#123');
+      expect(resultInvalidChars.success).toBe(false);
+    });
+
+    it('should block host slugs under minimum length requirements', () => {
+      const resultTooShort = hostSlugSchema.safeParse('em');
+      expect(resultTooShort.success).toBe(false);
     });
   });
 });
