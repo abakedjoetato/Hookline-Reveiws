@@ -238,6 +238,8 @@ export enum AdminPermission {
 export enum MediaJobName {
   EXTRACT_AUDIO_METADATA = "EXTRACT_AUDIO_METADATA",
   PROCESS_ARTWORK = "PROCESS_ARTWORK",
+  DELETE_USER_MEDIA = "DELETE_USER_MEDIA",
+  DELETE_MEDIA_OBJECTS = "DELETE_MEDIA_OBJECTS",
   GENERATE_WAVEFORM = "GENERATE_WAVEFORM",
   TRANSCODE_AUDIO = "TRANSCODE_AUDIO",
   ANALYZE_LOUDNESS = "ANALYZE_LOUDNESS",
@@ -259,6 +261,23 @@ export interface ProcessArtworkPayload {
   ownerUserId: string;
   objectKey: string;
   correlationId?: string;
+}
+
+export interface DeleteUserMediaPayload {
+  ownerUserId: string;
+  correlationId?: string;
+}
+
+export interface DeleteMediaObjectsPayload {
+  objectKeys: string[];
+  correlationId?: string;
+}
+
+export enum StorageStatus {
+  AVAILABLE = "AVAILABLE",
+  DELETION_PENDING = "DELETION_PENDING",
+  DELETED = "DELETED",
+  MISSING = "MISSING",
 }
 
 export interface User {

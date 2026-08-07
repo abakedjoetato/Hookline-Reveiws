@@ -376,6 +376,13 @@ enum ProcessingState {
   FAILED
 }
 
+enum StorageStatus {
+  AVAILABLE
+  DELETION_PENDING
+  DELETED
+  MISSING
+}
+
 enum UploadIntentStatus {
   PENDING
   PROCESSING
@@ -430,6 +437,7 @@ model Track {
   bpm                   Int?
   musicalKey            String?
   isArchived            Boolean             @default(false)
+  lastPlayedAt          DateTime?
   createdAt             DateTime            @default(now())
   updatedAt             DateTime            @updatedAt
   deletedAt             DateTime?
@@ -450,6 +458,7 @@ model Track {
   @@index([artistIdentityId])
   @@index([normalizedSongName])
   @@index([artistIdentityId, normalizedSongName]) // Correct compound index for search
+  @@index([lastPlayedAt])
 }
 
 model TrackMediaVersion {
@@ -467,6 +476,7 @@ model TrackMediaVersion {
   channelCount        Int?
   processingState     ProcessingState @default(UPLOADING)
   processingError     String?         @db.Text
+  storageStatus       StorageStatus   @default(AVAILABLE)
   versionNumber       Int             @default(1)
   isCurrent           Boolean         @default(true)
   sha256Hash          String?
@@ -490,6 +500,7 @@ model TrackArtwork {
   height              Int
   mimeType            String
   isPlaceholder       Boolean   @default(false)
+  storageStatus       StorageStatus @default(AVAILABLE)
   blurHash            String?
   dominantColor       String?   @db.VarChar(7) // Hex code e.g. #FF5733
   createdAt           DateTime  @default(now())
