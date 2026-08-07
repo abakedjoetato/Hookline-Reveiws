@@ -1,3 +1,15 @@
+export enum PermissionOverrideType {
+  GRANT = "GRANT",
+  DENY = "DENY",
+}
+
+export enum Role {
+  USER = "USER",
+  HOST = "HOST",
+  MODERATOR = "MODERATOR",
+  OWNER_ADMIN = "OWNER_ADMIN",
+}
+
 export enum AccountStatus {
   ACTIVE = "ACTIVE",
   PENDING_EMAIL_VERIFICATION = "PENDING_EMAIL_VERIFICATION",
@@ -210,8 +222,6 @@ export interface User {
   email: string;
   username: string;
   displayName: string;
-  isHost: boolean;
-  isAdmin: boolean;
   accountStatus: AccountStatus;
   emailVerified: boolean;
   createdAt: Date;
