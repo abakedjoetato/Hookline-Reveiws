@@ -5,6 +5,8 @@ import {
   MediaJobName,
   ExtractAudioMetadataPayload,
   ProcessArtworkPayload,
+  DeleteMediaObjectsPayload,
+  DeleteUserMediaPayload,
 } from "@platform/types";
 
 export const MEDIA_PROCESSING_QUEUE = "media-processing";
@@ -39,6 +41,32 @@ export class MediaProcessingQueueService {
       backoff: {
         type: "exponential",
         delay: 2000,
+      },
+    });
+  }
+
+  async enqueueDeleteMediaObjects(payload: DeleteMediaObjectsPayload) {
+    const jobId = `${MediaJobName.DELETE_MEDIA_OBJECTS}:${payload.correlationId || Date.now()}`;
+
+    await this.mediaQueue.add(MediaJobName.DELETE_MEDIA_OBJECTS, payload, {
+      jobId,
+      attempts: 3,
+      backoff: {
+        type: "exponential",
+        delay: 5000,
+      },
+    });
+  }
+
+  async enqueueDeleteUserMedia(payload: DeleteUserMediaPayload) {
+    const jobId = `${MediaJobName.DELETE_USER_MEDIA}:${payload.ownerUserId}:${payload.correlationId || Date.now()}`;
+
+    await this.mediaQueue.add(MediaJobName.DELETE_USER_MEDIA, payload, {
+      jobId,
+      attempts: 3,
+      backoff: {
+        type: "exponential",
+        delay: 5000,
       },
     });
   }

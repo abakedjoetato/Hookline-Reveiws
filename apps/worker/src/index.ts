@@ -9,6 +9,7 @@ import { PrismaClient } from "@platform/database";
 import { StorageService } from "./storage.service";
 import { AudioMetadataProcessor } from "./processors/audio-metadata.processor";
 import { ArtworkProcessor } from "./processors/artwork.processor";
+import { MediaDeletionProcessor } from "./processors/media-deletion.processor";
 
 const logger = createLogger("worker");
 
@@ -51,6 +52,7 @@ const audioProcessor = new AudioMetadataProcessor(
   logger,
 );
 const artworkProcessor = new ArtworkProcessor(storageService, prisma, logger);
+const mediaDeletionProcessor = new MediaDeletionProcessor(storageService, prisma, logger);
 
 try {
   // Processor logic for queue jobs
@@ -68,6 +70,14 @@ try {
 
       if (job.name === MediaJobName.PROCESS_ARTWORK) {
         return await artworkProcessor.process(job);
+      }
+
+      if (job.name === MediaJobName.DELETE_MEDIA_OBJECTS) {
+        return await mediaDeletionProcessor.processDeleteMediaObjects(job as any);
+      }
+
+      if (job.name === MediaJobName.DELETE_USER_MEDIA) {
+        return await mediaDeletionProcessor.processDeleteUserMedia(job as any);
       }
 
       if (job.name === "test-job") {
