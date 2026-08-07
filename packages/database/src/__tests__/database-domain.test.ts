@@ -307,7 +307,6 @@ describe("TheQueue - Core Database and Domain Integrity Tests", () => {
       expect(slugHistoryRecord.previousNormalizedSlug).toBe("emeraldstream");
     });
 
-
     it("should persist public queue visibility settings on Station and snapshot them into live session", () => {
       const station = {
         id: "station-1",
@@ -327,7 +326,9 @@ describe("TheQueue - Core Database and Domain Integrity Tests", () => {
         showSongNamePublicly: station.showSongNamePublicly,
       };
 
-      expect(liveSessionSnapshot.publicQueueVisibilityMode).toBe("SHOW_FULL_TRACK_INFORMATION");
+      expect(liveSessionSnapshot.publicQueueVisibilityMode).toBe(
+        "SHOW_FULL_TRACK_INFORMATION",
+      );
       expect(liveSessionSnapshot.showArtistNamePublicly).toBe(false);
     });
 
@@ -345,9 +346,13 @@ describe("TheQueue - Core Database and Domain Integrity Tests", () => {
         { id: "t10", isActive: true },
       ];
 
-      const softDeletedTier = { id: "t11-deleted", isActive: false, deletedAt: new Date() };
+      const softDeletedTier = {
+        id: "t11-deleted",
+        isActive: false,
+        deletedAt: new Date(),
+      };
 
-      const activeTiersCount = tiers.filter(t => t.isActive).length;
+      const activeTiersCount = tiers.filter((t) => t.isActive).length;
       expect(activeTiersCount).toBe(10);
       expect(softDeletedTier.isActive).toBe(false);
     });
@@ -355,8 +360,16 @@ describe("TheQueue - Core Database and Domain Integrity Tests", () => {
     it("should assign globally consistent color slots and ensure Free Line is neutral grey and excluded from paid tier slots", () => {
       const freeLineColor = "FREE_LINE"; // Neutral grey
       const paidTierColors = [
-        "TIER_COLOR_1", "TIER_COLOR_2", "TIER_COLOR_3", "TIER_COLOR_4", "TIER_COLOR_5",
-        "TIER_COLOR_6", "TIER_COLOR_7", "TIER_COLOR_8", "TIER_COLOR_9", "TIER_COLOR_10"
+        "TIER_COLOR_1",
+        "TIER_COLOR_2",
+        "TIER_COLOR_3",
+        "TIER_COLOR_4",
+        "TIER_COLOR_5",
+        "TIER_COLOR_6",
+        "TIER_COLOR_7",
+        "TIER_COLOR_8",
+        "TIER_COLOR_9",
+        "TIER_COLOR_10",
       ];
 
       expect(freeLineColor).not.toContain("TIER_COLOR_");
@@ -423,9 +436,9 @@ describe("TheQueue - Core Database and Domain Integrity Tests", () => {
             legalName: "John Doe",
           },
           payments: [
-            { id: "pay-1", stripeAccountId: "acct_123", amountCents: 500 }
-          ]
-        }
+            { id: "pay-1", stripeAccountId: "acct_123", amountCents: 500 },
+          ],
+        },
       };
 
       const toPublicDto = (entry: typeof privateQueueEntry) => ({
@@ -461,7 +474,7 @@ describe("TheQueue - Core Database and Domain Integrity Tests", () => {
         ALLOCATED_TO_STRIPE: "ALLOCATED_TO_STRIPE",
         REVERSED: "REVERSED",
         REFUNDED: "REFUNDED",
-        DISPUTED: "DISPUTED"
+        DISPUTED: "DISPUTED",
       };
 
       const mockEarning = {
@@ -482,7 +495,7 @@ describe("TheQueue - Core Database and Domain Integrity Tests", () => {
         IN_TRANSIT: "IN_TRANSIT",
         PAID: "PAID",
         FAILED: "FAILED",
-        CANCELLED: "CANCELLED"
+        CANCELLED: "CANCELLED",
       };
 
       const mockSyncPayout = {
@@ -490,7 +503,8 @@ describe("TheQueue - Core Database and Domain Integrity Tests", () => {
         providerPayoutId: "po_stripe_abc123",
         grossPayoutCents: 850,
         status: PayoutStatus.PAID,
-        payoutNote: "Informational read-only status synchronized from Stripe Connect webhook"
+        payoutNote:
+          "Informational read-only status synchronized from Stripe Connect webhook",
       };
 
       expect(mockSyncPayout.status).toBe("PAID");
@@ -503,8 +517,8 @@ describe("TheQueue - Core Database and Domain Integrity Tests", () => {
         hostSlug: "Emerald",
         stations: [
           { id: "station-1", slug: "emerald-gaming", hostId: "host-profile-1" },
-          { id: "station-2", slug: "emerald-music", hostId: "host-profile-1" }
-        ]
+          { id: "station-2", slug: "emerald-music", hostId: "host-profile-1" },
+        ],
       };
 
       expect(mockHostProfile.stations).toHaveLength(2);
@@ -516,21 +530,21 @@ describe("TheQueue - Core Database and Domain Integrity Tests", () => {
       const StationStatus = {
         ACTIVE: "ACTIVE",
         INACTIVE: "INACTIVE",
-        ARCHIVED: "ARCHIVED"
+        ARCHIVED: "ARCHIVED",
       };
 
       const activeStation = {
         id: "st-1",
         status: StationStatus.ACTIVE,
         statusChangedAt: new Date(),
-        archivedAt: null as Date | null
+        archivedAt: null as Date | null,
       };
 
       const archivedStation = {
         id: "st-2",
         status: StationStatus.ARCHIVED,
         statusChangedAt: new Date(),
-        archivedAt: new Date()
+        archivedAt: new Date(),
       };
 
       expect(activeStation.status).toBe("ACTIVE");
@@ -541,11 +555,27 @@ describe("TheQueue - Core Database and Domain Integrity Tests", () => {
 
     it("should verify archiving or deactivating a station does not cascade-delete or alter closed historical sessions, queue history, submissions, or playback records due to restrictive constraints", () => {
       // Station is archived
-      const station = { id: "st-1", status: "ARCHIVED", archivedAt: new Date() };
+      const station = {
+        id: "st-1",
+        status: "ARCHIVED",
+        archivedAt: new Date(),
+      };
 
-      const historicalSession = { id: "live-1", stationId: "st-1", status: "ENDED" };
-      const historicalSubmission = { id: "sub-1", liveSessionId: "live-1", currentQueueStatus: "COMPLETED" };
-      const historicalPayment = { id: "pay-1", submissionId: "sub-1", grossAmountCents: 1000 };
+      const historicalSession = {
+        id: "live-1",
+        stationId: "st-1",
+        status: "ENDED",
+      };
+      const historicalSubmission = {
+        id: "sub-1",
+        liveSessionId: "live-1",
+        currentQueueStatus: "COMPLETED",
+      };
+      const historicalPayment = {
+        id: "pay-1",
+        submissionId: "sub-1",
+        grossAmountCents: 1000,
+      };
 
       // Ensure referential locks hold and everything is perfectly intact
       expect(station.status).toBe("ARCHIVED");

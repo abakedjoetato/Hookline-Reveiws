@@ -1,4 +1,9 @@
-import { AccountStatus, Role, AdminPermission, PermissionOverrideType } from "@platform/types";
+import {
+  AccountStatus,
+  Role,
+  AdminPermission,
+  PermissionOverrideType,
+} from "@platform/types";
 import * as crypto from "crypto";
 import * as argon2 from "argon2";
 
@@ -73,7 +78,7 @@ export function resolveUserPermissions(
       ]);
 
       if (!ownerOnlyPerms.has(override.permission)) {
-         effectivePermissions.add(override.permission);
+        effectivePermissions.add(override.permission);
       }
     } else if (override.type === PermissionOverrideType.DENY) {
       effectivePermissions.delete(override.permission);
@@ -86,14 +91,16 @@ export function resolveUserPermissions(
 // 4. Role-checking and permission-checking helpers
 export function isUserAdmin(user: AuthenticatedUser): boolean {
   return (
-    (user.roles.includes(Role.OWNER_ADMIN) || user.roles.includes(Role.MODERATOR)) &&
+    (user.roles.includes(Role.OWNER_ADMIN) ||
+      user.roles.includes(Role.MODERATOR)) &&
     user.accountStatus === AccountStatus.ACTIVE
   );
 }
 
 export function isUserHost(user: AuthenticatedUser): boolean {
   return (
-    user.roles.includes(Role.HOST) && user.accountStatus === AccountStatus.ACTIVE
+    user.roles.includes(Role.HOST) &&
+    user.accountStatus === AccountStatus.ACTIVE
   );
 }
 
@@ -101,9 +108,14 @@ export function isUserActive(user: AuthenticatedUser): boolean {
   return user.accountStatus === AccountStatus.ACTIVE;
 }
 
-export function hasPermission(user: AuthenticatedUser, permission: AdminPermission): boolean {
+export function hasPermission(
+  user: AuthenticatedUser,
+  permission: AdminPermission,
+): boolean {
   if (!isUserActive(user)) return false;
-  return user.permissions.has(permission) || user.roles.includes(Role.OWNER_ADMIN);
+  return (
+    user.permissions.has(permission) || user.roles.includes(Role.OWNER_ADMIN)
+  );
 }
 
 // 3. Cryptographically secure random token generator for sessions/secrets

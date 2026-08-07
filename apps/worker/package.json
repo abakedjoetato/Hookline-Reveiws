@@ -11,21 +11,26 @@
     "lint": "eslint ."
   },
   "dependencies": {
-    "bullmq": "^5.14.0",
-    "ioredis": "^5.4.1",
-    "express": "^4.21.1",
+    "@aws-sdk/client-s3": "^3.1105.0",
+    "@aws-sdk/s3-request-presigner": "^3.1105.0",
     "@platform/config": "workspace:*",
-    "@platform/types": "workspace:*",
-    "@platform/logger": "workspace:*",
     "@platform/database": "workspace:*",
-    "@platform/validation": "workspace:*"
+    "@platform/logger": "workspace:*",
+    "@platform/types": "workspace:*",
+    "@platform/validation": "workspace:*",
+    "bullmq": "^5.14.0",
+    "express": "^4.21.1",
+    "ioredis": "^5.4.1",
+    "music-metadata": "^11.14.0",
+    "pino": "^9.14.0",
+    "sharp": "^0.35.3"
   },
   "devDependencies": {
-    "typescript": "^5.6.3",
-    "@types/node": "^20.11.0",
     "@types/express": "^5.0.0",
-    "tsx": "^4.19.1",
+    "@types/node": "^20.11.0",
+    "@types/supertest": "^6.0.2",
     "supertest": "^7.0.0",
-    "@types/supertest": "^6.0.2"
+    "tsx": "^4.19.1",
+    "typescript": "^5.6.3"
   }
 }

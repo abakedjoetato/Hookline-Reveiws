@@ -1,4 +1,9 @@
-import { Injectable, CanActivate, ExecutionContext, UnauthorizedException } from "@nestjs/common";
+import {
+  Injectable,
+  CanActivate,
+  ExecutionContext,
+  UnauthorizedException,
+} from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { IS_PUBLIC_KEY } from "../decorators/auth.decorators";
 import { CookieService } from "../services/cookie.service";
@@ -39,7 +44,10 @@ export class SessionGuard implements CanActivate {
     } catch (error) {
       // Clear cookie if session is invalid to reset client state securely
       const response = context.switchToHttp().getResponse();
-      response.setHeader("Set-Cookie", this.cookieService.createClearSessionCookie());
+      response.setHeader(
+        "Set-Cookie",
+        this.cookieService.createClearSessionCookie(),
+      );
       throw new UnauthorizedException("Session invalid or expired");
     }
   }

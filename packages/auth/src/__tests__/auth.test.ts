@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { AccountStatus, Role, AdminPermission, PermissionOverrideType } from "@platform/types";
+import {
+  AccountStatus,
+  Role,
+  AdminPermission,
+  PermissionOverrideType,
+} from "@platform/types";
 import {
   isUserAdmin,
   isUserHost,
@@ -87,34 +92,54 @@ describe("Authentication & Authorization Abstraction", () => {
     });
 
     it("should apply explicit grants to USER", () => {
-      const perms = resolveUserPermissions([Role.USER], [{
-        permission: AdminPermission.CONTENT_MODERATE,
-        type: PermissionOverrideType.GRANT
-      }]);
+      const perms = resolveUserPermissions(
+        [Role.USER],
+        [
+          {
+            permission: AdminPermission.CONTENT_MODERATE,
+            type: PermissionOverrideType.GRANT,
+          },
+        ],
+      );
       expect(perms.has(AdminPermission.CONTENT_MODERATE)).toBe(true);
     });
 
     it("should block granting OWNER_ADMIN permissions directly to non-admins", () => {
-      const perms = resolveUserPermissions([Role.USER], [{
-        permission: AdminPermission.ADMIN_PLATFORM_FULL,
-        type: PermissionOverrideType.GRANT
-      }]);
+      const perms = resolveUserPermissions(
+        [Role.USER],
+        [
+          {
+            permission: AdminPermission.ADMIN_PLATFORM_FULL,
+            type: PermissionOverrideType.GRANT,
+          },
+        ],
+      );
       expect(perms.has(AdminPermission.ADMIN_PLATFORM_FULL)).toBe(false);
     });
 
     it("should respect DENY overrides", () => {
-      const perms = resolveUserPermissions([Role.MODERATOR], [{
-        permission: AdminPermission.CONTENT_MODERATE,
-        type: PermissionOverrideType.DENY
-      }]);
+      const perms = resolveUserPermissions(
+        [Role.MODERATOR],
+        [
+          {
+            permission: AdminPermission.CONTENT_MODERATE,
+            type: PermissionOverrideType.DENY,
+          },
+        ],
+      );
       expect(perms.has(AdminPermission.CONTENT_MODERATE)).toBe(false);
     });
 
     it("should ignore DENY overrides for OWNER_ADMIN", () => {
-      const perms = resolveUserPermissions([Role.OWNER_ADMIN], [{
-        permission: AdminPermission.CONTENT_MODERATE,
-        type: PermissionOverrideType.DENY
-      }]);
+      const perms = resolveUserPermissions(
+        [Role.OWNER_ADMIN],
+        [
+          {
+            permission: AdminPermission.CONTENT_MODERATE,
+            type: PermissionOverrideType.DENY,
+          },
+        ],
+      );
       expect(perms.has(AdminPermission.CONTENT_MODERATE)).toBe(true);
     });
   });

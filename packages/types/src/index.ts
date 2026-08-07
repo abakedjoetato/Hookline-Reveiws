@@ -169,10 +169,24 @@ export enum PlaybackCapability {
 }
 
 export enum ProcessingState {
+  UPLOADING = "UPLOADING",
+  PROCESSING = "PROCESSING",
+  READY = "READY",
+  FAILED = "FAILED",
+}
+
+export enum UploadIntentStatus {
   PENDING = "PENDING",
   PROCESSING = "PROCESSING",
   COMPLETED = "COMPLETED",
   FAILED = "FAILED",
+  EXPIRED = "EXPIRED",
+  CANCELLED = "CANCELLED",
+}
+
+export enum UploadIntentType {
+  TRACK_AUDIO = "TRACK_AUDIO",
+  TRACK_ARTWORK = "TRACK_ARTWORK",
 }
 
 export enum InvitationStatus {
@@ -215,6 +229,36 @@ export enum AdminPermission {
   DISPUTE_REVIEW = "DISPUTE_REVIEW",
   AUDIT_LOG_VIEW = "AUDIT_LOG_VIEW",
   PLATFORM_SETTINGS_MANAGE = "PLATFORM_SETTINGS_MANAGE",
+}
+
+// ============================================================================
+// Worker Job Contracts
+// ============================================================================
+
+export enum MediaJobName {
+  EXTRACT_AUDIO_METADATA = "EXTRACT_AUDIO_METADATA",
+  PROCESS_ARTWORK = "PROCESS_ARTWORK",
+  GENERATE_WAVEFORM = "GENERATE_WAVEFORM",
+  TRANSCODE_AUDIO = "TRANSCODE_AUDIO",
+  ANALYZE_LOUDNESS = "ANALYZE_LOUDNESS",
+  DETECT_SILENCE = "DETECT_SILENCE",
+  MALWARE_SCAN = "MALWARE_SCAN",
+}
+
+export interface ExtractAudioMetadataPayload {
+  trackId: string;
+  mediaVersionId: string;
+  ownerUserId: string;
+  objectKey: string;
+  correlationId?: string;
+}
+
+export interface ProcessArtworkPayload {
+  trackId: string;
+  artworkId: string;
+  ownerUserId: string;
+  objectKey: string;
+  correlationId?: string;
 }
 
 export interface User {
