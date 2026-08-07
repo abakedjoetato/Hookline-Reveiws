@@ -1,4 +1,9 @@
-import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from "@nestjs/common";
+import {
+  Injectable,
+  CanActivate,
+  ExecutionContext,
+  ForbiddenException,
+} from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { ROLES_KEY, PERMISSIONS_KEY } from "../decorators/auth.decorators";
 import { Role, AdminPermission } from "@platform/types";
@@ -14,10 +19,9 @@ export class AuthorizationGuard implements CanActivate {
       context.getClass(),
     ]);
 
-    const requiredPermissions = this.reflector.getAllAndOverride<AdminPermission[]>(PERMISSIONS_KEY, [
-      context.getHandler(),
-      context.getClass(),
-    ]);
+    const requiredPermissions = this.reflector.getAllAndOverride<
+      AdminPermission[]
+    >(PERMISSIONS_KEY, [context.getHandler(), context.getClass()]);
 
     if (!requiredRoles && !requiredPermissions) {
       return true; // No specific roles or permissions required beyond being authenticated
@@ -40,7 +44,9 @@ export class AuthorizationGuard implements CanActivate {
 
     // Permission check (must have all required permissions)
     if (requiredPermissions && requiredPermissions.length > 0) {
-      const hasAllPermissions = requiredPermissions.every((perm) => hasPermission(user, perm));
+      const hasAllPermissions = requiredPermissions.every((perm) =>
+        hasPermission(user, perm),
+      );
       if (!hasAllPermissions) {
         throw new ForbiddenException("Insufficient permissions");
       }

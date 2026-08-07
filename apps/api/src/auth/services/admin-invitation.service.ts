@@ -1,6 +1,20 @@
-import { Injectable, BadRequestException, ForbiddenException, Inject } from "@nestjs/common";
-import { PrismaClient, generateUuidV7, assertOwnerAdminRetention } from "@platform/database";
-import { Role, AdminPermission, InvitationStatus, AccountStatus } from "@platform/types";
+import {
+  Injectable,
+  BadRequestException,
+  ForbiddenException,
+  Inject,
+} from "@nestjs/common";
+import {
+  PrismaClient,
+  generateUuidV7,
+  assertOwnerAdminRetention,
+} from "@platform/database";
+import {
+  Role,
+  AdminPermission,
+  InvitationStatus,
+  AccountStatus,
+} from "@platform/types";
 import { generateSecureToken, hashToken, hashPassword } from "@platform/auth";
 import { AdminInvitationAcceptInput } from "@platform/validation";
 import { MailDeliveryService } from "../../mail/mail.interface";
@@ -11,10 +25,15 @@ export class AdminInvitationService {
   constructor(
     private readonly prisma: PrismaClient,
     private readonly userRepository: UserRepository,
-    @Inject("MailDeliveryService") private readonly mailService: MailDeliveryService,
+    @Inject("MailDeliveryService")
+    private readonly mailService: MailDeliveryService,
   ) {}
 
-  async createInvitation(creatorUserId: string, targetEmail: string, intendedRole: Role.OWNER_ADMIN | Role.MODERATOR) {
+  async createInvitation(
+    creatorUserId: string,
+    targetEmail: string,
+    intendedRole: Role.OWNER_ADMIN | Role.MODERATOR,
+  ) {
     const rawToken = generateSecureToken();
     const tokenHash = hashToken(rawToken);
 
@@ -29,7 +48,7 @@ export class AdminInvitationService {
         tokenHash,
         expiresAt,
         createdByUserId: creatorUserId,
-      }
+      },
     });
 
     await this.prisma.adminAuditLog.create({
@@ -40,21 +59,27 @@ export class AdminInvitationService {
         targetEntityType: "AdminInvitation",
         targetEntityId: invitation.id,
         reason: `Invited as ${intendedRole}`,
-      }
+      },
     });
 
-    this.mailService.sendAdminInvitation(targetEmail, rawToken, intendedRole).catch(() => {});
+    this.mailService
+      .sendAdminInvitation(targetEmail, rawToken, intendedRole)
+      .catch(() => {});
     return { success: true };
   }
 
-  async acceptInvitation(input: AdminInvitationAcceptInput, ipAddress: string, existingUserId?: string) {
+  async acceptInvitation(
+    input: AdminInvitationAcceptInput,
+    ipAddress: string,
+    existingUserId?: string,
+  ) {
     const tokenHash = hashToken(input.token);
 
     // We run the whole acceptance in a transaction
     await this.prisma.$transaction(async (tx: any) => {
       const invitation = await tx.adminInvitation.findUnique({
         where: { tokenHash },
-        include: { creator: true }
+        include: { creator: true },
       });
 
       if (!invitation) {
@@ -68,7 +93,7 @@ export class AdminInvitationService {
       if (invitation.expiresAt < new Date()) {
         await tx.adminInvitation.update({
           where: { id: invitation.id },
-          data: { status: InvitationStatus.EXPIRED }
+          data: { status: InvitationStatus.EXPIRED },
         });
         throw new BadRequestException("Invitation has expired");
       }
@@ -77,8 +102,15 @@ export class AdminInvitationService {
 
       // New user flow
       if (!targetUserId) {
-        if (!input.email || !input.username || !input.password || !input.displayName) {
-          throw new BadRequestException("Full registration details are required for new users accepting invitations");
+        if (
+          !input.email ||
+          !input.username ||
+          !input.password ||
+          !input.displayName
+        ) {
+          throw new BadRequestException(
+            "Full registration details are required for new users accepting invitations",
+          );
         }
 
         const normalizedEmail = input.email.toLowerCase().trim();
@@ -86,9 +118,13 @@ export class AdminInvitationService {
           throw new BadRequestException("Email must match the invited address");
         }
 
-        const existingAccount = await tx.user.findUnique({ where: { normalizedEmail } });
+        const existingAccount = await tx.user.findUnique({
+          where: { normalizedEmail },
+        });
         if (existingAccount) {
-          throw new BadRequestException("Account with this email already exists. Please login and accept the invitation.");
+          throw new BadRequestException(
+            "Account with this email already exists. Please login and accept the invitation.",
+          );
         }
 
         const passwordHash = await hashPassword(input.password);
@@ -110,19 +146,23 @@ export class AdminInvitationService {
                 role: Role.USER,
               },
             },
-          }
+          },
         });
 
         targetUserId = newUser.id;
       }
 
       if (!targetUserId) {
-          throw new Error("Target User ID resolution failed.");
+        throw new Error("Target User ID resolution failed.");
       }
 
       // Check if they already have the role
       const existingRole = await tx.userRoleAssignment.findFirst({
-        where: { userId: targetUserId, role: invitation.intendedRole, isActive: true }
+        where: {
+          userId: targetUserId,
+          role: invitation.intendedRole,
+          isActive: true,
+        },
       });
 
       if (!existingRole) {
@@ -131,7 +171,7 @@ export class AdminInvitationService {
             id: generateUuidV7(),
             userId: targetUserId,
             role: invitation.intendedRole,
-          }
+          },
         });
 
         await tx.adminRoleChange.create({
@@ -142,7 +182,7 @@ export class AdminInvitationService {
             previousRole: Role.USER, // Simplified tracking
             newRole: invitation.intendedRole,
             reason: "Accepted administrative invitation",
-          }
+          },
         });
       }
 
@@ -153,7 +193,7 @@ export class AdminInvitationService {
           status: InvitationStatus.ACCEPTED,
           acceptedAt: new Date(),
           invitedUserId: targetUserId,
-        }
+        },
       });
 
       await tx.adminAuditLog.create({
@@ -165,7 +205,7 @@ export class AdminInvitationService {
           targetEntityId: targetUserId,
           reason: "User accepted the invitation",
           ipAddress,
-        }
+        },
       });
     });
   }
@@ -180,18 +220,22 @@ export class AdminInvitationService {
       });
 
       // 2. Count active and usable Owner Administrators
-      const usableOwners = activeOwners.filter((a: any) => a.user.accountStatus === AccountStatus.ACTIVE);
+      const usableOwners = activeOwners.filter(
+        (a: any) => a.user.accountStatus === AccountStatus.ACTIVE,
+      );
 
       // 3. Failsafe: reject mutation if this would leave zero
-      const isTargetUsableOwner = usableOwners.some((a: any) => a.userId === targetUserId);
+      const isTargetUsableOwner = usableOwners.some(
+        (a: any) => a.userId === targetUserId,
+      );
       if (isTargetUsableOwner) {
-          assertOwnerAdminRetention(usableOwners.length); // Throws if length <= 1
+        assertOwnerAdminRetention(usableOwners.length); // Throws if length <= 1
       }
 
       // 4. Apply the role change
       await tx.userRoleAssignment.updateMany({
         where: { userId: targetUserId, role: Role.OWNER_ADMIN, isActive: true },
-        data: { isActive: false, revokedAt: new Date() }
+        data: { isActive: false, revokedAt: new Date() },
       });
 
       // 5. Write history
@@ -203,7 +247,7 @@ export class AdminInvitationService {
           previousRole: Role.OWNER_ADMIN,
           newRole: "REVOKED",
           reason: "Owner Administrator role revoked",
-        }
+        },
       });
 
       // 6. Write Audit log
@@ -215,7 +259,7 @@ export class AdminInvitationService {
           targetEntityType: "User",
           targetEntityId: targetUserId,
           reason: "Owner Administrator role revoked",
-        }
+        },
       });
     });
   }

@@ -56,6 +56,7 @@ model User {
   hostApplications          HostApplication[]
   hostProfile               HostProfile?
   submissions               Submission[]
+  uploadIntents             UploadIntent[]
   freeLineUsage             UserLiveSubmissionUsage[]
   tierReservations          PriorityTierReservation[]
   payments                  Payment[]
@@ -369,10 +370,47 @@ enum PlaybackCapability {
 }
 
 enum ProcessingState {
+  UPLOADING
+  PROCESSING
+  READY
+  FAILED
+}
+
+enum UploadIntentStatus {
   PENDING
   PROCESSING
   COMPLETED
   FAILED
+  EXPIRED
+  CANCELLED
+}
+
+enum UploadIntentType {
+  TRACK_AUDIO
+  TRACK_ARTWORK
+}
+
+model UploadIntent {
+  id              String             @id @db.Uuid
+  userId          String             @db.Uuid
+  trackId         String             @db.Uuid
+  type            UploadIntentType
+  status          UploadIntentStatus @default(PENDING)
+  objectKey       String
+  mimeType        String
+  originalFilename String
+  fileSize        BigInt?
+  expiresAt       DateTime
+  completedAt     DateTime?
+  createdAt       DateTime           @default(now())
+
+  // Relations
+  user            User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  track           Track              @relation(fields: [trackId], references: [id], onDelete: Cascade)
+
+  @@map("upload_intents")
+  @@index([userId])
+  @@index([trackId])
 }
 
 model Track {
@@ -387,8 +425,11 @@ model Track {
   notesForHosts         String?             @db.Text
   sourceType            TrackSourceType
   playbackCapability    PlaybackCapability
-  processingState       ProcessingState     @default(PENDING)
+  processingState       ProcessingState     @default(UPLOADING)
   durationSeconds       Int                 @default(0) // Integer seconds
+  bpm                   Int?
+  musicalKey            String?
+  isArchived            Boolean             @default(false)
   createdAt             DateTime            @default(now())
   updatedAt             DateTime            @updatedAt
   deletedAt             DateTime?
@@ -402,6 +443,7 @@ model Track {
   genres                TrackGenre[]
   credits               TrackCredit[]
   submissions           Submission[]
+  uploadIntents         UploadIntent[]
 
   @@map("tracks")
   @@index([userId])
@@ -411,24 +453,25 @@ model Track {
 }
 
 model TrackMediaVersion {
-  id              String          @id @db.Uuid
-  trackId         String          @db.Uuid
-  originalS3Key   String
-  processedS3Key  String?
-  mimeType        String
-  originalFilename String
-  fileSize        BigInt
-  durationSeconds Int
-  audioCodec      String?
-  bitrateBps      Int?
-  sampleRateHz    Int?
-  channelCount    Int?
-  processingState ProcessingState @default(PENDING)
-  processingError String?         @db.Text
-  versionNumber   Int             @default(1)
-  isCurrent       Boolean         @default(true)
-  contentHash     String?
-  createdAt       DateTime        @default(now())
+  id                  String          @id @db.Uuid
+  trackId             String          @db.Uuid
+  originalObjectKey   String
+  processedObjectKey  String?
+  mimeType            String
+  originalFilename    String
+  fileSize            BigInt
+  durationSeconds     Int
+  audioCodec          String?
+  bitrateBps          Int?
+  sampleRateHz        Int?
+  channelCount        Int?
+  processingState     ProcessingState @default(UPLOADING)
+  processingError     String?         @db.Text
+  versionNumber       Int             @default(1)
+  isCurrent           Boolean         @default(true)
+  sha256Hash          String?
+  acousticFingerprint String?
+  createdAt           DateTime        @default(now())
 
   // Relations
   track           Track           @relation(fields: [trackId], references: [id], onDelete: Cascade)
@@ -438,18 +481,18 @@ model TrackMediaVersion {
 }
 
 model TrackArtwork {
-  id              String    @id @db.Uuid
-  trackId         String    @db.Uuid
-  originalS3Key   String
-  masterS3Key     String?
-  thumbnailS3Key  String?
-  width           Int
-  height          Int
-  mimeType        String
-  isPlaceholder   Boolean   @default(false)
-  blurHash        String?
-  dominantColor   String?   @db.VarChar(7) // Hex code e.g. #FF5733
-  createdAt       DateTime  @default(now())
+  id                  String    @id @db.Uuid
+  trackId             String    @db.Uuid
+  originalObjectKey   String
+  masterObjectKey     String?
+  thumbnailObjectKey  String?
+  width               Int
+  height              Int
+  mimeType            String
+  isPlaceholder       Boolean   @default(false)
+  blurHash            String?
+  dominantColor       String?   @db.VarChar(7) // Hex code e.g. #FF5733
+  createdAt           DateTime  @default(now())
 
   // Relations
   track           Track     @relation(fields: [trackId], references: [id], onDelete: Cascade)

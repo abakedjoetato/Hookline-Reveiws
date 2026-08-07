@@ -5,7 +5,12 @@ import { PrismaClient, generateUuidV7 } from "@platform/database";
 export class TokenRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
-  async createEmailVerificationToken(tx: any, email: string, tokenHash: string, expiresAt: Date) {
+  async createEmailVerificationToken(
+    tx: any,
+    email: string,
+    tokenHash: string,
+    expiresAt: Date,
+  ) {
     const client = tx || this.prisma;
     return client.emailVerificationTokenRecord.create({
       data: {
@@ -23,7 +28,12 @@ export class TokenRepository {
     });
   }
 
-  async createPasswordResetToken(tx: any, email: string, tokenHash: string, expiresAt: Date) {
+  async createPasswordResetToken(
+    tx: any,
+    email: string,
+    tokenHash: string,
+    expiresAt: Date,
+  ) {
     const client = tx || this.prisma;
     return client.passwordResetTokenRecord.create({
       data: {

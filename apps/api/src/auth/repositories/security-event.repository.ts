@@ -6,14 +6,17 @@ export class SecurityEventRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
   async logEvent(
-    tx: Omit<PrismaClient, "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends">,
+    tx: Omit<
+      PrismaClient,
+      "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends"
+    >,
     data: {
       userId: string;
       eventType: string;
       ipAddress: string;
       userAgent?: string;
       metadata?: Record<string, unknown>;
-    }
+    },
   ) {
     return tx.userSecurityEvent.create({
       data: {

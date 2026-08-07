@@ -12,11 +12,19 @@ import {
     NodemailerMailDeliveryService,
     {
       provide: "MailDeliveryService",
-      useFactory: (configService: ConfigService, inMemory: InMemoryMailDeliveryService, nodeMailer: NodemailerMailDeliveryService) => {
+      useFactory: (
+        configService: ConfigService,
+        inMemory: InMemoryMailDeliveryService,
+        nodeMailer: NodemailerMailDeliveryService,
+      ) => {
         const isTest = configService.get<string>("NODE_ENV") === "test";
         return isTest ? inMemory : nodeMailer;
       },
-      inject: [ConfigService, InMemoryMailDeliveryService, NodemailerMailDeliveryService],
+      inject: [
+        ConfigService,
+        InMemoryMailDeliveryService,
+        NodemailerMailDeliveryService,
+      ],
     },
   ],
   exports: ["MailDeliveryService", InMemoryMailDeliveryService],

@@ -339,12 +339,17 @@ export const queueBatchOperationSchema = z.object({
   hostUserId: uuidSchema,
   operationType: queueBatchOperationTypeSchema,
   reason: z.string().optional(),
-  selectedEntryCount: z.number().int().positive("Must select at least one entry"),
+  selectedEntryCount: z
+    .number()
+    .int()
+    .positive("Must select at least one entry"),
   requestId: z.string().optional(),
   correlationId: z.string().optional(),
 });
 
-export type QueueBatchOperationInput = z.infer<typeof queueBatchOperationSchema>;
+export type QueueBatchOperationInput = z.infer<
+  typeof queueBatchOperationSchema
+>;
 
 export const queueEventSchema = z.object({
   queueEntryId: uuidSchema,
@@ -390,7 +395,7 @@ export const hostSlugSchema = z
   .max(50, "Host slug cannot exceed 50 characters")
   .regex(
     /^[a-zA-Z0-9_-]+$/,
-    "Host slug can only contain alphanumeric characters, underscores, and hyphens"
+    "Host slug can only contain alphanumeric characters, underscores, and hyphens",
   )
   .refine(
     (val) => {
@@ -399,5 +404,5 @@ export const hostSlugSchema = z
     },
     {
       message: "This slug matches a reserved system route and cannot be used",
-    }
+    },
   );

@@ -12,6 +12,9 @@ import { ThrottlerModule } from "@nestjs/throttler";
 import { ThrottlerStorageRedisService } from "@nest-lab/throttler-storage-redis";
 import Redis from "ioredis";
 import { AuthModule } from "./auth/auth.module";
+import { StorageModule } from "./storage/storage.module";
+import { TracksModule } from "./tracks/tracks.module";
+import { BullModule } from "@nestjs/bullmq";
 
 @Module({
   imports: [
@@ -23,7 +26,8 @@ import { AuthModule } from "./auth/auth.module";
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (config: ConfigService) => {
-        const redisUrl = config.get<string>("REDIS_URL") || "redis://localhost:6379";
+        const redisUrl =
+          config.get<string>("REDIS_URL") || "redis://localhost:6379";
         return {
           throttlers: [
             // Default rate limit: 100 requests per 60 seconds
@@ -33,12 +37,31 @@ import { AuthModule } from "./auth/auth.module";
             },
           ],
           // Store rate limits in Redis
-          storage: new ThrottlerStorageRedisService(new Redis(redisUrl, { maxRetriesPerRequest: 1 })),
+          storage: new ThrottlerStorageRedisService(
+            new Redis(redisUrl, { maxRetriesPerRequest: 1 }),
+          ),
+        };
+      },
+    }),
+    BullModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => {
+        const redisUrl =
+          config.get<string>("REDIS_URL") || "redis://localhost:6379";
+        const url = new URL(redisUrl);
+        return {
+          connection: {
+            host: url.hostname,
+            port: parseInt(url.port, 10),
+          },
         };
       },
     }),
     MailModule,
     AuthModule,
+    StorageModule,
+    TracksModule,
   ],
   controllers: [HealthController],
   providers: [],

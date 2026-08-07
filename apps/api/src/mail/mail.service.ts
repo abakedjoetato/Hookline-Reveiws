@@ -10,8 +10,7 @@ export class NodemailerMailDeliveryService implements MailDeliveryService {
   private readonly fromAddress: string;
 
   constructor(private configService: ConfigService) {
-    this.fromAddress =
-      process.env.SMTP_FROM || "noreply@thequeue.com";
+    this.fromAddress = process.env.SMTP_FROM || "noreply@thequeue.com";
 
     this.transporter = nodemailer.createTransport({
       host: process.env.SMTP_HOST || "localhost",

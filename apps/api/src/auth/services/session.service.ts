@@ -1,9 +1,19 @@
 import { Injectable, UnauthorizedException } from "@nestjs/common";
 import { PrismaClient } from "@platform/database";
-import { generateSecureToken, hashToken, AuthenticatedUser, resolveUserPermissions } from "@platform/auth";
+import {
+  generateSecureToken,
+  hashToken,
+  AuthenticatedUser,
+  resolveUserPermissions,
+} from "@platform/auth";
 import { SessionRepository } from "../repositories/session.repository";
 import { SecurityEventRepository } from "../repositories/security-event.repository";
-import { AccountStatus, Role, AdminPermission, PermissionOverrideType } from "@platform/types";
+import {
+  AccountStatus,
+  Role,
+  AdminPermission,
+  PermissionOverrideType,
+} from "@platform/types";
 import { CookieService } from "./cookie.service";
 
 @Injectable()
@@ -31,8 +41,12 @@ export class SessionService {
     const tokenHash = hashToken(rawToken);
 
     const now = new Date();
-    const idleExpiresAt = new Date(now.getTime() + this.IDLE_EXPIRATION_DAYS * 24 * 60 * 60 * 1000);
-    const absoluteExpiresAt = new Date(now.getTime() + this.ABSOLUTE_EXPIRATION_DAYS * 24 * 60 * 60 * 1000);
+    const idleExpiresAt = new Date(
+      now.getTime() + this.IDLE_EXPIRATION_DAYS * 24 * 60 * 60 * 1000,
+    );
+    const absoluteExpiresAt = new Date(
+      now.getTime() + this.ABSOLUTE_EXPIRATION_DAYS * 24 * 60 * 60 * 1000,
+    );
 
     await this.prisma.$transaction(async (tx: any) => {
       await this.sessionRepository.createSession(tx, {
@@ -74,7 +88,10 @@ export class SessionService {
     }
 
     const user = session.user;
-    if (user.accountStatus !== AccountStatus.ACTIVE && user.accountStatus !== AccountStatus.PENDING_EMAIL_VERIFICATION) {
+    if (
+      user.accountStatus !== AccountStatus.ACTIVE &&
+      user.accountStatus !== AccountStatus.PENDING_EMAIL_VERIFICATION
+    ) {
       throw new UnauthorizedException(`Account is ${user.accountStatus}`);
     }
 
@@ -110,7 +127,7 @@ export class SessionService {
     userId: string,
     ipAddress?: string,
     userAgent?: string,
-    reason: string = "SESSION_ROTATED"
+    reason: string = "SESSION_ROTATED",
   ): Promise<string> {
     const oldTokenHash = hashToken(oldRawToken);
     const session = await this.sessionRepository.findByTokenHash(oldTokenHash);
@@ -137,7 +154,11 @@ export class SessionService {
 
     if (session) {
       await this.prisma.$transaction(async (tx: any) => {
-        await this.sessionRepository.revokeSession(tx, session.id, "USER_LOGOUT");
+        await this.sessionRepository.revokeSession(
+          tx,
+          session.id,
+          "USER_LOGOUT",
+        );
         await this.securityEventRepository.logEvent(tx, {
           userId: session.userId,
           eventType: "LOGOUT",
@@ -151,7 +172,11 @@ export class SessionService {
 
   async revokeAllSessions(userId: string, ipAddress?: string): Promise<string> {
     await this.prisma.$transaction(async (tx: any) => {
-      await this.sessionRepository.revokeAllUserSessions(tx, userId, "USER_LOGOUT_ALL");
+      await this.sessionRepository.revokeAllUserSessions(
+        tx,
+        userId,
+        "USER_LOGOUT_ALL",
+      );
       await this.securityEventRepository.logEvent(tx, {
         userId,
         eventType: "LOGOUT_ALL",

@@ -1,10 +1,13 @@
 # ADR 0026: Maximum Paid Priority Tiers and Globally Fixed Color Slots
 
 ## Status
+
 Accepted
 
 ## Context
+
 Broadcasters need the ability to configure custom paid priority tiers (e.g. VIP, Fast Pass, Skip) for their stations. However, allowing arbitrary styling, glowing borders, or arbitrary hexadecimal colors on public pages can:
+
 - Ruin accessible contrast standards for color-blind or low-vision users.
 - Create visual clutter and inconsistent brand representation across different broadcaster channels.
 - Cause infinite creation of tiers which degrades system lookup performance.
@@ -12,9 +15,11 @@ Broadcasters need the ability to configure custom paid priority tiers (e.g. VIP,
 We need a system that offers host pricing flexibility while maintaining global styling stability and accessibility standards.
 
 ## Decision
+
 We enforce a strict station-wide maximum of 10 active paid priority tiers and map them to globally fixed, consistent color slots.
 
 ### Implementation Details:
+
 1. **Tier Capacity Restrictions**:
    - Every broadcaster station is limited to a maximum of 10 active paid priority tiers.
    - Tiers that are soft-deleted or inactive do not count toward this limit.
@@ -40,6 +45,7 @@ We enforce a strict station-wide maximum of 10 active paid priority tiers and ma
    - Standard screen-reader labels and alt-texts are supported.
 
 ## Consequences
+
 - **Pros**:
   - Consistent visual identity across the entire ecosystem.
   - Guaranteed high-contrast accessibility compliance.

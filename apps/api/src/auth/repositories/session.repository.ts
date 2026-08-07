@@ -6,7 +6,10 @@ export class SessionRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
   async createSession(
-    tx: Omit<PrismaClient, "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends">,
+    tx: Omit<
+      PrismaClient,
+      "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends"
+    >,
     data: {
       userId: string;
       tokenHash: string;
@@ -14,7 +17,7 @@ export class SessionRepository {
       userAgent?: string;
       idleExpiresAt: Date;
       absoluteExpiresAt: Date;
-    }
+    },
   ) {
     return tx.userSession.create({
       data: {
@@ -35,11 +38,11 @@ export class SessionRepository {
       include: {
         user: {
           include: {
-            roleAssignments: { where: { isActive: true } },
-            permissionAssignments: { where: { isActive: true } },
-          }
-        }
-      }
+            roleAssignments: true,
+            permissionAssignments: true,
+          },
+        },
+      },
     });
   }
 
@@ -51,9 +54,12 @@ export class SessionRepository {
   }
 
   async revokeSession(
-    tx: Omit<PrismaClient, "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends">,
+    tx: Omit<
+      PrismaClient,
+      "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends"
+    >,
     sessionId: string,
-    reason: string
+    reason: string,
   ) {
     return tx.userSession.update({
       where: { id: sessionId },
@@ -65,10 +71,13 @@ export class SessionRepository {
   }
 
   async revokeAllUserSessions(
-    tx: Omit<PrismaClient, "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends">,
+    tx: Omit<
+      PrismaClient,
+      "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends"
+    >,
     userId: string,
     reason: string,
-    exceptSessionId?: string
+    exceptSessionId?: string,
   ) {
     return tx.userSession.updateMany({
       where: {

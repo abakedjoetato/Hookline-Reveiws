@@ -1,8 +1,20 @@
 import { Test, TestingModule } from "@nestjs/testing";
-import { INestApplication, VersioningType, ValidationPipe } from "@nestjs/common";
+import {
+  INestApplication,
+  VersioningType,
+  ValidationPipe,
+} from "@nestjs/common";
 import request from "supertest";
 import { AppModule } from "../../app.module";
-import { describe, it, expect, beforeAll, afterAll, vi, beforeEach } from "vitest";
+import {
+  describe,
+  it,
+  expect,
+  beforeAll,
+  afterAll,
+  vi,
+  beforeEach,
+} from "vitest";
 import { PrismaClient } from "@platform/database";
 import { InMemoryMailDeliveryService } from "../../mail/mail.service";
 
@@ -33,7 +45,7 @@ vi.mock("ioredis", () => {
         quit: vi.fn().mockResolvedValue("OK"),
         // Reset helper for tests
         flushall: vi.fn(() => {
-           store = {};
+          store = {};
         }),
       };
     }),
@@ -82,7 +94,7 @@ describe("TheQueue Auth API Integration Flows", () => {
   afterAll(async () => {
     try {
       await prisma.$disconnect();
-    } catch(e) {}
+    } catch (e) {}
     await app.close();
   });
 
@@ -90,19 +102,37 @@ describe("TheQueue Auth API Integration Flows", () => {
     if (!prisma) return;
     try {
       await prisma.$executeRawUnsafe(`TRUNCATE TABLE "user_sessions" CASCADE`);
-      await prisma.$executeRawUnsafe(`TRUNCATE TABLE "authentication_attempts" CASCADE`);
-      await prisma.$executeRawUnsafe(`TRUNCATE TABLE "user_security_events" CASCADE`);
-      await prisma.$executeRawUnsafe(`TRUNCATE TABLE "user_role_assignments" CASCADE`);
-      await prisma.$executeRawUnsafe(`TRUNCATE TABLE "user_permission_assignments" CASCADE`);
-      await prisma.$executeRawUnsafe(`TRUNCATE TABLE "email_verification_token_records" CASCADE`);
-      await prisma.$executeRawUnsafe(`TRUNCATE TABLE "password_reset_token_records" CASCADE`);
-      await prisma.$executeRawUnsafe(`TRUNCATE TABLE "admin_audit_logs" CASCADE`);
-      await prisma.$executeRawUnsafe(`TRUNCATE TABLE "admin_role_changes" CASCADE`);
-      await prisma.$executeRawUnsafe(`TRUNCATE TABLE "admin_invitations" CASCADE`);
+      await prisma.$executeRawUnsafe(
+        `TRUNCATE TABLE "authentication_attempts" CASCADE`,
+      );
+      await prisma.$executeRawUnsafe(
+        `TRUNCATE TABLE "user_security_events" CASCADE`,
+      );
+      await prisma.$executeRawUnsafe(
+        `TRUNCATE TABLE "user_role_assignments" CASCADE`,
+      );
+      await prisma.$executeRawUnsafe(
+        `TRUNCATE TABLE "user_permission_assignments" CASCADE`,
+      );
+      await prisma.$executeRawUnsafe(
+        `TRUNCATE TABLE "email_verification_token_records" CASCADE`,
+      );
+      await prisma.$executeRawUnsafe(
+        `TRUNCATE TABLE "password_reset_token_records" CASCADE`,
+      );
+      await prisma.$executeRawUnsafe(
+        `TRUNCATE TABLE "admin_audit_logs" CASCADE`,
+      );
+      await prisma.$executeRawUnsafe(
+        `TRUNCATE TABLE "admin_role_changes" CASCADE`,
+      );
+      await prisma.$executeRawUnsafe(
+        `TRUNCATE TABLE "admin_invitations" CASCADE`,
+      );
       await prisma.$executeRawUnsafe(`TRUNCATE TABLE "users" CASCADE`);
-    } catch(err) {
-       // Intentionally swallow errors here if the DB hasn't been instantiated correctly
-       // (like in environment setup failures, handled elsewhere)
+    } catch (err) {
+      // Intentionally swallow errors here if the DB hasn't been instantiated correctly
+      // (like in environment setup failures, handled elsewhere)
     }
 
     mailService.clear();
@@ -185,7 +215,9 @@ describe("TheQueue Auth API Integration Flows", () => {
       })
       .expect(201);
 
-    const vToken = mailService.sentEmails.find(e => e.subject.includes("Verify"))?.token;
+    const vToken = mailService.sentEmails.find((e) =>
+      e.subject.includes("Verify"),
+    )?.token;
     await request(app.getHttpServer())
       .post("/api/v1/auth/email-verification/confirm")
       .send({ token: vToken });
@@ -204,7 +236,9 @@ describe("TheQueue Auth API Integration Flows", () => {
       .send({ email: "reset@example.com" })
       .expect(201);
 
-    const resetToken = mailService.sentEmails.find(e => e.subject.includes("Password Reset"))?.token;
+    const resetToken = mailService.sentEmails.find((e) =>
+      e.subject.includes("Password Reset"),
+    )?.token;
 
     // 4. Confirm Reset
     await request(app.getHttpServer())
@@ -227,14 +261,12 @@ describe("TheQueue Auth API Integration Flows", () => {
 
   it("should prevent login for banned accounts", async () => {
     // Setup and verify
-    await request(app.getHttpServer())
-      .post("/api/v1/auth/register")
-      .send({
-        email: "banned@example.com",
-        username: "banneduser",
-        displayName: "Banned User",
-        password: "StrongPassword!123",
-      });
+    await request(app.getHttpServer()).post("/api/v1/auth/register").send({
+      email: "banned@example.com",
+      username: "banneduser",
+      displayName: "Banned User",
+      password: "StrongPassword!123",
+    });
 
     const vToken = mailService.sentEmails[0].token;
     await request(app.getHttpServer())
@@ -242,10 +274,12 @@ describe("TheQueue Auth API Integration Flows", () => {
       .send({ token: vToken });
 
     // Manually ban them
-    const user = await prisma.user.findUnique({ where: { email: "banned@example.com" } });
+    const user = await prisma.user.findUnique({
+      where: { email: "banned@example.com" },
+    });
     await prisma.user.update({
       where: { id: user!.id },
-      data: { accountStatus: "BANNED" }
+      data: { accountStatus: "BANNED" },
     });
 
     // Attempt login

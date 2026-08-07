@@ -26,11 +26,17 @@ export class AdminInvitationController {
 
   @PublicRoute()
   @Post("accept")
-  async acceptInvitation(@Body() input: AdminInvitationAcceptInput, @Req() req: Request) {
+  async acceptInvitation(
+    @Body() input: AdminInvitationAcceptInput,
+    @Req() req: Request,
+  ) {
     const ipAddress = req.ip || req.socket.remoteAddress || "unknown";
 
     // Rate limit invitation acceptance by IP
-    await this.authProtectionService.verifyActionAllowed(`invite_accept_${ipAddress}`, ipAddress);
+    await this.authProtectionService.verifyActionAllowed(
+      `invite_accept_${ipAddress}`,
+      ipAddress,
+    );
 
     // If there's a session token cookie, they are an existing user.
     // In a real app we'd parse the cookie here or use an OptionalAuthGuard.
@@ -39,25 +45,47 @@ export class AdminInvitationController {
     let existingUserId = undefined;
     const user = (req as any).user as AuthenticatedUser;
     if (user) {
-        existingUserId = user.id;
+      existingUserId = user.id;
     }
 
     try {
-        await this.invitationService.acceptInvitation(input, ipAddress, existingUserId);
-        await this.authProtectionService.recordAttempt(`invite_accept_${ipAddress}`, ipAddress, undefined, true);
-        return { success: true, message: "Invitation accepted successfully" };
-    } catch(err) {
-        await this.authProtectionService.recordAttempt(`invite_accept_${ipAddress}`, ipAddress, undefined, false, "Invitation failed");
-        throw err;
+      await this.invitationService.acceptInvitation(
+        input,
+        ipAddress,
+        existingUserId,
+      );
+      await this.authProtectionService.recordAttempt(
+        `invite_accept_${ipAddress}`,
+        ipAddress,
+        undefined,
+        true,
+      );
+      return { success: true, message: "Invitation accepted successfully" };
+    } catch (err) {
+      await this.authProtectionService.recordAttempt(
+        `invite_accept_${ipAddress}`,
+        ipAddress,
+        undefined,
+        false,
+        "Invitation failed",
+      );
+      throw err;
     }
   }
 
   @UseGuards(SessionGuard, AuthorizationGuard)
   @RequiredRoles(Role.OWNER_ADMIN)
   @Post("create")
-  async createInvitation(@Body() body: any, @CurrentUser() user: AuthenticatedUser) {
+  async createInvitation(
+    @Body() body: any,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     const input = createInviteSchema.parse(body);
-    await this.invitationService.createInvitation(user.id, input.email, input.role as any);
+    await this.invitationService.createInvitation(
+      user.id,
+      input.email,
+      input.role as any,
+    );
     return { success: true };
   }
 }

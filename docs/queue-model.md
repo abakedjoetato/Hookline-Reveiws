@@ -66,20 +66,26 @@ This allows deterministic positioning, batch insertions, and reinsertion at the 
 TheQueue provides comprehensive tools for host queue-history management:
 
 ### A. Play Next Transition Lifecycle
+
 When the host executes a "Play Next" action:
+
 1. The currently playing queue entry is finalized (`wasPlayed = true`, `playbackCompleted = true`, and state moves to `COMPLETED`).
 2. The item transitions out of the active queue and is logged into the live session's history as a completed status (`COMPLETED` or `SKIPPED`). No track or queue entry is deleted.
 3. The next eligible queue entry is selected using deterministic sort order and rank, transitioning to `PLAYING`.
 4. Relevant `QueueEvent` records (`PLAY_NEXT_REQUESTED`, `CURRENT_ENTRY_COMPLETED`, `ENTRY_MOVED_TO_HISTORY`, `NEXT_ENTRY_SELECTED`, `PLAYBACK_STARTED`) are logged.
 
 ### B. Moving Selected Entries to History (Batch Actions)
+
 Broadcasters can batch-move multiple items to history:
+
 - Transitioned entries update their state to `MOVED_TO_HISTORY`.
 - A single `QueueBatchOperation` metadata record is created (`MOVE_TO_HISTORY` type) representing the selection.
 - Individual, append-only `QueueEvent` records are logged for each affected entry referencing the batch operation ID for correlation.
 
 ### C. Queue Reinsertion
+
 A previously played, skipped, or removed historical song can be reinserted directly at the top of the active queue:
+
 - **No Duplication**: Reinsertion reuses the same original `Submission`, `QueueEntry`, and `TrackSnapshot`.
 - **History Retention**: Historical events remain fully queryable. The previous completion sequence is preserved while a new `HISTORY_ENTRY_REINSERTED` event is logged.
 - **Top Insertion**: The reinserted entry's `sortOrder` is allocated below the current minimum active sort order (e.g., `Min(sortOrder) - 1.0`), placing it instantly at the top of the queue.
@@ -91,6 +97,7 @@ A previously played, skipped, or removed historical song can be reinserted direc
 To prevent exposing private customer details (like emails, legal names, risk signals, or Stripe indicators) on the public host-facing queue pages, hosts can configure explicit visibility parameters (`Station.publicQueueVisibilityMode`).
 
 The system offers settings like:
+
 - `SHOW_FULL_TRACK_INFORMATION`: Displays artwork, song name, artist name, and priority badges.
 - `SHOW_ARTIST_ONLY`: Omit song titles and artwork, showing artist names and positions only.
 - `SHOW_POSITION_ONLY`: Completely conceals track metadata, showing numbered queue spots only.
@@ -127,6 +134,7 @@ Every single action taken on the queue is logged in the `QueueEvent` table:
 When NestJS services are implemented for queue actions in subsequent milestones, the following transactional safeguards are required to protect data integrity:
 
 ### Play Next Transaction Requirements:
+
 1. **Pessimistic Lock**: Lock the `LiveSession` or station playback state to prevent concurrent modifications.
 2. **Retrieve Current**: Fetch and verify the current playing `QueueEntry`.
 3. **Finalize Playback**: Complete the currently open `PlaybackSession` and set completion metrics.
@@ -136,6 +144,7 @@ When NestJS services are implemented for queue actions in subsequent milestones,
 7. **Write Log**: Write all queue and playback events atomically.
 
 ### Batch Movement Transaction Requirements:
+
 1. **Pessimistic Lock**: Lock all selected active `QueueEntries`.
 2. **Host and Session Validation**: Verify all selected entries belong to the same live session and host.
 3. **Create Batch Record**: Write a `QueueBatchOperation` tracking `MOVE_TO_HISTORY`.
@@ -143,6 +152,7 @@ When NestJS services are implemented for queue actions in subsequent milestones,
 5. **Write Events**: Write an individual `QueueEvent` for every moved entry atomically.
 
 ### Reinsertion Transaction Requirements:
+
 1. **Lock Entry**: Lock the selected historical `QueueEntry`.
 2. **State Validation**: Ensure the entry is currently inactive/historical (e.g., `COMPLETED`, `SKIPPED`, `MOVED_TO_HISTORY`).
 3. **Allocate Order**: Compute the top of the queue sort order (`Min(sortOrder) - 1.0`).

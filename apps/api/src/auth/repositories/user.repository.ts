@@ -1,6 +1,17 @@
 import { Injectable } from "@nestjs/common";
-import { PrismaClient, User, UserRoleAssignment, UserPermissionAssignment, generateUuidV7 } from "@platform/database";
-import { AccountStatus, Role, AdminPermission, PermissionOverrideType } from "@platform/types";
+import {
+  PrismaClient,
+  User,
+  UserRoleAssignment,
+  UserPermissionAssignment,
+  generateUuidV7,
+} from "@platform/database";
+import {
+  AccountStatus,
+  Role,
+  AdminPermission,
+  PermissionOverrideType,
+} from "@platform/types";
 
 @Injectable()
 export class UserRepository {
@@ -11,8 +22,8 @@ export class UserRepository {
     return this.prisma.user.findUnique({
       where: { normalizedEmail },
       include: {
-        roleAssignments: { where: { isActive: true } },
-        permissionAssignments: { where: { isActive: true } },
+        roleAssignments: true,
+        permissionAssignments: true,
       },
     });
   }
@@ -21,8 +32,8 @@ export class UserRepository {
     return this.prisma.user.findUnique({
       where: { id },
       include: {
-        roleAssignments: { where: { isActive: true } },
-        permissionAssignments: { where: { isActive: true } },
+        roleAssignments: true,
+        permissionAssignments: true,
       },
     });
   }
@@ -34,7 +45,7 @@ export class UserRepository {
       username: string;
       displayName: string;
       passwordHash: string;
-    }
+    },
   ) {
     const client = tx || this.prisma;
     return client.user.create({
@@ -57,7 +68,12 @@ export class UserRepository {
     });
   }
 
-  async updateAccountStatus(tx: any, userId: string, status: AccountStatus, emailVerified?: boolean) {
+  async updateAccountStatus(
+    tx: any,
+    userId: string,
+    status: AccountStatus,
+    emailVerified?: boolean,
+  ) {
     const client = tx || this.prisma;
     return client.user.update({
       where: { id: userId },

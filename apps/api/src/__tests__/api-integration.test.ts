@@ -13,10 +13,10 @@ vi.mock("@platform/database", async (importOriginal) => {
     PrismaClient: vi.fn().mockImplementation(() => {
       return {
         authenticationAttempt: {
-          create: vi.fn().mockResolvedValue({ id: "test-id" })
-        }
+          create: vi.fn().mockResolvedValue({ id: "test-id" }),
+        },
       };
-    })
+    }),
   };
 });
 

@@ -1,8 +1,24 @@
-import { Injectable, UnauthorizedException, BadRequestException, Inject } from "@nestjs/common";
+import {
+  Injectable,
+  UnauthorizedException,
+  BadRequestException,
+  Inject,
+} from "@nestjs/common";
 import { PrismaClient } from "@platform/database";
-import { hashPassword, verifyPassword, generateSecureToken, hashToken } from "@platform/auth";
+import {
+  hashPassword,
+  verifyPassword,
+  generateSecureToken,
+  hashToken,
+} from "@platform/auth";
 import { AccountStatus } from "@platform/types";
-import { SignUpInput, LoginInput, PasswordResetRequestInput, PasswordResetConfirmInput, EmailVerificationConfirmInput } from "@platform/validation";
+import {
+  SignUpInput,
+  LoginInput,
+  PasswordResetRequestInput,
+  PasswordResetConfirmInput,
+  EmailVerificationConfirmInput,
+} from "@platform/validation";
 import { UserRepository } from "../repositories/user.repository";
 import { SessionService } from "./session.service";
 import { AuthProtectionService } from "../protection/auth-protection.service";
@@ -19,15 +35,25 @@ export class AuthService {
     private readonly authProtectionService: AuthProtectionService,
     private readonly tokenRepository: TokenRepository,
     private readonly securityEventRepository: SecurityEventRepository,
-    @Inject("MailDeliveryService") private readonly mailService: MailDeliveryService,
+    @Inject("MailDeliveryService")
+    private readonly mailService: MailDeliveryService,
   ) {}
 
   async register(input: SignUpInput, ipAddress: string): Promise<void> {
-    await this.authProtectionService.verifyActionAllowed(input.email, ipAddress);
+    await this.authProtectionService.verifyActionAllowed(
+      input.email,
+      ipAddress,
+    );
 
     const existingUser = await this.userRepository.findByEmail(input.email);
     if (existingUser) {
-      await this.authProtectionService.recordAttempt(input.email, ipAddress, undefined, false, "Registration failed: Email exists");
+      await this.authProtectionService.recordAttempt(
+        input.email,
+        ipAddress,
+        undefined,
+        false,
+        "Registration failed: Email exists",
+      );
       throw new BadRequestException("Email is already registered");
     }
 
@@ -45,7 +71,12 @@ export class AuthService {
       const tokenHash = hashToken(rawVerificationToken);
       const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
-      await this.tokenRepository.createEmailVerificationToken(tx, user.email, tokenHash, expiresAt);
+      await this.tokenRepository.createEmailVerificationToken(
+        tx,
+        user.email,
+        tokenHash,
+        expiresAt,
+      );
 
       await this.securityEventRepository.logEvent(tx, {
         userId: user.id,
@@ -54,36 +85,79 @@ export class AuthService {
       });
 
       // Fire and forget email delivery
-      this.mailService.sendEmailVerification(user.email, rawVerificationToken).catch(() => {});
+      this.mailService
+        .sendEmailVerification(user.email, rawVerificationToken)
+        .catch(() => {});
     });
 
-    await this.authProtectionService.recordAttempt(input.email, ipAddress, undefined, true);
+    await this.authProtectionService.recordAttempt(
+      input.email,
+      ipAddress,
+      undefined,
+      true,
+    );
   }
 
-  async login(input: LoginInput, ipAddress: string, userAgent?: string): Promise<{ cookie: string }> {
-    await this.authProtectionService.verifyActionAllowed(input.email, ipAddress);
+  async login(
+    input: LoginInput,
+    ipAddress: string,
+    userAgent?: string,
+  ): Promise<{ cookie: string }> {
+    await this.authProtectionService.verifyActionAllowed(
+      input.email,
+      ipAddress,
+    );
 
     const user = await this.userRepository.findByEmail(input.email);
 
     if (!user) {
-      await this.authProtectionService.recordAttempt(input.email, ipAddress, userAgent, false, "Login failed: User not found");
+      await this.authProtectionService.recordAttempt(
+        input.email,
+        ipAddress,
+        userAgent,
+        false,
+        "Login failed: User not found",
+      );
       throw new UnauthorizedException("Invalid email or password"); // Neutral message
     }
 
-    const isValidPassword = await verifyPassword(user.passwordHash, input.password);
+    const isValidPassword = await verifyPassword(
+      user.passwordHash,
+      input.password,
+    );
     if (!isValidPassword) {
-      await this.authProtectionService.recordAttempt(input.email, ipAddress, userAgent, false, "Login failed: Invalid password");
+      await this.authProtectionService.recordAttempt(
+        input.email,
+        ipAddress,
+        userAgent,
+        false,
+        "Login failed: Invalid password",
+      );
       throw new UnauthorizedException("Invalid email or password");
     }
 
-    if (user.accountStatus === AccountStatus.BANNED || user.accountStatus === AccountStatus.SUSPENDED || user.accountStatus === AccountStatus.DEACTIVATED || user.accountStatus === AccountStatus.DELETION_PENDING) {
-      await this.authProtectionService.recordAttempt(input.email, ipAddress, userAgent, false, `Login failed: Account ${user.accountStatus}`);
+    if (
+      user.accountStatus === AccountStatus.BANNED ||
+      user.accountStatus === AccountStatus.SUSPENDED ||
+      user.accountStatus === AccountStatus.DEACTIVATED ||
+      user.accountStatus === AccountStatus.DELETION_PENDING
+    ) {
+      await this.authProtectionService.recordAttempt(
+        input.email,
+        ipAddress,
+        userAgent,
+        false,
+        `Login failed: Account ${user.accountStatus}`,
+      );
       throw new UnauthorizedException(`Account is ${user.accountStatus}`);
     }
 
-    if (user.accountStatus === AccountStatus.PENDING_EMAIL_VERIFICATION && !user.emailVerified) {
-        // Enforce verified email restriction if policy demands it.
-        // For now, we allow login but UI restricts features based on accountStatus.
+    if (
+      user.accountStatus === AccountStatus.PENDING_EMAIL_VERIFICATION &&
+      !user.emailVerified
+    ) {
+      // Enforce verified email restriction if policy demands it.
+      // For now, we allow login but UI restricts features based on accountStatus.
     }
 
     await this.prisma.$transaction(async (tx: any) => {
@@ -99,15 +173,28 @@ export class AuthService {
       });
     });
 
-    await this.authProtectionService.recordAttempt(input.email, ipAddress, userAgent, true);
+    await this.authProtectionService.recordAttempt(
+      input.email,
+      ipAddress,
+      userAgent,
+      true,
+    );
 
-    const cookie = await this.sessionService.createSessionCookie(user.id, ipAddress, userAgent);
+    const cookie = await this.sessionService.createSessionCookie(
+      user.id,
+      ipAddress,
+      userAgent,
+    );
     return { cookie };
   }
 
-  async verifyEmail(input: EmailVerificationConfirmInput, ipAddress: string): Promise<void> {
+  async verifyEmail(
+    input: EmailVerificationConfirmInput,
+    ipAddress: string,
+  ): Promise<void> {
     const tokenHash = hashToken(input.token);
-    const record = await this.tokenRepository.findEmailVerificationToken(tokenHash);
+    const record =
+      await this.tokenRepository.findEmailVerificationToken(tokenHash);
 
     if (!record || record.usedAt || record.expiresAt < new Date()) {
       throw new BadRequestException("Invalid or expired verification token");
@@ -121,11 +208,17 @@ export class AuthService {
     await this.prisma.$transaction(async (tx: any) => {
       await this.tokenRepository.markEmailVerificationTokenUsed(tx, record.id);
 
-      const newStatus = user.accountStatus === AccountStatus.PENDING_EMAIL_VERIFICATION
-        ? AccountStatus.ACTIVE
-        : user.accountStatus as AccountStatus;
+      const newStatus =
+        user.accountStatus === AccountStatus.PENDING_EMAIL_VERIFICATION
+          ? AccountStatus.ACTIVE
+          : (user.accountStatus as AccountStatus);
 
-      await this.userRepository.updateAccountStatus(tx, user.id, newStatus, true);
+      await this.userRepository.updateAccountStatus(
+        tx,
+        user.id,
+        newStatus,
+        true,
+      );
 
       await this.securityEventRepository.logEvent(tx, {
         userId: user.id,
@@ -135,8 +228,14 @@ export class AuthService {
     });
   }
 
-  async requestPasswordReset(input: PasswordResetRequestInput, ipAddress: string): Promise<void> {
-    await this.authProtectionService.verifyActionAllowed(input.email, ipAddress);
+  async requestPasswordReset(
+    input: PasswordResetRequestInput,
+    ipAddress: string,
+  ): Promise<void> {
+    await this.authProtectionService.verifyActionAllowed(
+      input.email,
+      ipAddress,
+    );
     const user = await this.userRepository.findByEmail(input.email);
 
     // Always return neutral success to avoid email enumeration
@@ -149,7 +248,12 @@ export class AuthService {
     const expiresAt = new Date(Date.now() + 1 * 60 * 60 * 1000); // 1 hour
 
     await this.prisma.$transaction(async (tx: any) => {
-      await this.tokenRepository.createPasswordResetToken(tx, user.email, tokenHash, expiresAt);
+      await this.tokenRepository.createPasswordResetToken(
+        tx,
+        user.email,
+        tokenHash,
+        expiresAt,
+      );
       await this.securityEventRepository.logEvent(tx, {
         userId: user.id,
         eventType: "PASSWORD_RESET_REQUESTED",
@@ -160,7 +264,10 @@ export class AuthService {
     this.mailService.sendPasswordReset(user.email, rawToken).catch(() => {});
   }
 
-  async confirmPasswordReset(input: PasswordResetConfirmInput, ipAddress: string): Promise<void> {
+  async confirmPasswordReset(
+    input: PasswordResetConfirmInput,
+    ipAddress: string,
+  ): Promise<void> {
     const tokenHash = hashToken(input.token);
     const record = await this.tokenRepository.findPasswordResetToken(tokenHash);
 

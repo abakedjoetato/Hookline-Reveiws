@@ -4,6 +4,11 @@ import express from "express";
 import { createLogger } from "@platform/logger";
 import { APP_PORTS } from "@platform/config";
 import { validateWorkerEnv } from "@platform/validation";
+import { MediaJobName } from "@platform/types";
+import { PrismaClient } from "@platform/database";
+import { StorageService } from "./storage.service";
+import { AudioMetadataProcessor } from "./processors/audio-metadata.processor";
+import { ArtworkProcessor } from "./processors/artwork.processor";
 
 const logger = createLogger("worker");
 
@@ -38,6 +43,15 @@ const QUEUE_NAME = "media-processing";
 let bullmqWorker: Worker | null = null;
 let testQueue: Queue | null = null;
 
+const prisma = new PrismaClient();
+const storageService = new StorageService();
+const audioProcessor = new AudioMetadataProcessor(
+  storageService,
+  prisma,
+  logger,
+);
+const artworkProcessor = new ArtworkProcessor(storageService, prisma, logger);
+
 try {
   // Processor logic for queue jobs
   bullmqWorker = new Worker(
@@ -47,6 +61,14 @@ try {
         jobId: job.id,
         jobName: job.name,
       });
+
+      if (job.name === MediaJobName.EXTRACT_AUDIO_METADATA) {
+        return await audioProcessor.process(job);
+      }
+
+      if (job.name === MediaJobName.PROCESS_ARTWORK) {
+        return await artworkProcessor.process(job);
+      }
 
       if (job.name === "test-job") {
         logger.info("Successfully ran example development test job!", {

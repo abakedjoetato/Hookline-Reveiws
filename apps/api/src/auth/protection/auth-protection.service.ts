@@ -14,11 +14,11 @@ export class AuthProtectionService {
   private readonly MAX_FAILED_ATTEMPTS_PER_IP = 20;
   private readonly LOCKOUT_DURATION_SECONDS = 15 * 60; // 15 minutes
 
-  constructor(
-    private configService: ConfigService,
-  ) {
+  constructor(private configService: ConfigService) {
     const isTest = process.env.NODE_ENV === "test";
-    const redisUrl = process.env[isTest ? "TEST_REDIS_URL" : "REDIS_URL"] || "redis://localhost:6379";
+    const redisUrl =
+      process.env[isTest ? "TEST_REDIS_URL" : "REDIS_URL"] ||
+      "redis://localhost:6379";
     this.redisClient = new Redis(redisUrl, {
       maxRetriesPerRequest: 1, // Don't hang forever if Redis is down
       enableOfflineQueue: false,
@@ -45,16 +45,24 @@ export class AuthProtectionService {
       ]);
 
       if (isEmailLocked || isIpLocked) {
-        this.logger.warn(`Auth action rejected (Lockout) - Email: ${email}, IP: ${ipAddress}`);
+        this.logger.warn(
+          `Auth action rejected (Lockout) - Email: ${email}, IP: ${ipAddress}`,
+        );
         // Return generic 429 for security.
-        throw new HttpException("Too many attempts. Please try again later.", HttpStatus.TOO_MANY_REQUESTS);
+        throw new HttpException(
+          "Too many attempts. Please try again later.",
+          HttpStatus.TOO_MANY_REQUESTS,
+        );
       }
     } catch (error) {
       if (error instanceof HttpException) throw error;
 
       // If Redis fails, we log it but fail safe (allow the request if we can't check lockout).
       // A more strict security posture would deny, but that risks a platform outage if Redis blips.
-      this.logger.error("Failed to check Redis lockout status. Failing safe (allowing).", error);
+      this.logger.error(
+        "Failed to check Redis lockout status. Failing safe (allowing).",
+        error,
+      );
     }
   }
 
@@ -82,7 +90,10 @@ export class AuthProtectionService {
         },
       });
     } catch (error) {
-      this.logger.error("Failed to persist AuthenticationAttempt to database", error);
+      this.logger.error(
+        "Failed to persist AuthenticationAttempt to database",
+        error,
+      );
     }
 
     // 2. Adjust temporary lockouts in Redis
@@ -106,19 +117,39 @@ export class AuthProtectionService {
       ]);
 
       // Set expiry on counters if it's the first increment
-      if (emailFails === 1) await this.redisClient.expire(emailCounterKey, this.LOCKOUT_DURATION_SECONDS);
-      if (ipFails === 1) await this.redisClient.expire(ipCounterKey, this.LOCKOUT_DURATION_SECONDS);
+      if (emailFails === 1)
+        await this.redisClient.expire(
+          emailCounterKey,
+          this.LOCKOUT_DURATION_SECONDS,
+        );
+      if (ipFails === 1)
+        await this.redisClient.expire(
+          ipCounterKey,
+          this.LOCKOUT_DURATION_SECONDS,
+        );
 
       // Trigger lockouts if thresholds exceeded
       const lockActions = [];
       if (emailFails >= this.MAX_FAILED_ATTEMPTS_PER_EMAIL) {
         this.logger.warn(`Triggering lockout for email: ${email}`);
-        lockActions.push(this.redisClient.setex(`auth:lockout:email:${email}`, this.LOCKOUT_DURATION_SECONDS, "1"));
+        lockActions.push(
+          this.redisClient.setex(
+            `auth:lockout:email:${email}`,
+            this.LOCKOUT_DURATION_SECONDS,
+            "1",
+          ),
+        );
       }
 
       if (ipFails >= this.MAX_FAILED_ATTEMPTS_PER_IP) {
         this.logger.warn(`Triggering lockout for IP: ${ipAddress}`);
-        lockActions.push(this.redisClient.setex(`auth:lockout:ip:${ipAddress}`, this.LOCKOUT_DURATION_SECONDS, "1"));
+        lockActions.push(
+          this.redisClient.setex(
+            `auth:lockout:ip:${ipAddress}`,
+            this.LOCKOUT_DURATION_SECONDS,
+            "1",
+          ),
+        );
       }
 
       if (lockActions.length > 0) {
