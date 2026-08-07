@@ -205,6 +205,29 @@ export type PasswordResetConfirmInput = z.infer<
   typeof passwordResetConfirmSchema
 >;
 
+export const emailVerificationConfirmSchema = z.object({
+  token: z.string().min(1, "Verification token is required"),
+});
+
+export type EmailVerificationConfirmInput = z.infer<
+  typeof emailVerificationConfirmSchema
+>;
+
+export const adminInvitationAcceptSchema = z.object({
+  token: z.string().min(1, "Invitation token is required"),
+  // Include standard registration fields since new users might accept invites.
+  // Existing users accepting an invite might not need these, but we can make them optional or handle via logic.
+  // For safety, we can define a base token schema and extend it.
+  email: z.string().email("Invalid email address").optional(),
+  username: signUpSchema.shape.username.optional(),
+  displayName: signUpSchema.shape.displayName.optional(),
+  password: signUpSchema.shape.password.optional(),
+});
+
+export type AdminInvitationAcceptInput = z.infer<
+  typeof adminInvitationAcceptSchema
+>;
+
 // ============================================================================
 // 4. Centralized Production Database-Facing Input Schemas
 // ============================================================================

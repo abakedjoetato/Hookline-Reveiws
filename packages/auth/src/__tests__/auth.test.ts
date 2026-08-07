@@ -1,9 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { AccountStatus } from "@platform/types";
+import { AccountStatus, Role, AdminPermission, PermissionOverrideType } from "@platform/types";
 import {
   isUserAdmin,
   isUserHost,
   isUserActive,
+  resolveUserPermissions,
   generateSecureToken,
   hashToken,
   hashPassword,
@@ -17,24 +18,33 @@ describe("Authentication & Authorization Abstraction", () => {
     email: "user@thequeue.com",
     username: "user_active",
     displayName: "Active Listener",
-    isHost: false,
-    isAdmin: false,
     accountStatus: AccountStatus.ACTIVE,
     emailVerified: true,
+    roles: [Role.USER],
+    permissions: new Set(),
   };
 
   const activeHost: AuthenticatedUser = {
     ...activeUser,
     username: "host_active",
-    isHost: true,
     displayName: "Stream Host",
+    roles: [Role.USER, Role.HOST],
   };
 
   const activeAdmin: AuthenticatedUser = {
     ...activeUser,
     username: "admin_active",
-    isAdmin: true,
     displayName: "Administrator",
+    roles: [Role.USER, Role.OWNER_ADMIN],
+    permissions: new Set(Object.values(AdminPermission)),
+  };
+
+  const activeModerator: AuthenticatedUser = {
+    ...activeUser,
+    username: "moderator_active",
+    displayName: "Moderator",
+    roles: [Role.USER, Role.MODERATOR],
+    permissions: new Set([AdminPermission.CONTENT_MODERATE]),
   };
 
   const suspendedUser: AuthenticatedUser = {
@@ -45,6 +55,7 @@ describe("Authentication & Authorization Abstraction", () => {
   describe("Role-checking helpers", () => {
     it("should correctly identify active administrators", () => {
       expect(isUserAdmin(activeAdmin)).toBe(true);
+      expect(isUserAdmin(activeModerator)).toBe(true);
       expect(isUserAdmin(activeUser)).toBe(false);
       expect(isUserAdmin(activeHost)).toBe(false);
       expect(isUserAdmin(suspendedUser)).toBe(false);
@@ -52,7 +63,6 @@ describe("Authentication & Authorization Abstraction", () => {
 
     it("should correctly identify active hosts", () => {
       expect(isUserHost(activeHost)).toBe(true);
-      expect(isUserHost(activeAdmin)).toBe(true); // Admin overrides host
       expect(isUserHost(activeUser)).toBe(false);
       expect(isUserHost(suspendedUser)).toBe(false);
     });
@@ -60,6 +70,52 @@ describe("Authentication & Authorization Abstraction", () => {
     it("should correctly assert status", () => {
       expect(isUserActive(activeUser)).toBe(true);
       expect(isUserActive(suspendedUser)).toBe(false);
+    });
+  });
+
+  describe("Permission Resolver", () => {
+    it("should grant OWNER_ADMIN all permissions", () => {
+      const perms = resolveUserPermissions([Role.OWNER_ADMIN], []);
+      expect(perms.has(AdminPermission.ADMIN_PLATFORM_FULL)).toBe(true);
+      expect(perms.has(AdminPermission.CONTENT_MODERATE)).toBe(true);
+    });
+
+    it("should grant MODERATOR baseline permissions", () => {
+      const perms = resolveUserPermissions([Role.MODERATOR], []);
+      expect(perms.has(AdminPermission.CONTENT_MODERATE)).toBe(true);
+      expect(perms.has(AdminPermission.ADMIN_PLATFORM_FULL)).toBe(false);
+    });
+
+    it("should apply explicit grants to USER", () => {
+      const perms = resolveUserPermissions([Role.USER], [{
+        permission: AdminPermission.CONTENT_MODERATE,
+        type: PermissionOverrideType.GRANT
+      }]);
+      expect(perms.has(AdminPermission.CONTENT_MODERATE)).toBe(true);
+    });
+
+    it("should block granting OWNER_ADMIN permissions directly to non-admins", () => {
+      const perms = resolveUserPermissions([Role.USER], [{
+        permission: AdminPermission.ADMIN_PLATFORM_FULL,
+        type: PermissionOverrideType.GRANT
+      }]);
+      expect(perms.has(AdminPermission.ADMIN_PLATFORM_FULL)).toBe(false);
+    });
+
+    it("should respect DENY overrides", () => {
+      const perms = resolveUserPermissions([Role.MODERATOR], [{
+        permission: AdminPermission.CONTENT_MODERATE,
+        type: PermissionOverrideType.DENY
+      }]);
+      expect(perms.has(AdminPermission.CONTENT_MODERATE)).toBe(false);
+    });
+
+    it("should ignore DENY overrides for OWNER_ADMIN", () => {
+      const perms = resolveUserPermissions([Role.OWNER_ADMIN], [{
+        permission: AdminPermission.CONTENT_MODERATE,
+        type: PermissionOverrideType.DENY
+      }]);
+      expect(perms.has(AdminPermission.CONTENT_MODERATE)).toBe(true);
     });
   });
 

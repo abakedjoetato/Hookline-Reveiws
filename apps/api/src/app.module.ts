@@ -4,9 +4,14 @@ import {
   MiddlewareConsumer,
   RequestMethod,
 } from "@nestjs/common";
-import { ConfigModule } from "@nestjs/config";
+import { ConfigModule, ConfigService } from "@nestjs/config";
 import { HealthController } from "./health.controller";
 import { createLogger } from "@platform/logger";
+import { MailModule } from "./mail/mail.module";
+import { ThrottlerModule } from "@nestjs/throttler";
+import { ThrottlerStorageRedisService } from "@nest-lab/throttler-storage-redis";
+import Redis from "ioredis";
+import { AuthModule } from "./auth/auth.module";
 
 @Module({
   imports: [
@@ -14,6 +19,26 @@ import { createLogger } from "@platform/logger";
       isGlobal: true,
       envFilePath: ".env",
     }),
+    ThrottlerModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => {
+        const redisUrl = config.get<string>("REDIS_URL") || "redis://localhost:6379";
+        return {
+          throttlers: [
+            // Default rate limit: 100 requests per 60 seconds
+            {
+              ttl: 60,
+              limit: 100,
+            },
+          ],
+          // Store rate limits in Redis
+          storage: new ThrottlerStorageRedisService(new Redis(redisUrl, { maxRetriesPerRequest: 1 })),
+        };
+      },
+    }),
+    MailModule,
+    AuthModule,
   ],
   controllers: [HealthController],
   providers: [],

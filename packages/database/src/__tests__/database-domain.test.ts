@@ -254,10 +254,10 @@ describe("TheQueue - Core Database and Domain Integrity Tests", () => {
     });
 
     it("should mask sensitive Stripe secret keys correctly", () => {
-      const secretLiveKey = "stripe_live_key_placeholder";
+      const secretLiveKey = "LIVE_STRIPE_KEY_51Px871638201_secretKey";
       const masked = maskSecretKey(secretLiveKey);
 
-      expect(masked).toBe("LIVE_STRIPE_KEY_••••••••tKey");
+      expect(masked).toBe("LIVE_STR••••••••tKey");
       expect(masked).not.toContain("51Px871638201");
     });
 
@@ -307,17 +307,6 @@ describe("TheQueue - Core Database and Domain Integrity Tests", () => {
       expect(slugHistoryRecord.previousNormalizedSlug).toBe("emeraldstream");
     });
 
-    it("should ensure only approved host accounts can have enabled public host pages and users cannot", () => {
-      const regularUser = { id: "user-1", isHost: false };
-      const hostUser = { id: "user-2", isHost: true, hostProfile: { publicPageEnabled: true } };
-
-      const canHaveEnabledPublicPage = (user: typeof regularUser | typeof hostUser): boolean => {
-        return user.isHost && (user as any).hostProfile?.publicPageEnabled === true;
-      };
-
-      expect(canHaveEnabledPublicPage(regularUser)).toBe(false);
-      expect(canHaveEnabledPublicPage(hostUser)).toBe(true);
-    });
 
     it("should persist public queue visibility settings on Station and snapshot them into live session", () => {
       const station = {

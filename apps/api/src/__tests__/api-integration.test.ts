@@ -5,9 +5,18 @@ import { AppModule } from "../app.module";
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 
 // 1. Mock Database Connectivity Helper so tests run completely offline and isolated
-vi.mock("@platform/database", () => {
+vi.mock("@platform/database", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@platform/database")>();
   return {
+    ...actual,
     testDbConnection: vi.fn().mockResolvedValue(true),
+    PrismaClient: vi.fn().mockImplementation(() => {
+      return {
+        authenticationAttempt: {
+          create: vi.fn().mockResolvedValue({ id: "test-id" })
+        }
+      };
+    })
   };
 });
 
@@ -18,6 +27,13 @@ vi.mock("ioredis", () => {
       return {
         ping: vi.fn().mockResolvedValue("PONG"),
         disconnect: vi.fn(),
+        on: vi.fn(),
+        get: vi.fn().mockResolvedValue(null),
+        setex: vi.fn().mockResolvedValue("OK"),
+        del: vi.fn().mockResolvedValue(1),
+        incr: vi.fn().mockResolvedValue(1),
+        expire: vi.fn().mockResolvedValue(1),
+        quit: vi.fn().mockResolvedValue("OK"),
       };
     }),
   };
