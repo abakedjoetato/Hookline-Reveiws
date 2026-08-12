@@ -15,6 +15,7 @@ import { AuthModule } from "./auth/auth.module";
 import { StorageModule } from "./storage/storage.module";
 import { TracksModule } from "./tracks/tracks.module";
 import { AdminTracksModule } from "./admin/admin-tracks.module";
+import { LiveSessionsModule } from "./live-sessions/live-sessions.module";
 import { BullModule } from "@nestjs/bullmq";
 
 @Module({
@@ -64,6 +65,7 @@ import { BullModule } from "@nestjs/bullmq";
     StorageModule,
     TracksModule,
     AdminTracksModule,
+    LiveSessionsModule,
   ],
   controllers: [HealthController],
   providers: [],
