@@ -17,53 +17,59 @@ export class LiveSessionsService {
   constructor(private readonly prisma: PrismaClient) {}
 
   async createLiveSession(userId: string, dto: CreateLiveSessionDto) {
-    const hostProfile = await this.prisma.hostProfile.findUnique({
-      where: { userId },
-    });
+    return this.prisma.$transaction(async (tx) => {
+      // 1. Lock the host profile to serialize concurrent creation requests
+      // This guarantees that if two requests arrive simultaneously, one will block
+      // until the other finishes and releases the lock, at which point the second
+      // will see the newly created active session and fail.
+      const lockedHosts = await tx.$queryRaw<any[]>`
+        SELECT id FROM "host_profiles" WHERE "userId" = ${userId}::uuid FOR UPDATE
+      `;
 
-    if (!hostProfile) {
-      throw new ForbiddenException("Only hosts can create live sessions");
-    }
+      if (!lockedHosts.length) {
+        throw new ForbiddenException("Only hosts can create live sessions");
+      }
 
-    const station = await this.prisma.station.findUnique({
-      where: { id: dto.stationId },
-    });
+      const station = await tx.station.findUnique({
+        where: { id: dto.stationId },
+      });
 
-    if (!station || station.hostId !== userId) {
-      throw new ForbiddenException("You do not own this station");
-    }
+      if (!station || station.hostId !== userId) {
+        throw new ForbiddenException("You do not own this station");
+      }
 
-    // Check for an existing active session
-    const activeSession = await this.prisma.liveSession.findFirst({
-      where: {
-        hostId: userId,
-        status: {
-          in: [
-            LiveSessionStatus.SCHEDULED,
-            LiveSessionStatus.PREPARING,
-            LiveSessionStatus.LIVE,
-            LiveSessionStatus.PAUSED,
-          ],
+      // Check for an existing active session AFTER acquiring the lock
+      const activeSession = await tx.liveSession.findFirst({
+        where: {
+          hostId: userId,
+          status: {
+            in: [
+              LiveSessionStatus.SCHEDULED,
+              LiveSessionStatus.PREPARING,
+              LiveSessionStatus.LIVE,
+              LiveSessionStatus.PAUSED,
+            ],
+          },
         },
-      },
-    });
+      });
 
-    if (activeSession) {
-      throw new ConflictException("Host already has an active live session");
-    }
+      if (activeSession) {
+        throw new ConflictException("Host already has an active live session");
+      }
 
-    const id = generateUuidV7();
-    return this.prisma.liveSession.create({
-      data: {
-        id,
-        stationId: dto.stationId,
-        hostId: userId,
-        status: LiveSessionStatus.PREPARING,
-        liveTitle: dto.liveTitle,
-        primaryStreamingPlatform: dto.primaryStreamingPlatform,
-        savedProfileUrlSnapshot: dto.savedProfileUrlSnapshot,
-        queueRevision: 0,
-      },
+      const id = generateUuidV7();
+      return tx.liveSession.create({
+        data: {
+          id,
+          stationId: dto.stationId,
+          hostId: userId,
+          status: LiveSessionStatus.PREPARING,
+          liveTitle: dto.liveTitle,
+          primaryStreamingPlatform: dto.primaryStreamingPlatform,
+          savedProfileUrlSnapshot: dto.savedProfileUrlSnapshot,
+          queueRevision: 0,
+        },
+      });
     });
   }
 
@@ -85,11 +91,16 @@ export class LiveSessionsService {
 
   async startLiveSession(userId: string, id: string, expectedQueueRevision: number) {
     return this.prisma.$transaction(async (tx) => {
-      const session = await tx.liveSession.findUnique({ where: { id } });
+      // 1. Lock the session row to prevent concurrent mutations
+      const lockedSessions = await tx.$queryRaw<any[]>`
+        SELECT id, status, "hostId", "queueRevision" FROM "live_sessions" WHERE id = ${id}::uuid FOR UPDATE
+      `;
 
-      if (!session) {
+      if (!lockedSessions.length) {
         throw new NotFoundException("Live session not found");
       }
+
+      const session = lockedSessions[0];
 
       if (session.hostId !== userId) {
         throw new ForbiddenException("You do not own this live session");
@@ -104,7 +115,7 @@ export class LiveSessionsService {
       }
 
       return tx.liveSession.update({
-        where: { id },
+        where: { id, queueRevision: expectedQueueRevision },
         data: {
           status: LiveSessionStatus.LIVE,
           startedAt: new Date(),
@@ -116,11 +127,15 @@ export class LiveSessionsService {
 
   async pauseLiveSession(userId: string, id: string, expectedQueueRevision: number) {
     return this.prisma.$transaction(async (tx) => {
-      const session = await tx.liveSession.findUnique({ where: { id } });
+      const lockedSessions = await tx.$queryRaw<any[]>`
+        SELECT id, status, "hostId", "queueRevision" FROM "live_sessions" WHERE id = ${id}::uuid FOR UPDATE
+      `;
 
-      if (!session) {
+      if (!lockedSessions.length) {
         throw new NotFoundException("Live session not found");
       }
+
+      const session = lockedSessions[0];
 
       if (session.hostId !== userId) {
         throw new ForbiddenException("You do not own this live session");
@@ -135,7 +150,7 @@ export class LiveSessionsService {
       }
 
       return tx.liveSession.update({
-        where: { id },
+        where: { id, queueRevision: expectedQueueRevision },
         data: {
           status: LiveSessionStatus.PAUSED,
           queueRevision: { increment: 1 },
@@ -146,11 +161,15 @@ export class LiveSessionsService {
 
   async resumeLiveSession(userId: string, id: string, expectedQueueRevision: number) {
     return this.prisma.$transaction(async (tx) => {
-      const session = await tx.liveSession.findUnique({ where: { id } });
+      const lockedSessions = await tx.$queryRaw<any[]>`
+        SELECT id, status, "hostId", "queueRevision" FROM "live_sessions" WHERE id = ${id}::uuid FOR UPDATE
+      `;
 
-      if (!session) {
+      if (!lockedSessions.length) {
         throw new NotFoundException("Live session not found");
       }
+
+      const session = lockedSessions[0];
 
       if (session.hostId !== userId) {
         throw new ForbiddenException("You do not own this live session");
@@ -165,7 +184,7 @@ export class LiveSessionsService {
       }
 
       return tx.liveSession.update({
-        where: { id },
+        where: { id, queueRevision: expectedQueueRevision },
         data: {
           status: LiveSessionStatus.LIVE,
           queueRevision: { increment: 1 },
@@ -176,11 +195,15 @@ export class LiveSessionsService {
 
   async endLiveSession(userId: string, id: string, expectedQueueRevision: number) {
     return this.prisma.$transaction(async (tx) => {
-      const session = await tx.liveSession.findUnique({ where: { id } });
+      const lockedSessions = await tx.$queryRaw<any[]>`
+        SELECT id, status, "hostId", "queueRevision" FROM "live_sessions" WHERE id = ${id}::uuid FOR UPDATE
+      `;
 
-      if (!session) {
+      if (!lockedSessions.length) {
         throw new NotFoundException("Live session not found");
       }
+
+      const session = lockedSessions[0];
 
       if (session.hostId !== userId) {
         throw new ForbiddenException("You do not own this live session");
@@ -190,12 +213,12 @@ export class LiveSessionsService {
         throw new ConflictException("Stale queue revision");
       }
 
-      if (![LiveSessionStatus.PREPARING, LiveSessionStatus.LIVE, LiveSessionStatus.PAUSED].includes(session.status as any)) {
+      if (![LiveSessionStatus.PREPARING, LiveSessionStatus.LIVE, LiveSessionStatus.PAUSED].includes(session.status)) {
         throw new BadRequestException("Invalid lifecycle transition. Session cannot be ended from its current state.");
       }
 
       return tx.liveSession.update({
-        where: { id },
+        where: { id, queueRevision: expectedQueueRevision },
         data: {
           status: LiveSessionStatus.ENDED,
           endedAt: new Date(),
@@ -207,11 +230,15 @@ export class LiveSessionsService {
 
   async addQueueEntry(userId: string, id: string, dto: AddQueueEntryDto): Promise<any> {
     return this.prisma.$transaction(async (tx) => {
-      const session = await tx.liveSession.findUnique({ where: { id } });
+      const lockedSessions = await tx.$queryRaw<any[]>`
+        SELECT id, status, "hostId", "queueRevision" FROM "live_sessions" WHERE id = ${id}::uuid FOR UPDATE
+      `;
 
-      if (!session) {
+      if (!lockedSessions.length) {
         throw new NotFoundException("Live session not found");
       }
+
+      const session = lockedSessions[0];
 
       if (session.hostId !== userId) {
         throw new ForbiddenException("You do not own this live session");
@@ -259,9 +286,9 @@ export class LiveSessionsService {
         },
       });
 
-      // Update session queueRevision
+      // Update session queueRevision atomically using where constraints
       await tx.liveSession.update({
-        where: { id },
+        where: { id, queueRevision: dto.expectedQueueRevision },
         data: { queueRevision: { increment: 1 } },
       });
 
