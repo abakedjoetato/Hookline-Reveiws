@@ -8,10 +8,12 @@ import {
   Req,
 } from "@nestjs/common";
 import { LiveSessionsService } from "./live-sessions.service";
+import { QueueOrderingService } from "./queue-ordering.service";
 import {
   CreateLiveSessionDto,
   ExpectedQueueRevisionDto,
   AddQueueEntryDto,
+  ReorderQueueEntryDto,
 } from "./dto/live-session.dto";
 import { SessionGuard } from "../auth/guards/session.guard";
 import { RequestWithUser } from "../auth/interfaces/request-with-user.interface";
@@ -19,7 +21,10 @@ import { RequestWithUser } from "../auth/interfaces/request-with-user.interface"
 @Controller("live-sessions")
 @UseGuards(SessionGuard)
 export class LiveSessionsController {
-  constructor(private readonly liveSessionsService: LiveSessionsService) {}
+  constructor(
+    private readonly liveSessionsService: LiveSessionsService,
+    private readonly queueOrderingService: QueueOrderingService
+  ) {}
 
   @Post()
   async create(
@@ -82,5 +87,15 @@ export class LiveSessionsController {
   @Get(":id/queue")
   async getQueue(@Req() req: RequestWithUser, @Param("id") id: string) {
     return this.liveSessionsService.getQueue(req.user.id, id);
+  }
+
+  @Post(":id/queue/entries/:entryId/reorder")
+  async reorderQueueEntry(
+    @Req() req: RequestWithUser,
+    @Param("id") id: string,
+    @Param("entryId") entryId: string,
+    @Body() dto: ReorderQueueEntryDto,
+  ) {
+    return this.queueOrderingService.reorderEntry(req.user.id, id, entryId, dto);
   }
 }

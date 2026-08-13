@@ -44,6 +44,8 @@ describe("LiveSessionsService", () => {
       const mockStationId = generateUuidV7();
 
       const prismaMock = {
+        $transaction: vi.fn().mockImplementation(async (cb) => cb(prismaMock)),
+        $queryRaw: vi.fn().mockResolvedValue([{ id: "hostId" }]),
         hostProfile: { findUnique: vi.fn().mockResolvedValue({ userId: mockHostId }) },
         station: { findUnique: vi.fn().mockResolvedValue({ id: mockStationId, hostId: mockHostId }) },
         liveSession: {
@@ -67,6 +69,8 @@ describe("LiveSessionsService", () => {
 
     it("should throw ForbiddenException if user is not a host", async () => {
       const prismaMock = {
+        $transaction: vi.fn().mockImplementation(async (cb) => cb(prismaMock)),
+        $queryRaw: vi.fn().mockResolvedValue([]),
         hostProfile: { findUnique: vi.fn().mockResolvedValue(null) },
       };
       const mockService = new LiveSessionsService(prismaMock as any);

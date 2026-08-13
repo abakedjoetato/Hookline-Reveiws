@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsEnum, IsNumber, IsOptional, IsUUID } from "class-validator";
+import { IsString, IsNotEmpty, IsEnum, IsNumber, IsOptional, IsUUID, ValidateIf } from "class-validator";
 import { StreamingPlatform } from "@platform/types";
 
 export class CreateLiveSessionDto {
@@ -50,4 +50,15 @@ export interface SafeQueueEntryResponse {
   sortOrder: number;
   priorityRank: number;
   submission: SafeSubmissionResponse;
+}
+
+export class ReorderQueueEntryDto extends ExpectedQueueRevisionDto {
+  @IsString()
+  @IsEnum(['TOP', 'BOTTOM', 'BEFORE', 'AFTER'])
+  @IsNotEmpty()
+  intent: 'TOP' | 'BOTTOM' | 'BEFORE' | 'AFTER';
+
+  @IsUUID()
+  @IsOptional()
+  targetEntryId?: string; // Required for BEFORE or AFTER
 }

@@ -1,3 +1,4 @@
+import { QueueOrderingService } from "./queue-ordering.service";
 import { Module } from "@nestjs/common";
 import { LiveSessionsController } from "./live-sessions.controller";
 import { LiveSessionsService } from "./live-sessions.service";
@@ -10,6 +11,7 @@ import { PrismaClient } from "@platform/database";
   controllers: [LiveSessionsController],
   providers: [
     LiveSessionsService,
+    QueueOrderingService,
     {
       provide: PrismaClient,
       useValue: new PrismaClient(),
