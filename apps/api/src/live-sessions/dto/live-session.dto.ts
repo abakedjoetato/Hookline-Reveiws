@@ -27,3 +27,27 @@ export class AddQueueEntryDto extends ExpectedQueueRevisionDto {
   @IsUUID()
   submissionId: string;
 }
+
+export interface SafeLiveSessionResponse {
+  id: string;
+  stationId: string;
+  status: string;
+  liveTitle: string;
+  queueRevision: number;
+}
+
+export interface SafeSubmissionResponse {
+  id: string;
+  isPriority: boolean;
+  currentQueueStatus: string;
+  submittedAt: Date;
+}
+
+export interface SafeQueueEntryResponse {
+  id: string;
+  liveSessionId: string;
+  status: string;
+  sortOrder: number;
+  priorityRank: number;
+  submission: SafeSubmissionResponse;
+}
