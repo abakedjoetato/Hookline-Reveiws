@@ -10,8 +10,16 @@ export class AdminUsersService {
     private readonly mediaProcessingQueue: MediaProcessingQueueService,
   ) {}
 
-  async banUser(targetUserId: string, adminUserId: string, reasonCode: string, internalReason: string, userVisibleReason: string) {
-    const user = await this.prisma.user.findUnique({ where: { id: targetUserId } });
+  async banUser(
+    targetUserId: string,
+    adminUserId: string,
+    reasonCode: string,
+    internalReason: string,
+    userVisibleReason: string,
+  ) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: targetUserId },
+    });
     if (!user) throw new NotFoundException("User not found");
 
     await this.prisma.$transaction(async (tx) => {
@@ -46,7 +54,9 @@ export class AdminUsersService {
   }
 
   async deleteUser(targetUserId: string) {
-    const user = await this.prisma.user.findUnique({ where: { id: targetUserId } });
+    const user = await this.prisma.user.findUnique({
+      where: { id: targetUserId },
+    });
     if (!user) throw new NotFoundException("User not found");
 
     // Soft delete user record and enqueue storage cleanup
@@ -55,7 +65,7 @@ export class AdminUsersService {
         where: { id: targetUserId },
         data: {
           accountStatus: AccountStatus.DEACTIVATED, // Or a specific deleted state
-          deletedAt: new Date()
+          deletedAt: new Date(),
         },
       });
     });

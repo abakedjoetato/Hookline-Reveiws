@@ -2,7 +2,10 @@ import { Controller, Post, Param, Body, UseGuards, Req } from "@nestjs/common";
 import { AdminUsersService } from "./admin-users.service";
 import { SessionGuard } from "../auth/guards/session.guard";
 import { AuthorizationGuard } from "../auth/guards/authorization.guard";
-import { RequiredRoles, RequiredPermissions } from "../auth/decorators/auth.decorators";
+import {
+  RequiredRoles,
+  RequiredPermissions,
+} from "../auth/decorators/auth.decorators";
 import { Role, AdminPermission } from "@platform/types";
 import { RequestWithUser } from "../auth/interfaces/request-with-user.interface";
 
@@ -17,14 +20,19 @@ export class AdminUsersController {
   async banUser(
     @Req() req: RequestWithUser,
     @Param("id") targetUserId: string,
-    @Body() body: { reasonCode: string; internalReason: string; userVisibleReason: string }
+    @Body()
+    body: {
+      reasonCode: string;
+      internalReason: string;
+      userVisibleReason: string;
+    },
   ) {
     return this.adminUsersService.banUser(
       targetUserId,
       req.user.id,
       body.reasonCode,
       body.internalReason,
-      body.userVisibleReason
+      body.userVisibleReason,
     );
   }
 

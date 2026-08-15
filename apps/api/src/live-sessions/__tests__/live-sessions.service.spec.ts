@@ -1,9 +1,27 @@
-import { describe, it, expect, vi, beforeAll, afterAll, beforeEach } from "vitest";
+import {
+  describe,
+  it,
+  expect,
+  vi,
+  beforeAll,
+  afterAll,
+  beforeEach,
+} from "vitest";
 import { Test, TestingModule } from "@nestjs/testing";
 import { LiveSessionsService } from "../live-sessions.service";
+import { QueueOrderingService } from "../queue-ordering.service";
 import { PrismaClient, generateUuidV7 } from "@platform/database";
-import { ForbiddenException, ConflictException, NotFoundException, BadRequestException } from "@nestjs/common";
-import { LiveSessionStatus, StreamingPlatform, QueueStatus } from "@platform/types";
+import {
+  ForbiddenException,
+  ConflictException,
+  NotFoundException,
+  BadRequestException,
+} from "@nestjs/common";
+import {
+  LiveSessionStatus,
+  StreamingPlatform,
+  QueueStatus,
+} from "@platform/types";
 
 describe("LiveSessionsService", () => {
   let service: LiveSessionsService;
@@ -25,6 +43,10 @@ describe("LiveSessionsService", () => {
       providers: [
         LiveSessionsService,
         {
+          provide: QueueOrderingService,
+          useValue: {}, // Mock QueueOrderingService
+        },
+        {
           provide: PrismaClient,
           useValue: prisma,
         },
@@ -44,15 +66,39 @@ describe("LiveSessionsService", () => {
       const mockStationId = generateUuidV7();
 
       const prismaMock = {
-        hostProfile: { findUnique: vi.fn().mockResolvedValue({ userId: mockHostId }) },
-        station: { findUnique: vi.fn().mockResolvedValue({ id: mockStationId, hostId: mockHostId }) },
+        $transaction: vi.fn().mockImplementation(async (callback) => {
+          return callback(prismaMock);
+        }),
+        $queryRaw: vi.fn().mockResolvedValue([{ id: "host-id" }]),
+        hostProfile: {
+          findUnique: vi.fn().mockResolvedValue({ userId: mockHostId }),
+        },
+        station: {
+          findUnique: vi
+            .fn()
+            .mockResolvedValue({ id: mockStationId, hostId: mockHostId }),
+        },
         liveSession: {
           findFirst: vi.fn().mockResolvedValue(null),
-          create: vi.fn().mockResolvedValue({ id: "new-session", hostId: mockHostId }),
+          create: vi.fn().mockResolvedValue({
+            id: "new-session",
+            hostId: mockHostId,
+            stationId: mockStationId,
+            status: LiveSessionStatus.PREPARING,
+            liveTitle: "My Session",
+            queueRevision: 0,
+          }),
         },
       };
 
-      const mockService = new LiveSessionsService(prismaMock as any);
+      const mockQueueOrderingService = {
+        // Mock queue ordering service methods if needed for other tests
+      };
+
+      const mockService = new LiveSessionsService(
+        prismaMock as any,
+        mockQueueOrderingService as any,
+      );
 
       const result = await mockService.createLiveSession(mockHostId, {
         stationId: mockStationId,
@@ -67,9 +113,17 @@ describe("LiveSessionsService", () => {
 
     it("should throw ForbiddenException if user is not a host", async () => {
       const prismaMock = {
+        $transaction: vi.fn().mockImplementation(async (callback) => {
+          return callback(prismaMock);
+        }),
+        $queryRaw: vi.fn().mockResolvedValue([]),
         hostProfile: { findUnique: vi.fn().mockResolvedValue(null) },
       };
-      const mockService = new LiveSessionsService(prismaMock as any);
+      const mockQueueOrderingService = {};
+      const mockService = new LiveSessionsService(
+        prismaMock as any,
+        mockQueueOrderingService as any,
+      );
 
       await expect(
         mockService.createLiveSession(generateUuidV7(), {
@@ -77,7 +131,7 @@ describe("LiveSessionsService", () => {
           liveTitle: "My Session",
           primaryStreamingPlatform: StreamingPlatform.TWITCH,
           savedProfileUrlSnapshot: "http://twitch.tv/myprofile",
-        })
+        }),
       ).rejects.toThrow(ForbiddenException);
     });
   });

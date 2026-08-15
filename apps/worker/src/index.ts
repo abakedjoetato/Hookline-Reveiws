@@ -52,7 +52,11 @@ const audioProcessor = new AudioMetadataProcessor(
   logger,
 );
 const artworkProcessor = new ArtworkProcessor(storageService, prisma, logger);
-const mediaDeletionProcessor = new MediaDeletionProcessor(storageService, prisma, logger);
+const mediaDeletionProcessor = new MediaDeletionProcessor(
+  storageService,
+  prisma,
+  logger,
+);
 
 try {
   // Processor logic for queue jobs
@@ -73,7 +77,9 @@ try {
       }
 
       if (job.name === MediaJobName.DELETE_MEDIA_OBJECTS) {
-        return await mediaDeletionProcessor.processDeleteMediaObjects(job as any);
+        return await mediaDeletionProcessor.processDeleteMediaObjects(
+          job as any,
+        );
       }
 
       if (job.name === MediaJobName.DELETE_USER_MEDIA) {

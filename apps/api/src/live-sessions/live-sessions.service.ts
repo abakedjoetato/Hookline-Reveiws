@@ -10,13 +10,23 @@ import { LiveSessionStatus, QueueStatus } from "@platform/types";
 import {
   CreateLiveSessionDto,
   AddQueueEntryDto,
+  ReorderQueueEntryDto,
+  ReorderIntent,
 } from "./dto/live-session.dto";
+import { QueueOrderingService } from "./queue-ordering.service";
+import { Decimal } from "decimal.js";
 
 @Injectable()
 export class LiveSessionsService {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(
+    private readonly prisma: PrismaClient,
+    private readonly queueOrdering: QueueOrderingService,
+  ) {}
 
-  async createLiveSession(userId: string, dto: CreateLiveSessionDto): Promise<import("./dto/live-session.dto").SafeLiveSessionResponse> {
+  async createLiveSession(
+    userId: string,
+    dto: CreateLiveSessionDto,
+  ): Promise<import("./dto/live-session.dto").SafeLiveSessionResponse> {
     return this.prisma.$transaction(async (tx) => {
       // 1. Lock the host profile to serialize concurrent creation requests
       // This guarantees that if two requests arrive simultaneously, one will block
@@ -70,11 +80,20 @@ export class LiveSessionsService {
           queueRevision: 0,
         },
       });
-      return { id: created.id, stationId: created.stationId, status: created.status, liveTitle: created.liveTitle, queueRevision: created.queueRevision };
+      return {
+        id: created.id,
+        stationId: created.stationId,
+        status: created.status,
+        liveTitle: created.liveTitle,
+        queueRevision: created.queueRevision,
+      };
     });
   }
 
-  async getLiveSession(userId: string, id: string): Promise<import("./dto/live-session.dto").SafeLiveSessionResponse> {
+  async getLiveSession(
+    userId: string,
+    id: string,
+  ): Promise<import("./dto/live-session.dto").SafeLiveSessionResponse> {
     const session = await this.prisma.liveSession.findUnique({
       where: { id },
     });
@@ -87,10 +106,20 @@ export class LiveSessionsService {
       throw new ForbiddenException("You do not own this live session");
     }
 
-    return { id: session.id, stationId: session.stationId, status: session.status, liveTitle: session.liveTitle, queueRevision: session.queueRevision };
+    return {
+      id: session.id,
+      stationId: session.stationId,
+      status: session.status,
+      liveTitle: session.liveTitle,
+      queueRevision: session.queueRevision,
+    };
   }
 
-  async startLiveSession(userId: string, id: string, expectedQueueRevision: number): Promise<import("./dto/live-session.dto").SafeLiveSessionResponse> {
+  async startLiveSession(
+    userId: string,
+    id: string,
+    expectedQueueRevision: number,
+  ): Promise<import("./dto/live-session.dto").SafeLiveSessionResponse> {
     return this.prisma.$transaction(async (tx) => {
       // 1. Lock the session row to prevent concurrent mutations
       const lockedSessions = await tx.$queryRaw<any[]>`
@@ -112,7 +141,9 @@ export class LiveSessionsService {
       }
 
       if (session.status !== LiveSessionStatus.PREPARING) {
-        throw new BadRequestException("Invalid lifecycle transition. Session must be in PREPARING state to start.");
+        throw new BadRequestException(
+          "Invalid lifecycle transition. Session must be in PREPARING state to start.",
+        );
       }
 
       const updated = await tx.liveSession.update({
@@ -123,11 +154,21 @@ export class LiveSessionsService {
           queueRevision: { increment: 1 },
         },
       });
-      return { id: updated.id, stationId: updated.stationId, status: updated.status, liveTitle: updated.liveTitle, queueRevision: updated.queueRevision };
+      return {
+        id: updated.id,
+        stationId: updated.stationId,
+        status: updated.status,
+        liveTitle: updated.liveTitle,
+        queueRevision: updated.queueRevision,
+      };
     });
   }
 
-  async pauseLiveSession(userId: string, id: string, expectedQueueRevision: number): Promise<import("./dto/live-session.dto").SafeLiveSessionResponse> {
+  async pauseLiveSession(
+    userId: string,
+    id: string,
+    expectedQueueRevision: number,
+  ): Promise<import("./dto/live-session.dto").SafeLiveSessionResponse> {
     return this.prisma.$transaction(async (tx) => {
       const lockedSessions = await tx.$queryRaw<any[]>`
         SELECT id, status, "hostId", "queueRevision" FROM "live_sessions" WHERE id = ${id}::uuid FOR UPDATE
@@ -148,7 +189,9 @@ export class LiveSessionsService {
       }
 
       if (session.status !== LiveSessionStatus.LIVE) {
-        throw new BadRequestException("Invalid lifecycle transition. Session must be in LIVE state to pause.");
+        throw new BadRequestException(
+          "Invalid lifecycle transition. Session must be in LIVE state to pause.",
+        );
       }
 
       const updated = await tx.liveSession.update({
@@ -158,11 +201,21 @@ export class LiveSessionsService {
           queueRevision: { increment: 1 },
         },
       });
-      return { id: updated.id, stationId: updated.stationId, status: updated.status, liveTitle: updated.liveTitle, queueRevision: updated.queueRevision };
+      return {
+        id: updated.id,
+        stationId: updated.stationId,
+        status: updated.status,
+        liveTitle: updated.liveTitle,
+        queueRevision: updated.queueRevision,
+      };
     });
   }
 
-  async resumeLiveSession(userId: string, id: string, expectedQueueRevision: number): Promise<import("./dto/live-session.dto").SafeLiveSessionResponse> {
+  async resumeLiveSession(
+    userId: string,
+    id: string,
+    expectedQueueRevision: number,
+  ): Promise<import("./dto/live-session.dto").SafeLiveSessionResponse> {
     return this.prisma.$transaction(async (tx) => {
       const lockedSessions = await tx.$queryRaw<any[]>`
         SELECT id, status, "hostId", "queueRevision" FROM "live_sessions" WHERE id = ${id}::uuid FOR UPDATE
@@ -183,7 +236,9 @@ export class LiveSessionsService {
       }
 
       if (session.status !== LiveSessionStatus.PAUSED) {
-        throw new BadRequestException("Invalid lifecycle transition. Session must be in PAUSED state to resume.");
+        throw new BadRequestException(
+          "Invalid lifecycle transition. Session must be in PAUSED state to resume.",
+        );
       }
 
       const updated = await tx.liveSession.update({
@@ -193,11 +248,21 @@ export class LiveSessionsService {
           queueRevision: { increment: 1 },
         },
       });
-      return { id: updated.id, stationId: updated.stationId, status: updated.status, liveTitle: updated.liveTitle, queueRevision: updated.queueRevision };
+      return {
+        id: updated.id,
+        stationId: updated.stationId,
+        status: updated.status,
+        liveTitle: updated.liveTitle,
+        queueRevision: updated.queueRevision,
+      };
     });
   }
 
-  async endLiveSession(userId: string, id: string, expectedQueueRevision: number): Promise<import("./dto/live-session.dto").SafeLiveSessionResponse> {
+  async endLiveSession(
+    userId: string,
+    id: string,
+    expectedQueueRevision: number,
+  ): Promise<import("./dto/live-session.dto").SafeLiveSessionResponse> {
     return this.prisma.$transaction(async (tx) => {
       const lockedSessions = await tx.$queryRaw<any[]>`
         SELECT id, status, "hostId", "queueRevision" FROM "live_sessions" WHERE id = ${id}::uuid FOR UPDATE
@@ -217,8 +282,16 @@ export class LiveSessionsService {
         throw new ConflictException("Stale queue revision");
       }
 
-      if (![LiveSessionStatus.PREPARING, LiveSessionStatus.LIVE, LiveSessionStatus.PAUSED].includes(session.status)) {
-        throw new BadRequestException("Invalid lifecycle transition. Session cannot be ended from its current state.");
+      if (
+        ![
+          LiveSessionStatus.PREPARING,
+          LiveSessionStatus.LIVE,
+          LiveSessionStatus.PAUSED,
+        ].includes(session.status)
+      ) {
+        throw new BadRequestException(
+          "Invalid lifecycle transition. Session cannot be ended from its current state.",
+        );
       }
 
       const updated = await tx.liveSession.update({
@@ -229,11 +302,21 @@ export class LiveSessionsService {
           queueRevision: { increment: 1 },
         },
       });
-      return { id: updated.id, stationId: updated.stationId, status: updated.status, liveTitle: updated.liveTitle, queueRevision: updated.queueRevision };
+      return {
+        id: updated.id,
+        stationId: updated.stationId,
+        status: updated.status,
+        liveTitle: updated.liveTitle,
+        queueRevision: updated.queueRevision,
+      };
     });
   }
 
-  async addQueueEntry(userId: string, id: string, dto: AddQueueEntryDto): Promise<import("./dto/live-session.dto").SafeQueueEntryResponse> {
+  async addQueueEntry(
+    userId: string,
+    id: string,
+    dto: AddQueueEntryDto,
+  ): Promise<import("./dto/live-session.dto").SafeQueueEntryResponse> {
     return this.prisma.$transaction(async (tx) => {
       const lockedSessions = await tx.$queryRaw<any[]>`
         SELECT id, status, "hostId", "queueRevision" FROM "live_sessions" WHERE id = ${id}::uuid FOR UPDATE
@@ -254,7 +337,7 @@ export class LiveSessionsService {
       }
 
       const submission = await tx.submission.findUnique({
-        where: { id: dto.submissionId }
+        where: { id: dto.submissionId },
       });
 
       if (!submission || submission.liveSessionId !== id) {
@@ -267,16 +350,27 @@ export class LiveSessionsService {
       });
 
       if (existingEntry) {
-        throw new ConflictException("Queue entry already exists for this submission");
+        throw new ConflictException(
+          "Queue entry already exists for this submission",
+        );
       }
 
+      const priorityRank = submission.isPriority ? 1 : 0;
+
       // Determine initial deterministic sort order (simple stable spacing strategy)
+      // Must be at the bottom of its OWN priority group
       const lastEntry = await tx.queueEntry.findFirst({
-        where: { liveSessionId: id },
-        orderBy: { sortOrder: 'desc' },
+        where: {
+          liveSessionId: id,
+          status: QueueStatus.QUEUED,
+          priorityRank: priorityRank,
+        },
+        orderBy: { sortOrder: "desc" },
       });
 
-      const nextSortOrder = lastEntry ? Number(lastEntry.sortOrder) + 1000 : 1000;
+      const nextSortOrder = lastEntry
+        ? Number(lastEntry.sortOrder) + 1000
+        : 1000;
 
       const entryId = generateUuidV7();
 
@@ -287,7 +381,7 @@ export class LiveSessionsService {
           submissionId: dto.submissionId,
           status: QueueStatus.QUEUED,
           sortOrder: nextSortOrder,
-          priorityRank: submission.isPriority ? 1 : 0, // Simplified for this foundational slice
+          priorityRank, // Simplified for this foundational slice
         },
       });
 
@@ -308,12 +402,165 @@ export class LiveSessionsService {
           isPriority: submission.isPriority,
           currentQueueStatus: submission.currentQueueStatus,
           submittedAt: submission.submittedAt,
-        }
+        },
       };
     });
   }
 
-  async getQueue(userId: string, id: string): Promise<import("./dto/live-session.dto").SafeQueueEntryResponse[]> {
+  async reorderQueueEntry(
+    userId: string,
+    sessionId: string,
+    entryId: string,
+    dto: ReorderQueueEntryDto,
+  ): Promise<void> {
+    return this.prisma.$transaction(async (tx) => {
+      // 1. Lock the session row to prevent concurrent mutations
+      const lockedSessions = await tx.$queryRaw<any[]>`
+        SELECT id, "hostId", "queueRevision" FROM "live_sessions" WHERE id = ${sessionId}::uuid FOR UPDATE
+      `;
+
+      if (!lockedSessions.length) {
+        throw new NotFoundException("Live session not found");
+      }
+
+      const session = lockedSessions[0];
+
+      if (session.hostId !== userId) {
+        throw new ForbiddenException("You do not own this live session");
+      }
+
+      if (session.queueRevision !== dto.expectedQueueRevision) {
+        throw new ConflictException("Stale queue revision");
+      }
+
+      // Load the moved entry
+      const movedEntry = await tx.queueEntry.findUnique({
+        where: { id: entryId },
+      });
+
+      if (
+        !movedEntry ||
+        movedEntry.liveSessionId !== sessionId ||
+        movedEntry.status !== QueueStatus.QUEUED
+      ) {
+        throw new BadRequestException("Invalid queue entry");
+      }
+
+      // Load target entry if provided
+      let targetEntry = null;
+      if (dto.targetEntryId) {
+        targetEntry = await tx.queueEntry.findUnique({
+          where: { id: dto.targetEntryId },
+        });
+
+        if (
+          !targetEntry ||
+          targetEntry.liveSessionId !== sessionId ||
+          targetEntry.status !== QueueStatus.QUEUED
+        ) {
+          throw new BadRequestException("Invalid target entry");
+        }
+      }
+
+      // Calculate clamping based on cross-priority logic
+      const clampResult = this.queueOrdering.clampIntent(
+        movedEntry,
+        targetEntry,
+        dto.intent,
+      );
+      const activeIntent = clampResult.intent;
+      const activeTargetId = clampResult.clamped
+        ? undefined
+        : dto.targetEntryId;
+
+      // Load affected priority group (all QUEUED entries in the same priority rank)
+      const groupEntries = await tx.queueEntry.findMany({
+        where: {
+          liveSessionId: sessionId,
+          priorityRank: movedEntry.priorityRank,
+          status: QueueStatus.QUEUED,
+        },
+        orderBy: [
+          { sortOrder: "asc" },
+          { createdAt: "asc" }, // deterministic fallback
+          { id: "asc" },
+        ],
+      });
+
+      // Detect no-op
+      if (
+        this.queueOrdering.isNoOp(
+          entryId,
+          activeIntent,
+          groupEntries,
+          activeTargetId,
+        )
+      ) {
+        return; // Return current authoritative state without incrementing queueRevision
+      }
+
+      // Remove movedEntry from the list to simulate insertion into the "remaining" list
+      const listWithoutMoved = groupEntries.filter((e) => e.id !== entryId);
+
+      const orderResult = this.queueOrdering.calculateNewSortOrder(
+        activeIntent,
+        listWithoutMoved,
+        activeTargetId,
+      );
+
+      let finalSortOrder = orderResult.midpoint;
+
+      if (orderResult.needsRebalance) {
+        // We must rebalance this priority group
+        const cleanUpdates =
+          this.queueOrdering.generateRebalanceUpdates(listWithoutMoved);
+
+        // Execute the rebalance
+        for (const update of cleanUpdates) {
+          await tx.queueEntry.update({
+            where: { id: update.id },
+            data: { sortOrder: update.sortOrder },
+          });
+        }
+
+        // Now that it's clean, recalculate the requested position
+        // We need to construct the new clean list to calculate
+        const cleanGroupEntries = listWithoutMoved.map((e, index) => ({
+          ...e,
+          sortOrder: cleanUpdates[index].sortOrder,
+        }));
+
+        const cleanOrderResult = this.queueOrdering.calculateNewSortOrder(
+          activeIntent,
+          cleanGroupEntries,
+          activeTargetId,
+        );
+
+        if (cleanOrderResult.needsRebalance || !cleanOrderResult.midpoint) {
+          throw new Error("Rebalance failed to resolve precision exhaustion");
+        }
+
+        finalSortOrder = cleanOrderResult.midpoint;
+      }
+
+      // Update the moved entry
+      await tx.queueEntry.update({
+        where: { id: entryId },
+        data: { sortOrder: finalSortOrder },
+      });
+
+      // Update queue revision
+      await tx.liveSession.update({
+        where: { id: sessionId, queueRevision: dto.expectedQueueRevision },
+        data: { queueRevision: { increment: 1 } },
+      });
+    });
+  }
+
+  async getQueue(
+    userId: string,
+    id: string,
+  ): Promise<import("./dto/live-session.dto").SafeQueueEntryResponse[]> {
     const session = await this.prisma.liveSession.findUnique({ where: { id } });
 
     if (!session) {
@@ -327,15 +574,17 @@ export class LiveSessionsService {
     const entries = await this.prisma.queueEntry.findMany({
       where: { liveSessionId: id },
       orderBy: [
-        { priorityRank: 'desc' },
-        { sortOrder: 'asc' },
+        { priorityRank: "desc" },
+        { sortOrder: "asc" },
+        { createdAt: "asc" },
+        { id: "asc" },
       ],
       include: {
         submission: true,
-      }
+      },
     });
 
-    return entries.map(entry => ({
+    return entries.map((entry) => ({
       id: entry.id,
       liveSessionId: entry.liveSessionId,
       status: entry.status,
@@ -346,7 +595,7 @@ export class LiveSessionsService {
         isPriority: entry.submission.isPriority,
         currentQueueStatus: entry.submission.currentQueueStatus,
         submittedAt: entry.submission.submittedAt,
-      }
+      },
     }));
   }
 }

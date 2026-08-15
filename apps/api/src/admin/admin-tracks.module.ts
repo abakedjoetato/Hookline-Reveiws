@@ -19,7 +19,12 @@ import { MEDIA_PROCESSING_QUEUE } from "../tracks/media-processing-queue.service
     }),
   ],
   controllers: [AdminTracksController, AdminUsersController],
-  providers: [AdminTracksService, AdminUsersService, PrismaClient, MediaProcessingQueueService],
+  providers: [
+    AdminTracksService,
+    AdminUsersService,
+    PrismaClient,
+    MediaProcessingQueueService,
+  ],
   exports: [AdminTracksService, AdminUsersService],
 })
 export class AdminTracksModule {}
