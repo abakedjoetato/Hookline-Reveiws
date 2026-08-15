@@ -12,6 +12,7 @@ import {
   CreateLiveSessionDto,
   ExpectedQueueRevisionDto,
   AddQueueEntryDto,
+  ReorderQueueEntryDto,
 } from "./dto/live-session.dto";
 import { SessionGuard } from "../auth/guards/session.guard";
 import { RequestWithUser } from "../auth/interfaces/request-with-user.interface";
@@ -22,10 +23,7 @@ export class LiveSessionsController {
   constructor(private readonly liveSessionsService: LiveSessionsService) {}
 
   @Post()
-  async create(
-    @Req() req: RequestWithUser,
-    @Body() dto: CreateLiveSessionDto,
-  ) {
+  async create(@Req() req: RequestWithUser, @Body() dto: CreateLiveSessionDto) {
     return this.liveSessionsService.createLiveSession(req.user.id, dto);
   }
 
@@ -40,7 +38,11 @@ export class LiveSessionsController {
     @Param("id") id: string,
     @Body() dto: ExpectedQueueRevisionDto,
   ) {
-    return this.liveSessionsService.startLiveSession(req.user.id, id, dto.expectedQueueRevision);
+    return this.liveSessionsService.startLiveSession(
+      req.user.id,
+      id,
+      dto.expectedQueueRevision,
+    );
   }
 
   @Post(":id/pause")
@@ -49,7 +51,11 @@ export class LiveSessionsController {
     @Param("id") id: string,
     @Body() dto: ExpectedQueueRevisionDto,
   ) {
-    return this.liveSessionsService.pauseLiveSession(req.user.id, id, dto.expectedQueueRevision);
+    return this.liveSessionsService.pauseLiveSession(
+      req.user.id,
+      id,
+      dto.expectedQueueRevision,
+    );
   }
 
   @Post(":id/resume")
@@ -58,7 +64,11 @@ export class LiveSessionsController {
     @Param("id") id: string,
     @Body() dto: ExpectedQueueRevisionDto,
   ) {
-    return this.liveSessionsService.resumeLiveSession(req.user.id, id, dto.expectedQueueRevision);
+    return this.liveSessionsService.resumeLiveSession(
+      req.user.id,
+      id,
+      dto.expectedQueueRevision,
+    );
   }
 
   @Post(":id/end")
@@ -67,7 +77,11 @@ export class LiveSessionsController {
     @Param("id") id: string,
     @Body() dto: ExpectedQueueRevisionDto,
   ) {
-    return this.liveSessionsService.endLiveSession(req.user.id, id, dto.expectedQueueRevision);
+    return this.liveSessionsService.endLiveSession(
+      req.user.id,
+      id,
+      dto.expectedQueueRevision,
+    );
   }
 
   @Post(":id/queue/entries")
@@ -82,5 +96,20 @@ export class LiveSessionsController {
   @Get(":id/queue")
   async getQueue(@Req() req: RequestWithUser, @Param("id") id: string) {
     return this.liveSessionsService.getQueue(req.user.id, id);
+  }
+
+  @Post(":id/queue/entries/:entryId/reorder")
+  async reorderQueueEntry(
+    @Req() req: RequestWithUser,
+    @Param("id") id: string,
+    @Param("entryId") entryId: string,
+    @Body() dto: ReorderQueueEntryDto,
+  ) {
+    return this.liveSessionsService.reorderQueueEntry(
+      req.user.id,
+      id,
+      entryId,
+      dto,
+    );
   }
 }

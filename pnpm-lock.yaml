@@ -7,13 +7,6 @@ settings:
 importers:
 
   .:
-    dependencies:
-      class-transformer:
-        specifier: ^0.5.1
-        version: 0.5.1
-      class-validator:
-        specifier: ^0.15.1
-        version: 0.15.1
     devDependencies:
       playwright:
         specifier: ^1.48.0
@@ -142,6 +135,9 @@ importers:
       cookie:
         specifier: ^2.0.1
         version: 2.0.1
+      decimal.js:
+        specifier: ^10.6.0
+        version: 10.6.0
       express:
         specifier: ^4.22.2
         version: 4.22.2

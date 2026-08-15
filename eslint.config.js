@@ -1,5 +1,5 @@
 export default [
-    {
-        ignores: ["**/*.ts", "**/*.tsx"]
-    }
+  {
+    ignores: ["**/*.ts", "**/*.tsx"],
+  },
 ];
