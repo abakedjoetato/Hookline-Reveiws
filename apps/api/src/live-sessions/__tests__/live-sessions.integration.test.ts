@@ -52,8 +52,8 @@ describe("LiveSessions Integration Tests", () => {
 
   it("should enforce active session concurrency", async () => {
     // We mock $transaction to intercept calls
-    vi.spyOn(prisma, '$transaction').mockImplementation(async (callback) => {
-      return callback(prisma);
+    vi.spyOn(prisma as any, '$transaction').mockImplementation(async (callback: any) => {
+      return callback(prisma as any);
     });
 
     vi.spyOn(prisma, '$queryRaw').mockResolvedValue([{ id: "host1" }]);
