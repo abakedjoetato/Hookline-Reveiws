@@ -1256,6 +1256,10 @@ model QueueEntry {
   sourceQueuePosition   Int?
   batchOperationId      String?           @db.Uuid
   sortOrder             Decimal           @default(0) @db.Decimal(20, 8)
+  // Player Origin State for Restoration
+  loadedIntoPlayerAt    DateTime?
+  originPriorityRank    Int?
+  originSortOrder       Decimal?          @db.Decimal(20, 8)
 
   // Relations
   liveSession           LiveSession       @relation(fields: [liveSessionId], references: [id], onDelete: Restrict)

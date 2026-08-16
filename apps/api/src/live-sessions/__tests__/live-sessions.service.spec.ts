@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeAll, afterAll, beforeEach } from "vitest";
 import { Test, TestingModule } from "@nestjs/testing";
 import { LiveSessionsService } from "../live-sessions.service";
+import { QueueOrderingService } from "../queue-ordering.service";
 import { PrismaClient, generateUuidV7 } from "@platform/database";
 import { ForbiddenException, ConflictException, NotFoundException, BadRequestException } from "@nestjs/common";
 import { LiveSessionStatus, StreamingPlatform, QueueStatus } from "@platform/types";
@@ -23,6 +24,7 @@ describe("LiveSessionsService", () => {
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        { provide: QueueOrderingService, useValue: {} },
         LiveSessionsService,
         {
           provide: PrismaClient,
@@ -44,6 +46,13 @@ describe("LiveSessionsService", () => {
       const mockStationId = generateUuidV7();
 
       const prismaMock = {
+        $transaction: vi.fn(async (cb) => cb(prismaMock)),
+        $queryRaw: vi.fn().mockImplementation((query) => {
+          if (query && query[0] && query[0].includes("host_profiles")) {
+            return Promise.resolve(prismaMock.hostProfile.findUnique() ? [{}] : []);
+          }
+          return Promise.resolve([{}]);
+        }),
         hostProfile: { findUnique: vi.fn().mockResolvedValue({ userId: mockHostId }) },
         station: { findUnique: vi.fn().mockResolvedValue({ id: mockStationId, hostId: mockHostId }) },
         liveSession: {
@@ -52,7 +61,7 @@ describe("LiveSessionsService", () => {
         },
       };
 
-      const mockService = new LiveSessionsService(prismaMock as any);
+      const mockService = new LiveSessionsService(prismaMock as any, {} as any);
 
       const result = await mockService.createLiveSession(mockHostId, {
         stationId: mockStationId,
@@ -67,9 +76,17 @@ describe("LiveSessionsService", () => {
 
     it("should throw ForbiddenException if user is not a host", async () => {
       const prismaMock = {
+        $transaction: vi.fn(async (cb) => cb(prismaMock)),
+        $queryRaw: vi.fn().mockImplementation((query) => {
+          if (query && query[0] && query[0].includes("host_profiles")) {
+            return Promise.resolve(prismaMock.hostProfile.findUnique() ? [{}] : []);
+          }
+          return Promise.resolve([{}]);
+        }),
         hostProfile: { findUnique: vi.fn().mockResolvedValue(null) },
+        station: { findUnique: vi.fn().mockResolvedValue(null) },
       };
-      const mockService = new LiveSessionsService(prismaMock as any);
+      const mockService = new LiveSessionsService(prismaMock as any, {} as any);
 
       await expect(
         mockService.createLiveSession(generateUuidV7(), {
