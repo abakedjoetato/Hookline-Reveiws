@@ -51,3 +51,24 @@ export interface SafeQueueEntryResponse {
   priorityRank: number;
   submission: SafeSubmissionResponse;
 }
+
+export class MoveToNextDto extends ExpectedQueueRevisionDto {}
+export class LoadQueueEntryDto extends ExpectedQueueRevisionDto {}
+export class ClearPlayerDto extends ExpectedQueueRevisionDto {}
+export class PlayNextDto extends ExpectedQueueRevisionDto {}
+
+export enum ReorderIntent {
+  BEFORE = 'BEFORE',
+  AFTER = 'AFTER',
+  TOP = 'TOP',
+  BOTTOM = 'BOTTOM'
+}
+
+export class ReorderQueueEntryDto extends ExpectedQueueRevisionDto {
+  @IsEnum(ReorderIntent)
+  intent: ReorderIntent;
+
+  @IsOptional()
+  @IsUUID()
+  targetEntryId?: string;
+}

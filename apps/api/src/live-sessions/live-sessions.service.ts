@@ -1,3 +1,7 @@
+
+import { QueueOrderingService } from "./queue-ordering.service";
+import { ReorderIntent } from "./dto/live-session.dto";
+
 import {
   Injectable,
   NotFoundException,
@@ -5,7 +9,7 @@ import {
   ConflictException,
   BadRequestException,
 } from "@nestjs/common";
-import { PrismaClient, generateUuidV7 } from "@platform/database";
+import { PrismaClient, generateUuidV7, QueueEntry } from "@platform/database";
 import { LiveSessionStatus, QueueStatus } from "@platform/types";
 import {
   CreateLiveSessionDto,
@@ -14,7 +18,7 @@ import {
 
 @Injectable()
 export class LiveSessionsService {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(private readonly prisma: PrismaClient, private readonly queueOrderingService: QueueOrderingService) {}
 
   async createLiveSession(userId: string, dto: CreateLiveSessionDto): Promise<import("./dto/live-session.dto").SafeLiveSessionResponse> {
     return this.prisma.$transaction(async (tx) => {
@@ -349,4 +353,293 @@ export class LiveSessionsService {
       }
     }));
   }
+
+  private async qualifyAndDisplaceCurrentPlayer(
+    tx: any,
+    currentEntryId: string,
+    liveSessionId: string
+  ) {
+    const currentEntry = await tx.queueEntry.findUnique({
+      where: { id: currentEntryId },
+      include: { submission: true }
+    });
+
+    if (!currentEntry) return;
+
+    if (currentEntry.status !== QueueStatus.PLAYING) {
+      return;
+    }
+
+    const loadedAt = currentEntry.loadedIntoPlayerAt;
+
+    // Check qualification for external links. 2 minutes = 120,000 ms.
+    let played = false;
+    if (loadedAt) {
+      const elapsed = Date.now() - loadedAt.getTime();
+      if (elapsed >= 120000) {
+        played = true;
+      }
+    }
+
+    if (played) {
+      // Move to history
+      await tx.queueEntry.update({
+        where: { id: currentEntryId },
+        data: {
+          status: QueueStatus.MOVED_TO_HISTORY,
+          completedAt: new Date(),
+          movedToHistoryAt: new Date(),
+          wasPlayed: true,
+          playbackCompleted: true,
+          loadedIntoPlayerAt: null,
+          originPriorityRank: null,
+          originSortOrder: null,
+        }
+      });
+      await tx.submission.update({
+        where: { id: currentEntry.submissionId },
+        data: {
+          currentQueueStatus: QueueStatus.MOVED_TO_HISTORY
+        }
+      });
+    } else {
+      // Restore near origin
+      const originRank = currentEntry.originPriorityRank ?? currentEntry.priorityRank;
+
+      const groupEntries = await tx.queueEntry.findMany({
+        where: {
+          liveSessionId,
+          status: QueueStatus.QUEUED,
+          priorityRank: originRank
+        },
+        orderBy: { sortOrder: 'asc' }
+      });
+
+      // Calculate placement
+      let newSortOrder = currentEntry.originSortOrder ?? currentEntry.sortOrder;
+
+      // If no reasonable placement found, put at bottom of priority group
+      if (groupEntries.length > 0) {
+        // Just find the nearest surviving position in the priority group.
+        // For simplicity and resilience, if we can't find original neighbors, we use the original sort order.
+        // This implicitly places it where it belongs since fractional ordering represents absolute space.
+      } else {
+        newSortOrder = 1000;
+      }
+
+      await tx.queueEntry.update({
+        where: { id: currentEntryId },
+        data: {
+          status: QueueStatus.QUEUED,
+          sortOrder: newSortOrder,
+          priorityRank: originRank,
+          loadedIntoPlayerAt: null,
+          originPriorityRank: null,
+          originSortOrder: null,
+        }
+      });
+
+      await tx.submission.update({
+        where: { id: currentEntry.submissionId },
+        data: {
+          currentQueueStatus: QueueStatus.QUEUED
+        }
+      });
+    }
+  }
+
+  async playNext(userId: string, id: string, expectedQueueRevision: number) {
+    return this.prisma.$transaction(async (tx) => {
+      const lockedSessions = await tx.$queryRaw<any[]>`
+        SELECT id, status, "hostId", "queueRevision", "currentQueueEntryId" FROM "live_sessions" WHERE id = ${id}::uuid FOR UPDATE
+      `;
+
+      if (!lockedSessions.length) throw new NotFoundException("Live session not found");
+      const session = lockedSessions[0];
+
+      if (session.hostId !== userId) throw new ForbiddenException("You do not own this live session");
+      if (session.queueRevision !== expectedQueueRevision) throw new ConflictException("Stale queue revision");
+
+      if (session.currentQueueEntryId) {
+        await this.qualifyAndDisplaceCurrentPlayer(tx, session.currentQueueEntryId, id);
+      }
+
+      // Find first queued entry
+      const nextEntry = await tx.queueEntry.findFirst({
+        where: { liveSessionId: id, status: QueueStatus.QUEUED },
+        orderBy: [{ priorityRank: 'desc' }, { sortOrder: 'asc' }]
+      });
+
+      if (nextEntry) {
+        await tx.queueEntry.update({
+          where: { id: nextEntry.id },
+          data: {
+            status: QueueStatus.PLAYING,
+            loadedIntoPlayerAt: new Date(),
+            originPriorityRank: nextEntry.priorityRank,
+            originSortOrder: nextEntry.sortOrder,
+          }
+        });
+        await tx.submission.update({
+          where: { id: nextEntry.submissionId },
+          data: { currentQueueStatus: QueueStatus.PLAYING }
+        });
+      }
+
+      await tx.liveSession.update({
+        where: { id, queueRevision: expectedQueueRevision },
+        data: {
+          queueRevision: { increment: 1 },
+          currentQueueEntryId: nextEntry ? nextEntry.id : null
+        }
+      });
+
+      return { success: true };
+    });
+  }
+
+  async loadQueueEntry(userId: string, id: string, entryId: string, expectedQueueRevision: number) {
+    return this.prisma.$transaction(async (tx) => {
+      const lockedSessions = await tx.$queryRaw<any[]>`
+        SELECT id, status, "hostId", "queueRevision", "currentQueueEntryId" FROM "live_sessions" WHERE id = ${id}::uuid FOR UPDATE
+      `;
+
+      if (!lockedSessions.length) throw new NotFoundException("Live session not found");
+      const session = lockedSessions[0];
+
+      if (session.hostId !== userId) throw new ForbiddenException("You do not own this live session");
+      if (session.queueRevision !== expectedQueueRevision) throw new ConflictException("Stale queue revision");
+
+      const entryToLoad = await tx.queueEntry.findUnique({
+        where: { id: entryId }
+      });
+
+      if (!entryToLoad || entryToLoad.liveSessionId !== id || entryToLoad.status !== QueueStatus.QUEUED) {
+        throw new BadRequestException("Invalid entry to load");
+      }
+
+      if (session.currentQueueEntryId) {
+        await this.qualifyAndDisplaceCurrentPlayer(tx, session.currentQueueEntryId, id);
+      }
+
+      await tx.queueEntry.update({
+        where: { id: entryId },
+        data: {
+          status: QueueStatus.PLAYING,
+          loadedIntoPlayerAt: new Date(),
+          originPriorityRank: entryToLoad.priorityRank,
+          originSortOrder: entryToLoad.sortOrder,
+        }
+      });
+      await tx.submission.update({
+        where: { id: entryToLoad.submissionId },
+        data: { currentQueueStatus: QueueStatus.PLAYING }
+      });
+
+      await tx.liveSession.update({
+        where: { id, queueRevision: expectedQueueRevision },
+        data: {
+          queueRevision: { increment: 1 },
+          currentQueueEntryId: entryToLoad.id
+        }
+      });
+
+      return { success: true };
+    });
+  }
+
+  async clearPlayer(userId: string, id: string, expectedQueueRevision: number) {
+    return this.prisma.$transaction(async (tx) => {
+      const lockedSessions = await tx.$queryRaw<any[]>`
+        SELECT id, status, "hostId", "queueRevision", "currentQueueEntryId" FROM "live_sessions" WHERE id = ${id}::uuid FOR UPDATE
+      `;
+
+      if (!lockedSessions.length) throw new NotFoundException("Live session not found");
+      const session = lockedSessions[0];
+
+      if (session.hostId !== userId) throw new ForbiddenException("You do not own this live session");
+      if (session.queueRevision !== expectedQueueRevision) throw new ConflictException("Stale queue revision");
+
+      if (session.currentQueueEntryId) {
+        await this.qualifyAndDisplaceCurrentPlayer(tx, session.currentQueueEntryId, id);
+      } else {
+        // Nothing to clear, no-op
+        return { success: true };
+      }
+
+      await tx.liveSession.update({
+        where: { id, queueRevision: expectedQueueRevision },
+        data: {
+          queueRevision: { increment: 1 },
+          currentQueueEntryId: null
+        }
+      });
+
+      return { success: true };
+    });
+  }
+
+  async moveToNext(userId: string, id: string, entryId: string, expectedQueueRevision: number) {
+    return this.prisma.$transaction(async (tx) => {
+      const lockedSessions = await tx.$queryRaw<any[]>`
+        SELECT id, status, "hostId", "queueRevision" FROM "live_sessions" WHERE id = ${id}::uuid FOR UPDATE
+      `;
+
+      if (!lockedSessions.length) throw new NotFoundException("Live session not found");
+      const session = lockedSessions[0];
+
+      if (session.hostId !== userId) throw new ForbiddenException("You do not own this live session");
+      if (session.queueRevision !== expectedQueueRevision) throw new ConflictException("Stale queue revision");
+
+      const entryToMove = await tx.queueEntry.findUnique({
+        where: { id: entryId }
+      });
+
+      if (!entryToMove || entryToMove.liveSessionId !== id || entryToMove.status !== QueueStatus.QUEUED) {
+        throw new BadRequestException("Invalid entry to move");
+      }
+
+      const groupEntries = await tx.queueEntry.findMany({
+        where: {
+          liveSessionId: id,
+          status: QueueStatus.QUEUED,
+          priorityRank: entryToMove.priorityRank
+        },
+        orderBy: { sortOrder: 'asc' }
+      });
+
+      if (this.queueOrderingService.isNoOp(entryId, ReorderIntent.TOP, groupEntries)) {
+        return { success: true }; // No-op, no revision increment
+      }
+
+      const { needsRebalance, midpoint } = this.queueOrderingService.calculateNewSortOrder(ReorderIntent.TOP, groupEntries);
+
+      if (needsRebalance) {
+        // If rebalance is needed, we apply it to the group (excluding the moved entry to simulate TOP)
+        const groupWithoutMoved = groupEntries.filter(e => e.id !== entryId);
+        // Prepend the moved entry to top
+        const rebalanced = this.queueOrderingService.generateRebalanceUpdates([entryToMove, ...groupWithoutMoved]);
+
+        for (const update of rebalanced) {
+          await tx.queueEntry.update({
+            where: { id: update.id },
+            data: { sortOrder: update.sortOrder }
+          });
+        }
+      } else {
+        await tx.queueEntry.update({
+          where: { id: entryId },
+          data: { sortOrder: midpoint }
+        });
+      }
+
+      await tx.liveSession.update({
+        where: { id, queueRevision: expectedQueueRevision },
+        data: { queueRevision: { increment: 1 } }
+      });
+
+      return { success: true };
+    });
+  }
+
 }

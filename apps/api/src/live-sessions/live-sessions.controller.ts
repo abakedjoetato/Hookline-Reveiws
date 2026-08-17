@@ -12,6 +12,10 @@ import {
   CreateLiveSessionDto,
   ExpectedQueueRevisionDto,
   AddQueueEntryDto,
+  PlayNextDto,
+  MoveToNextDto,
+  LoadQueueEntryDto,
+  ClearPlayerDto
 } from "./dto/live-session.dto";
 import { SessionGuard } from "../auth/guards/session.guard";
 import { RequestWithUser } from "../auth/interfaces/request-with-user.interface";
@@ -83,4 +87,43 @@ export class LiveSessionsController {
   async getQueue(@Req() req: RequestWithUser, @Param("id") id: string) {
     return this.liveSessionsService.getQueue(req.user.id, id);
   }
+
+  @Post(":id/queue/play-next")
+  async playNext(
+    @Req() req: RequestWithUser,
+    @Param("id") id: string,
+    @Body() dto: PlayNextDto,
+  ) {
+    return this.liveSessionsService.playNext(req.user.id, id, dto.expectedQueueRevision);
+  }
+
+  @Post(":id/queue/entries/:entryId/move-to-next")
+  async moveToNext(
+    @Req() req: RequestWithUser,
+    @Param("id") id: string,
+    @Param("entryId") entryId: string,
+    @Body() dto: MoveToNextDto,
+  ) {
+    return this.liveSessionsService.moveToNext(req.user.id, id, entryId, dto.expectedQueueRevision);
+  }
+
+  @Post(":id/queue/entries/:entryId/load")
+  async loadQueueEntry(
+    @Req() req: RequestWithUser,
+    @Param("id") id: string,
+    @Param("entryId") entryId: string,
+    @Body() dto: LoadQueueEntryDto,
+  ) {
+    return this.liveSessionsService.loadQueueEntry(req.user.id, id, entryId, dto.expectedQueueRevision);
+  }
+
+  @Post(":id/queue/player/clear")
+  async clearPlayer(
+    @Req() req: RequestWithUser,
+    @Param("id") id: string,
+    @Body() dto: ClearPlayerDto,
+  ) {
+    return this.liveSessionsService.clearPlayer(req.user.id, id, dto.expectedQueueRevision);
+  }
+
 }
