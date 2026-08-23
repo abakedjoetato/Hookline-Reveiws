@@ -1,13 +1,5 @@
-import {
-  describe,
-  it,
-  expect,
-  vi,
-  beforeAll,
-  afterAll,
-  beforeEach,
-} from "vitest";
 import { Test, TestingModule } from "@nestjs/testing";
+import { describe, it, expect, vi, beforeEach, beforeAll, afterAll } from "vitest";
 import { LiveSessionsService } from "../live-sessions.service";
 import { QueueOrderingService } from "../queue-ordering/queue-ordering.service";
 import { PrismaClient, generateUuidV7 } from "@platform/database";
@@ -22,6 +14,7 @@ import {
   StreamingPlatform,
   QueueStatus,
 } from "@platform/types";
+import { LiveSessionsEventService } from "../live-sessions-event.service";
 
 describe("LiveSessionsService", () => {
   let service: LiveSessionsService;
@@ -41,8 +34,9 @@ describe("LiveSessionsService", () => {
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
-        { provide: QueueOrderingService, useValue: {} },
         LiveSessionsService,
+        QueueOrderingService,
+        LiveSessionsEventService,
         {
           provide: PrismaClient,
           useValue: prisma,
@@ -66,29 +60,31 @@ describe("LiveSessionsService", () => {
         $transaction: vi.fn(async (cb) => cb(prismaMock)),
         $queryRaw: vi.fn().mockImplementation((query) => {
           if (query && query[0] && query[0].includes("host_profiles")) {
-            return Promise.resolve(
-              prismaMock.hostProfile.findUnique() ? [{}] : [],
-            );
+            return [{ id: "host1" }];
           }
-          return Promise.resolve([{}]);
+          return [];
         }),
-        hostProfile: {
-          findUnique: vi.fn().mockResolvedValue({ userId: mockHostId }),
-        },
         station: {
-          findUnique: vi
-            .fn()
-            .mockResolvedValue({ id: mockStationId, hostId: mockHostId }),
+          findUnique: vi.fn().mockResolvedValue({
+            id: mockStationId,
+            hostId: mockHostId,
+          }),
         },
         liveSession: {
           findFirst: vi.fn().mockResolvedValue(null),
-          create: vi
-            .fn()
-            .mockResolvedValue({ id: "new-session", hostId: mockHostId }),
+          create: vi.fn().mockResolvedValue({
+            id: "new-session",
+            stationId: mockStationId,
+            status: LiveSessionStatus.PREPARING,
+            liveTitle: "My Session",
+            queueRevision: 0,
+          }),
         },
       };
 
-      const mockService = new LiveSessionsService(prismaMock as any, {} as any);
+      const mockEventService = { emit: vi.fn() } as any;
+
+      const mockService = new LiveSessionsService(prismaMock as any, {} as any, mockEventService);
 
       const result = await mockService.createLiveSession(mockHostId, {
         stationId: mockStationId,
@@ -105,17 +101,12 @@ describe("LiveSessionsService", () => {
       const prismaMock = {
         $transaction: vi.fn(async (cb) => cb(prismaMock)),
         $queryRaw: vi.fn().mockImplementation((query) => {
-          if (query && query[0] && query[0].includes("host_profiles")) {
-            return Promise.resolve(
-              prismaMock.hostProfile.findUnique() ? [{}] : [],
-            );
-          }
-          return Promise.resolve([{}]);
+          return [];
         }),
-        hostProfile: { findUnique: vi.fn().mockResolvedValue(null) },
-        station: { findUnique: vi.fn().mockResolvedValue(null) },
       };
-      const mockService = new LiveSessionsService(prismaMock as any, {} as any);
+
+      const mockEventService = { emit: vi.fn() } as any;
+      const mockService = new LiveSessionsService(prismaMock as any, {} as any, mockEventService);
 
       await expect(
         mockService.createLiveSession(generateUuidV7(), {

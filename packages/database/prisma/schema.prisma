@@ -944,6 +944,9 @@ model LiveSession {
   createdAt                 DateTime              @default(now())
   updatedAt                 DateTime              @updatedAt
 
+  // Playback Activity for Inactivity Sweep
+  lastPlaybackActivityAt    DateTime?
+
   // Real-time sequencing support
   queueRevision             Int                   @default(0)
   publicQueueUpdatedAt      DateTime?

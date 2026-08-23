@@ -1,4 +1,5 @@
 import { QueueOrderingService } from "./queue-ordering/queue-ordering.service";
+import { LiveSessionsEventService } from "./live-sessions-event.service";
 import { ReorderIntent } from "./dto/live-session.dto";
 
 import {
@@ -17,6 +18,7 @@ export class LiveSessionsService {
   constructor(
     private readonly prisma: PrismaClient,
     private readonly queueOrderingService: QueueOrderingService,
+    private readonly events: LiveSessionsEventService,
   ) {}
 
   async createLiveSession(
@@ -147,9 +149,11 @@ export class LiveSessionsService {
         data: {
           status: LiveSessionStatus.LIVE,
           startedAt: new Date(),
+          lastPlaybackActivityAt: new Date(),
           queueRevision: { increment: 1 },
         },
       });
+      this.events.emit(id, "session.started", { status: updated.status, startedAt: updated.startedAt, queueRevision: updated.queueRevision });
       return {
         id: updated.id,
         stationId: updated.stationId,
@@ -197,6 +201,7 @@ export class LiveSessionsService {
           queueRevision: { increment: 1 },
         },
       });
+      this.events.emit(id, "session.paused", { status: updated.status, queueRevision: updated.queueRevision });
       return {
         id: updated.id,
         stationId: updated.stationId,
@@ -298,6 +303,7 @@ export class LiveSessionsService {
           queueRevision: { increment: 1 },
         },
       });
+      this.events.emit(id, "session.ended", { status: updated.status, endedAt: updated.endedAt, queueRevision: updated.queueRevision });
       return {
         id: updated.id,
         stationId: updated.stationId,
@@ -578,9 +584,11 @@ export class LiveSessionsService {
         data: {
           queueRevision: { increment: 1 },
           currentQueueEntryId: nextEntry ? nextEntry.id : null,
+          lastPlaybackActivityAt: new Date(),
         },
       });
 
+      this.events.emit(id, "player.playNext", { queueRevision: expectedQueueRevision + 1, currentQueueEntryId: nextEntry ? nextEntry.id : null });
       return { success: true };
     });
   }
@@ -644,9 +652,11 @@ export class LiveSessionsService {
         data: {
           queueRevision: { increment: 1 },
           currentQueueEntryId: entryToLoad.id,
+          lastPlaybackActivityAt: new Date(),
         },
       });
 
+      this.events.emit(id, "player.loaded", { queueRevision: expectedQueueRevision + 1, currentQueueEntryId: entryToLoad.id });
       return { success: true };
     });
   }
@@ -682,9 +692,11 @@ export class LiveSessionsService {
         data: {
           queueRevision: { increment: 1 },
           currentQueueEntryId: null,
+          lastPlaybackActivityAt: new Date(),
         },
       });
 
+      this.events.emit(id, "player.cleared", { queueRevision: expectedQueueRevision + 1, currentQueueEntryId: null });
       return { success: true };
     });
   }

@@ -35,9 +35,11 @@ describe("LiveSessionsService - Slice 3", () => {
       generateRebalanceUpdates: vi.fn(),
     };
 
+    const mockEventService = { emit: vi.fn() };
     service = new LiveSessionsService(
       prismaMock as any,
       queueOrderingServiceMock as any,
+      mockEventService as any
     );
   });
 
