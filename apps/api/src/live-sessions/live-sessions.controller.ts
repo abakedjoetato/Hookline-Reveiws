@@ -1,4 +1,6 @@
-import {
+import { HostManualTierChangeDto } from "./dto/live-session.dto";
+import { UpdateLiveSessionConfigDto } from "./dto/update-live-session-config.dto";
+import { Patch,
   Controller,
   Post,
   Get,
@@ -124,6 +126,26 @@ export class LiveSessionsController {
     @Body() dto: ClearPlayerDto,
   ) {
     return this.liveSessionsService.clearPlayer(req.user.id, id, dto.expectedQueueRevision);
+  }
+
+
+  @Patch(":id/configuration")
+  async updateConfiguration(
+    @Req() req: RequestWithUser,
+    @Param("id") id: string,
+    @Body() dto: UpdateLiveSessionConfigDto
+  ) {
+    return this.liveSessionsService.updateConfiguration(req.user.id, id, dto);
+  }
+
+  @Post(":id/queue/entries/:entryId/tier")
+  async changeEntryTier(
+    @Req() req: RequestWithUser,
+    @Param("id") id: string,
+    @Param("entryId") entryId: string,
+    @Body() dto: HostManualTierChangeDto
+  ) {
+    return this.liveSessionsService.changeEntryTier(req.user.id, id, entryId, dto);
   }
 
 }

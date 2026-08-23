@@ -1100,6 +1100,7 @@ model LivePriorityTierSnapshot {
   priceCents                  Int
   currency                    String                    @default("USD")
   priorityRank                Int
+  isActive                    Boolean                   @default(true)
   isUpgradeEnabled            Boolean                   @default(true)
   maxPurchasesPerLive         Int?
   maxPurchasesPerUserPerLive  Int?
@@ -1260,6 +1261,10 @@ model QueueEntry {
   loadedIntoPlayerAt    DateTime?
   originPriorityRank    Int?
   originSortOrder       Decimal?          @db.Decimal(20, 8)
+
+  // Tier Origin State for Restoration
+  tierOriginPriorityRank Int?
+  tierOriginSortOrder   Decimal?          @db.Decimal(20, 8)
 
   // Relations
   liveSession           LiveSession       @relation(fields: [liveSessionId], references: [id], onDelete: Restrict)

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeAll, afterAll, beforeEach } from "vitest";
 import { Test, TestingModule } from "@nestjs/testing";
 import { LiveSessionsService } from "../live-sessions.service";
-import { QueueOrderingService } from "../queue-ordering.service";
+import { QueueOrderingService } from "../queue-ordering/queue-ordering.service";
 import { PrismaClient, generateUuidV7 } from "@platform/database";
 import { ForbiddenException, ConflictException, NotFoundException, BadRequestException } from "@nestjs/common";
 import { LiveSessionStatus, StreamingPlatform, QueueStatus } from "@platform/types";

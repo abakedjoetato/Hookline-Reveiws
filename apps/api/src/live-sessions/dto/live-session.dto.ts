@@ -72,3 +72,6 @@ export class ReorderQueueEntryDto extends ExpectedQueueRevisionDto {
   @IsUUID()
   targetEntryId?: string;
 }
+
+import { HostManualTierChangeDto as SubmissionsTierChangeDto } from "../../submissions/dto/submission.dto";
+export { HostManualTierChangeDto } from "../../submissions/dto/submission.dto";
