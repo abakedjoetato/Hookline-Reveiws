@@ -1,6 +1,9 @@
 import { Module } from "@nestjs/common";
 import { LiveSessionsController } from "./live-sessions.controller";
 import { LiveSessionsService } from "./live-sessions.service";
+import { LiveSessionsGateway } from "./live-sessions.gateway";
+import { LiveSessionsEventService } from "./live-sessions-event.service";
+import { LiveSessionsCronService } from "./live-sessions-cron.service";
 import { AuthProtectionModule } from "../auth/protection/auth-protection.module";
 import { AuthModule } from "../auth/auth.module";
 import { PrismaClient } from "@platform/database";
@@ -9,12 +12,15 @@ import { PrismaClient } from "@platform/database";
   imports: [AuthProtectionModule, AuthModule],
   controllers: [LiveSessionsController],
   providers: [
+    LiveSessionsGateway,
+    LiveSessionsEventService,
+    LiveSessionsCronService,
     LiveSessionsService,
     {
       provide: PrismaClient,
       useValue: new PrismaClient(),
     },
   ],
-  exports: [LiveSessionsService],
+  exports: [LiveSessionsService, LiveSessionsEventService],
 })
 export class LiveSessionsModule {}

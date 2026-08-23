@@ -22,6 +22,7 @@ import { PaymentsModule } from "./payments/payments.module";
 
 @Module({
   imports: [
+    ScheduleModule.forRoot(),
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: ".env",

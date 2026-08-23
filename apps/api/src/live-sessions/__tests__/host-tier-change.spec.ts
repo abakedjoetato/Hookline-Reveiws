@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { Test, TestingModule } from "@nestjs/testing";
 import { LiveSessionsService } from "../live-sessions.service";
 import { QueueOrderingService } from "../queue-ordering/queue-ordering.service";
+import { LiveSessionsEventService } from "../live-sessions-event.service";
 import { PrismaClient } from "@platform/database";
 
 describe("Host Manual Tier Change", () => {
@@ -39,6 +40,7 @@ describe("Host Manual Tier Change", () => {
         LiveSessionsService,
         { provide: PrismaClient, useValue: mockPrisma },
         { provide: QueueOrderingService, useValue: mockQueueOrderingService },
+        { provide: LiveSessionsEventService, useValue: { emit: vi.fn() } },
       ],
     }).compile();
 
