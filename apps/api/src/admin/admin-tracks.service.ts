@@ -15,7 +15,13 @@ export class AdminTracksService {
     inactiveDays?: number;
     storageStatus?: StorageStatus;
     ownerUserId?: string;
-    sortBy?: "lastPlayedDesc" | "lastPlayedAsc" | "uploadDate" | "fileSize" | "title" | "artist";
+    sortBy?:
+      | "lastPlayedDesc"
+      | "lastPlayedAsc"
+      | "uploadDate"
+      | "fileSize"
+      | "title"
+      | "artist";
   }) {
     let where: any = { deletedAt: null };
 
@@ -89,7 +95,7 @@ export class AdminTracksService {
   async deleteTrackMedia(trackId: string) {
     const track = await this.prisma.track.findUnique({
       where: { id: trackId },
-      include: { mediaVersions: true, artworks: true }
+      include: { mediaVersions: true, artworks: true },
     });
 
     if (!track) throw new NotFoundException("Track not found");
@@ -120,13 +126,13 @@ export class AdminTracksService {
         if (mediaVersionIds.length > 0) {
           await tx.trackMediaVersion.updateMany({
             where: { id: { in: mediaVersionIds } },
-            data: { storageStatus: StorageStatus.DELETION_PENDING }
+            data: { storageStatus: StorageStatus.DELETION_PENDING },
           });
         }
         if (artworkIds.length > 0) {
           await tx.trackArtwork.updateMany({
             where: { id: { in: artworkIds } },
-            data: { storageStatus: StorageStatus.DELETION_PENDING }
+            data: { storageStatus: StorageStatus.DELETION_PENDING },
           });
         }
       });
@@ -140,7 +146,9 @@ export class AdminTracksService {
   }
 
   async deleteArtwork(artworkId: string) {
-    const artwork = await this.prisma.trackArtwork.findUnique({ where: { id: artworkId } });
+    const artwork = await this.prisma.trackArtwork.findUnique({
+      where: { id: artworkId },
+    });
     if (!artwork) throw new NotFoundException("Artwork not found");
 
     const objectKeys = [artwork.originalObjectKey];
@@ -149,7 +157,7 @@ export class AdminTracksService {
 
     await this.prisma.trackArtwork.update({
       where: { id: artworkId },
-      data: { storageStatus: StorageStatus.DELETION_PENDING }
+      data: { storageStatus: StorageStatus.DELETION_PENDING },
     });
 
     await this.mediaProcessingQueue.enqueueDeleteMediaObjects({

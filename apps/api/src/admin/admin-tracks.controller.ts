@@ -1,8 +1,20 @@
-import { Controller, Get, Delete, Query, Param, UseGuards, Body, Post } from "@nestjs/common";
+import {
+  Controller,
+  Get,
+  Delete,
+  Query,
+  Param,
+  UseGuards,
+  Body,
+  Post,
+} from "@nestjs/common";
 import { AdminTracksService } from "./admin-tracks.service";
 import { SessionGuard } from "../auth/guards/session.guard";
 import { AuthorizationGuard } from "../auth/guards/authorization.guard";
-import { RequiredRoles, RequiredPermissions } from "../auth/decorators/auth.decorators";
+import {
+  RequiredRoles,
+  RequiredPermissions,
+} from "../auth/decorators/auth.decorators";
 import { Role, AdminPermission, StorageStatus } from "@platform/types";
 
 class GetAdminTracksQueryDto {
@@ -10,7 +22,13 @@ class GetAdminTracksQueryDto {
   inactiveDays?: number;
   storageStatus?: StorageStatus;
   ownerUserId?: string;
-  sortBy?: "lastPlayedDesc" | "lastPlayedAsc" | "uploadDate" | "fileSize" | "title" | "artist";
+  sortBy?:
+    | "lastPlayedDesc"
+    | "lastPlayedAsc"
+    | "uploadDate"
+    | "fileSize"
+    | "title"
+    | "artist";
 }
 
 @Controller("admin/tracks")
@@ -23,8 +41,10 @@ export class AdminTracksController {
   @Get()
   async getTracks(@Query() query: GetAdminTracksQueryDto) {
     // Basic conversion for query params that come as strings
-    if (query.neverPlayed) query.neverPlayed = query.neverPlayed.toString() === 'true';
-    if (query.inactiveDays) query.inactiveDays = parseInt(query.inactiveDays as any, 10);
+    if (query.neverPlayed)
+      query.neverPlayed = query.neverPlayed.toString() === "true";
+    if (query.inactiveDays)
+      query.inactiveDays = parseInt(query.inactiveDays as any, 10);
 
     return this.adminTracksService.getAdminTracks(query);
   }

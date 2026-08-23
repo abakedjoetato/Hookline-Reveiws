@@ -17,6 +17,8 @@ import { TracksModule } from "./tracks/tracks.module";
 import { AdminTracksModule } from "./admin/admin-tracks.module";
 import { LiveSessionsModule } from "./live-sessions/live-sessions.module";
 import { BullModule } from "@nestjs/bullmq";
+import { IdempotencyModule } from "./common/idempotency/idempotency.module";
+import { PaymentsModule } from "./payments/payments.module";
 
 @Module({
   imports: [
@@ -66,6 +68,8 @@ import { BullModule } from "@nestjs/bullmq";
     TracksModule,
     AdminTracksModule,
     LiveSessionsModule,
+    IdempotencyModule,
+    PaymentsModule,
   ],
   controllers: [HealthController],
   providers: [],

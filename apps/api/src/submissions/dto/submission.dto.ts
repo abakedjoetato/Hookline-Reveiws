@@ -31,6 +31,6 @@ export interface SubmissionEligibilityResponse {
 }
 
 export interface HostManualTierChangeDto {
-  destinationType: 'FREE' | 'PRIORITY_TIER';
+  destinationType: "FREE" | "PRIORITY_TIER";
   tierSnapshotId?: string;
 }

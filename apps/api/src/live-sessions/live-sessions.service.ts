@@ -1,4 +1,3 @@
-
 import { QueueOrderingService } from "./queue-ordering/queue-ordering.service";
 import { ReorderIntent } from "./dto/live-session.dto";
 
@@ -11,16 +10,19 @@ import {
 } from "@nestjs/common";
 import { PrismaClient, generateUuidV7, QueueEntry } from "@platform/database";
 import { LiveSessionStatus, QueueStatus } from "@platform/types";
-import {
-  CreateLiveSessionDto,
-  AddQueueEntryDto,
-} from "./dto/live-session.dto";
+import { CreateLiveSessionDto, AddQueueEntryDto } from "./dto/live-session.dto";
 
 @Injectable()
 export class LiveSessionsService {
-  constructor(private readonly prisma: PrismaClient, private readonly queueOrderingService: QueueOrderingService) {}
+  constructor(
+    private readonly prisma: PrismaClient,
+    private readonly queueOrderingService: QueueOrderingService,
+  ) {}
 
-  async createLiveSession(userId: string, dto: CreateLiveSessionDto): Promise<import("./dto/live-session.dto").SafeLiveSessionResponse> {
+  async createLiveSession(
+    userId: string,
+    dto: CreateLiveSessionDto,
+  ): Promise<import("./dto/live-session.dto").SafeLiveSessionResponse> {
     return this.prisma.$transaction(async (tx) => {
       // 1. Lock the host profile to serialize concurrent creation requests
       // This guarantees that if two requests arrive simultaneously, one will block
@@ -74,11 +76,20 @@ export class LiveSessionsService {
           queueRevision: 0,
         },
       });
-      return { id: created.id, stationId: created.stationId, status: created.status, liveTitle: created.liveTitle, queueRevision: created.queueRevision };
+      return {
+        id: created.id,
+        stationId: created.stationId,
+        status: created.status,
+        liveTitle: created.liveTitle,
+        queueRevision: created.queueRevision,
+      };
     });
   }
 
-  async getLiveSession(userId: string, id: string): Promise<import("./dto/live-session.dto").SafeLiveSessionResponse> {
+  async getLiveSession(
+    userId: string,
+    id: string,
+  ): Promise<import("./dto/live-session.dto").SafeLiveSessionResponse> {
     const session = await this.prisma.liveSession.findUnique({
       where: { id },
     });
@@ -91,10 +102,20 @@ export class LiveSessionsService {
       throw new ForbiddenException("You do not own this live session");
     }
 
-    return { id: session.id, stationId: session.stationId, status: session.status, liveTitle: session.liveTitle, queueRevision: session.queueRevision };
+    return {
+      id: session.id,
+      stationId: session.stationId,
+      status: session.status,
+      liveTitle: session.liveTitle,
+      queueRevision: session.queueRevision,
+    };
   }
 
-  async startLiveSession(userId: string, id: string, expectedQueueRevision: number): Promise<import("./dto/live-session.dto").SafeLiveSessionResponse> {
+  async startLiveSession(
+    userId: string,
+    id: string,
+    expectedQueueRevision: number,
+  ): Promise<import("./dto/live-session.dto").SafeLiveSessionResponse> {
     return this.prisma.$transaction(async (tx) => {
       // 1. Lock the session row to prevent concurrent mutations
       const lockedSessions = await tx.$queryRaw<any[]>`
@@ -116,7 +137,9 @@ export class LiveSessionsService {
       }
 
       if (session.status !== LiveSessionStatus.PREPARING) {
-        throw new BadRequestException("Invalid lifecycle transition. Session must be in PREPARING state to start.");
+        throw new BadRequestException(
+          "Invalid lifecycle transition. Session must be in PREPARING state to start.",
+        );
       }
 
       const updated = await tx.liveSession.update({
@@ -127,11 +150,21 @@ export class LiveSessionsService {
           queueRevision: { increment: 1 },
         },
       });
-      return { id: updated.id, stationId: updated.stationId, status: updated.status, liveTitle: updated.liveTitle, queueRevision: updated.queueRevision };
+      return {
+        id: updated.id,
+        stationId: updated.stationId,
+        status: updated.status,
+        liveTitle: updated.liveTitle,
+        queueRevision: updated.queueRevision,
+      };
     });
   }
 
-  async pauseLiveSession(userId: string, id: string, expectedQueueRevision: number): Promise<import("./dto/live-session.dto").SafeLiveSessionResponse> {
+  async pauseLiveSession(
+    userId: string,
+    id: string,
+    expectedQueueRevision: number,
+  ): Promise<import("./dto/live-session.dto").SafeLiveSessionResponse> {
     return this.prisma.$transaction(async (tx) => {
       const lockedSessions = await tx.$queryRaw<any[]>`
         SELECT id, status, "hostId", "queueRevision" FROM "live_sessions" WHERE id = ${id}::uuid FOR UPDATE
@@ -152,7 +185,9 @@ export class LiveSessionsService {
       }
 
       if (session.status !== LiveSessionStatus.LIVE) {
-        throw new BadRequestException("Invalid lifecycle transition. Session must be in LIVE state to pause.");
+        throw new BadRequestException(
+          "Invalid lifecycle transition. Session must be in LIVE state to pause.",
+        );
       }
 
       const updated = await tx.liveSession.update({
@@ -162,11 +197,21 @@ export class LiveSessionsService {
           queueRevision: { increment: 1 },
         },
       });
-      return { id: updated.id, stationId: updated.stationId, status: updated.status, liveTitle: updated.liveTitle, queueRevision: updated.queueRevision };
+      return {
+        id: updated.id,
+        stationId: updated.stationId,
+        status: updated.status,
+        liveTitle: updated.liveTitle,
+        queueRevision: updated.queueRevision,
+      };
     });
   }
 
-  async resumeLiveSession(userId: string, id: string, expectedQueueRevision: number): Promise<import("./dto/live-session.dto").SafeLiveSessionResponse> {
+  async resumeLiveSession(
+    userId: string,
+    id: string,
+    expectedQueueRevision: number,
+  ): Promise<import("./dto/live-session.dto").SafeLiveSessionResponse> {
     return this.prisma.$transaction(async (tx) => {
       const lockedSessions = await tx.$queryRaw<any[]>`
         SELECT id, status, "hostId", "queueRevision" FROM "live_sessions" WHERE id = ${id}::uuid FOR UPDATE
@@ -187,7 +232,9 @@ export class LiveSessionsService {
       }
 
       if (session.status !== LiveSessionStatus.PAUSED) {
-        throw new BadRequestException("Invalid lifecycle transition. Session must be in PAUSED state to resume.");
+        throw new BadRequestException(
+          "Invalid lifecycle transition. Session must be in PAUSED state to resume.",
+        );
       }
 
       const updated = await tx.liveSession.update({
@@ -197,11 +244,21 @@ export class LiveSessionsService {
           queueRevision: { increment: 1 },
         },
       });
-      return { id: updated.id, stationId: updated.stationId, status: updated.status, liveTitle: updated.liveTitle, queueRevision: updated.queueRevision };
+      return {
+        id: updated.id,
+        stationId: updated.stationId,
+        status: updated.status,
+        liveTitle: updated.liveTitle,
+        queueRevision: updated.queueRevision,
+      };
     });
   }
 
-  async endLiveSession(userId: string, id: string, expectedQueueRevision: number): Promise<import("./dto/live-session.dto").SafeLiveSessionResponse> {
+  async endLiveSession(
+    userId: string,
+    id: string,
+    expectedQueueRevision: number,
+  ): Promise<import("./dto/live-session.dto").SafeLiveSessionResponse> {
     return this.prisma.$transaction(async (tx) => {
       const lockedSessions = await tx.$queryRaw<any[]>`
         SELECT id, status, "hostId", "queueRevision" FROM "live_sessions" WHERE id = ${id}::uuid FOR UPDATE
@@ -221,8 +278,16 @@ export class LiveSessionsService {
         throw new ConflictException("Stale queue revision");
       }
 
-      if (![LiveSessionStatus.PREPARING, LiveSessionStatus.LIVE, LiveSessionStatus.PAUSED].includes(session.status)) {
-        throw new BadRequestException("Invalid lifecycle transition. Session cannot be ended from its current state.");
+      if (
+        ![
+          LiveSessionStatus.PREPARING,
+          LiveSessionStatus.LIVE,
+          LiveSessionStatus.PAUSED,
+        ].includes(session.status)
+      ) {
+        throw new BadRequestException(
+          "Invalid lifecycle transition. Session cannot be ended from its current state.",
+        );
       }
 
       const updated = await tx.liveSession.update({
@@ -233,11 +298,21 @@ export class LiveSessionsService {
           queueRevision: { increment: 1 },
         },
       });
-      return { id: updated.id, stationId: updated.stationId, status: updated.status, liveTitle: updated.liveTitle, queueRevision: updated.queueRevision };
+      return {
+        id: updated.id,
+        stationId: updated.stationId,
+        status: updated.status,
+        liveTitle: updated.liveTitle,
+        queueRevision: updated.queueRevision,
+      };
     });
   }
 
-  async addQueueEntry(userId: string, id: string, dto: AddQueueEntryDto): Promise<import("./dto/live-session.dto").SafeQueueEntryResponse> {
+  async addQueueEntry(
+    userId: string,
+    id: string,
+    dto: AddQueueEntryDto,
+  ): Promise<import("./dto/live-session.dto").SafeQueueEntryResponse> {
     return this.prisma.$transaction(async (tx) => {
       const lockedSessions = await tx.$queryRaw<any[]>`
         SELECT id, status, "hostId", "queueRevision" FROM "live_sessions" WHERE id = ${id}::uuid FOR UPDATE
@@ -258,7 +333,7 @@ export class LiveSessionsService {
       }
 
       const submission = await tx.submission.findUnique({
-        where: { id: dto.submissionId }
+        where: { id: dto.submissionId },
       });
 
       if (!submission || submission.liveSessionId !== id) {
@@ -271,16 +346,20 @@ export class LiveSessionsService {
       });
 
       if (existingEntry) {
-        throw new ConflictException("Queue entry already exists for this submission");
+        throw new ConflictException(
+          "Queue entry already exists for this submission",
+        );
       }
 
       // Determine initial deterministic sort order (simple stable spacing strategy)
       const lastEntry = await tx.queueEntry.findFirst({
         where: { liveSessionId: id },
-        orderBy: { sortOrder: 'desc' },
+        orderBy: { sortOrder: "desc" },
       });
 
-      const nextSortOrder = lastEntry ? Number(lastEntry.sortOrder) + 1000 : 1000;
+      const nextSortOrder = lastEntry
+        ? Number(lastEntry.sortOrder) + 1000
+        : 1000;
 
       const entryId = generateUuidV7();
 
@@ -312,12 +391,15 @@ export class LiveSessionsService {
           isPriority: submission.isPriority,
           currentQueueStatus: submission.currentQueueStatus,
           submittedAt: submission.submittedAt,
-        }
+        },
       };
     });
   }
 
-  async getQueue(userId: string, id: string): Promise<import("./dto/live-session.dto").SafeQueueEntryResponse[]> {
+  async getQueue(
+    userId: string,
+    id: string,
+  ): Promise<import("./dto/live-session.dto").SafeQueueEntryResponse[]> {
     const session = await this.prisma.liveSession.findUnique({ where: { id } });
 
     if (!session) {
@@ -330,16 +412,13 @@ export class LiveSessionsService {
 
     const entries = await this.prisma.queueEntry.findMany({
       where: { liveSessionId: id },
-      orderBy: [
-        { priorityRank: 'desc' },
-        { sortOrder: 'asc' },
-      ],
+      orderBy: [{ priorityRank: "desc" }, { sortOrder: "asc" }],
       include: {
         submission: true,
-      }
+      },
     });
 
-    return entries.map(entry => ({
+    return entries.map((entry) => ({
       id: entry.id,
       liveSessionId: entry.liveSessionId,
       status: entry.status,
@@ -350,18 +429,18 @@ export class LiveSessionsService {
         isPriority: entry.submission.isPriority,
         currentQueueStatus: entry.submission.currentQueueStatus,
         submittedAt: entry.submission.submittedAt,
-      }
+      },
     }));
   }
 
   private async qualifyAndDisplaceCurrentPlayer(
     tx: any,
     currentEntryId: string,
-    liveSessionId: string
+    liveSessionId: string,
   ) {
     const currentEntry = await tx.queueEntry.findUnique({
       where: { id: currentEntryId },
-      include: { submission: true }
+      include: { submission: true },
     });
 
     if (!currentEntry) return;
@@ -394,25 +473,26 @@ export class LiveSessionsService {
           loadedIntoPlayerAt: null,
           originPriorityRank: null,
           originSortOrder: null,
-        }
+        },
       });
       await tx.submission.update({
         where: { id: currentEntry.submissionId },
         data: {
-          currentQueueStatus: QueueStatus.MOVED_TO_HISTORY
-        }
+          currentQueueStatus: QueueStatus.MOVED_TO_HISTORY,
+        },
       });
     } else {
       // Restore near origin
-      const originRank = currentEntry.originPriorityRank ?? currentEntry.priorityRank;
+      const originRank =
+        currentEntry.originPriorityRank ?? currentEntry.priorityRank;
 
       const groupEntries = await tx.queueEntry.findMany({
         where: {
           liveSessionId,
           status: QueueStatus.QUEUED,
-          priorityRank: originRank
+          priorityRank: originRank,
         },
-        orderBy: { sortOrder: 'asc' }
+        orderBy: { sortOrder: "asc" },
       });
 
       // Calculate placement
@@ -436,14 +516,14 @@ export class LiveSessionsService {
           loadedIntoPlayerAt: null,
           originPriorityRank: null,
           originSortOrder: null,
-        }
+        },
       });
 
       await tx.submission.update({
         where: { id: currentEntry.submissionId },
         data: {
-          currentQueueStatus: QueueStatus.QUEUED
-        }
+          currentQueueStatus: QueueStatus.QUEUED,
+        },
       });
     }
   }
@@ -454,20 +534,27 @@ export class LiveSessionsService {
         SELECT id, status, "hostId", "queueRevision", "currentQueueEntryId" FROM "live_sessions" WHERE id = ${id}::uuid FOR UPDATE
       `;
 
-      if (!lockedSessions.length) throw new NotFoundException("Live session not found");
+      if (!lockedSessions.length)
+        throw new NotFoundException("Live session not found");
       const session = lockedSessions[0];
 
-      if (session.hostId !== userId) throw new ForbiddenException("You do not own this live session");
-      if (session.queueRevision !== expectedQueueRevision) throw new ConflictException("Stale queue revision");
+      if (session.hostId !== userId)
+        throw new ForbiddenException("You do not own this live session");
+      if (session.queueRevision !== expectedQueueRevision)
+        throw new ConflictException("Stale queue revision");
 
       if (session.currentQueueEntryId) {
-        await this.qualifyAndDisplaceCurrentPlayer(tx, session.currentQueueEntryId, id);
+        await this.qualifyAndDisplaceCurrentPlayer(
+          tx,
+          session.currentQueueEntryId,
+          id,
+        );
       }
 
       // Find first queued entry
       const nextEntry = await tx.queueEntry.findFirst({
         where: { liveSessionId: id, status: QueueStatus.QUEUED },
-        orderBy: [{ priorityRank: 'desc' }, { sortOrder: 'asc' }]
+        orderBy: [{ priorityRank: "desc" }, { sortOrder: "asc" }],
       });
 
       if (nextEntry) {
@@ -478,11 +565,11 @@ export class LiveSessionsService {
             loadedIntoPlayerAt: new Date(),
             originPriorityRank: nextEntry.priorityRank,
             originSortOrder: nextEntry.sortOrder,
-          }
+          },
         });
         await tx.submission.update({
           where: { id: nextEntry.submissionId },
-          data: { currentQueueStatus: QueueStatus.PLAYING }
+          data: { currentQueueStatus: QueueStatus.PLAYING },
         });
       }
 
@@ -490,36 +577,52 @@ export class LiveSessionsService {
         where: { id, queueRevision: expectedQueueRevision },
         data: {
           queueRevision: { increment: 1 },
-          currentQueueEntryId: nextEntry ? nextEntry.id : null
-        }
+          currentQueueEntryId: nextEntry ? nextEntry.id : null,
+        },
       });
 
       return { success: true };
     });
   }
 
-  async loadQueueEntry(userId: string, id: string, entryId: string, expectedQueueRevision: number) {
+  async loadQueueEntry(
+    userId: string,
+    id: string,
+    entryId: string,
+    expectedQueueRevision: number,
+  ) {
     return this.prisma.$transaction(async (tx) => {
       const lockedSessions = await tx.$queryRaw<any[]>`
         SELECT id, status, "hostId", "queueRevision", "currentQueueEntryId" FROM "live_sessions" WHERE id = ${id}::uuid FOR UPDATE
       `;
 
-      if (!lockedSessions.length) throw new NotFoundException("Live session not found");
+      if (!lockedSessions.length)
+        throw new NotFoundException("Live session not found");
       const session = lockedSessions[0];
 
-      if (session.hostId !== userId) throw new ForbiddenException("You do not own this live session");
-      if (session.queueRevision !== expectedQueueRevision) throw new ConflictException("Stale queue revision");
+      if (session.hostId !== userId)
+        throw new ForbiddenException("You do not own this live session");
+      if (session.queueRevision !== expectedQueueRevision)
+        throw new ConflictException("Stale queue revision");
 
       const entryToLoad = await tx.queueEntry.findUnique({
-        where: { id: entryId }
+        where: { id: entryId },
       });
 
-      if (!entryToLoad || entryToLoad.liveSessionId !== id || entryToLoad.status !== QueueStatus.QUEUED) {
+      if (
+        !entryToLoad ||
+        entryToLoad.liveSessionId !== id ||
+        entryToLoad.status !== QueueStatus.QUEUED
+      ) {
         throw new BadRequestException("Invalid entry to load");
       }
 
       if (session.currentQueueEntryId) {
-        await this.qualifyAndDisplaceCurrentPlayer(tx, session.currentQueueEntryId, id);
+        await this.qualifyAndDisplaceCurrentPlayer(
+          tx,
+          session.currentQueueEntryId,
+          id,
+        );
       }
 
       await tx.queueEntry.update({
@@ -529,19 +632,19 @@ export class LiveSessionsService {
           loadedIntoPlayerAt: new Date(),
           originPriorityRank: entryToLoad.priorityRank,
           originSortOrder: entryToLoad.sortOrder,
-        }
+        },
       });
       await tx.submission.update({
         where: { id: entryToLoad.submissionId },
-        data: { currentQueueStatus: QueueStatus.PLAYING }
+        data: { currentQueueStatus: QueueStatus.PLAYING },
       });
 
       await tx.liveSession.update({
         where: { id, queueRevision: expectedQueueRevision },
         data: {
           queueRevision: { increment: 1 },
-          currentQueueEntryId: entryToLoad.id
-        }
+          currentQueueEntryId: entryToLoad.id,
+        },
       });
 
       return { success: true };
@@ -554,14 +657,21 @@ export class LiveSessionsService {
         SELECT id, status, "hostId", "queueRevision", "currentQueueEntryId" FROM "live_sessions" WHERE id = ${id}::uuid FOR UPDATE
       `;
 
-      if (!lockedSessions.length) throw new NotFoundException("Live session not found");
+      if (!lockedSessions.length)
+        throw new NotFoundException("Live session not found");
       const session = lockedSessions[0];
 
-      if (session.hostId !== userId) throw new ForbiddenException("You do not own this live session");
-      if (session.queueRevision !== expectedQueueRevision) throw new ConflictException("Stale queue revision");
+      if (session.hostId !== userId)
+        throw new ForbiddenException("You do not own this live session");
+      if (session.queueRevision !== expectedQueueRevision)
+        throw new ConflictException("Stale queue revision");
 
       if (session.currentQueueEntryId) {
-        await this.qualifyAndDisplaceCurrentPlayer(tx, session.currentQueueEntryId, id);
+        await this.qualifyAndDisplaceCurrentPlayer(
+          tx,
+          session.currentQueueEntryId,
+          id,
+        );
       } else {
         // Nothing to clear, no-op
         return { success: true };
@@ -571,31 +681,43 @@ export class LiveSessionsService {
         where: { id, queueRevision: expectedQueueRevision },
         data: {
           queueRevision: { increment: 1 },
-          currentQueueEntryId: null
-        }
+          currentQueueEntryId: null,
+        },
       });
 
       return { success: true };
     });
   }
 
-  async moveToNext(userId: string, id: string, entryId: string, expectedQueueRevision: number) {
+  async moveToNext(
+    userId: string,
+    id: string,
+    entryId: string,
+    expectedQueueRevision: number,
+  ) {
     return this.prisma.$transaction(async (tx) => {
       const lockedSessions = await tx.$queryRaw<any[]>`
         SELECT id, status, "hostId", "queueRevision" FROM "live_sessions" WHERE id = ${id}::uuid FOR UPDATE
       `;
 
-      if (!lockedSessions.length) throw new NotFoundException("Live session not found");
+      if (!lockedSessions.length)
+        throw new NotFoundException("Live session not found");
       const session = lockedSessions[0];
 
-      if (session.hostId !== userId) throw new ForbiddenException("You do not own this live session");
-      if (session.queueRevision !== expectedQueueRevision) throw new ConflictException("Stale queue revision");
+      if (session.hostId !== userId)
+        throw new ForbiddenException("You do not own this live session");
+      if (session.queueRevision !== expectedQueueRevision)
+        throw new ConflictException("Stale queue revision");
 
       const entryToMove = await tx.queueEntry.findUnique({
-        where: { id: entryId }
+        where: { id: entryId },
       });
 
-      if (!entryToMove || entryToMove.liveSessionId !== id || entryToMove.status !== QueueStatus.QUEUED) {
+      if (
+        !entryToMove ||
+        entryToMove.liveSessionId !== id ||
+        entryToMove.status !== QueueStatus.QUEUED
+      ) {
         throw new BadRequestException("Invalid entry to move");
       }
 
@@ -603,60 +725,79 @@ export class LiveSessionsService {
         where: {
           liveSessionId: id,
           status: QueueStatus.QUEUED,
-          priorityRank: entryToMove.priorityRank
+          priorityRank: entryToMove.priorityRank,
         },
-        orderBy: { sortOrder: 'asc' }
+        orderBy: { sortOrder: "asc" },
       });
 
-      if (this.queueOrderingService.isNoOp(entryId, ReorderIntent.TOP, groupEntries)) {
+      if (
+        this.queueOrderingService.isNoOp(
+          entryId,
+          ReorderIntent.TOP,
+          groupEntries,
+        )
+      ) {
         return { success: true }; // No-op, no revision increment
       }
 
-      const { needsRebalance, midpoint } = this.queueOrderingService.calculateNewSortOrder(ReorderIntent.TOP, groupEntries);
+      const { needsRebalance, midpoint } =
+        this.queueOrderingService.calculateNewSortOrder(
+          ReorderIntent.TOP,
+          groupEntries,
+        );
 
       if (needsRebalance) {
         // If rebalance is needed, we apply it to the group (excluding the moved entry to simulate TOP)
-        const groupWithoutMoved = groupEntries.filter(e => e.id !== entryId);
+        const groupWithoutMoved = groupEntries.filter((e) => e.id !== entryId);
         // Prepend the moved entry to top
-        const rebalanced = this.queueOrderingService.generateRebalanceUpdates([entryToMove, ...groupWithoutMoved]);
+        const rebalanced = this.queueOrderingService.generateRebalanceUpdates([
+          entryToMove,
+          ...groupWithoutMoved,
+        ]);
 
         for (const update of rebalanced) {
           await tx.queueEntry.update({
             where: { id: update.id },
-            data: { sortOrder: update.sortOrder }
+            data: { sortOrder: update.sortOrder },
           });
         }
       } else {
         await tx.queueEntry.update({
           where: { id: entryId },
-          data: { sortOrder: midpoint }
+          data: { sortOrder: midpoint },
         });
       }
 
       await tx.liveSession.update({
         where: { id, queueRevision: expectedQueueRevision },
-        data: { queueRevision: { increment: 1 } }
+        data: { queueRevision: { increment: 1 } },
       });
 
       return { success: true };
     });
   }
 
-
-  async changeEntryTier(userId: string, liveSessionId: string, entryId: string, dto: import('./dto/live-session.dto').HostManualTierChangeDto) {
+  async changeEntryTier(
+    userId: string,
+    liveSessionId: string,
+    entryId: string,
+    dto: import("./dto/live-session.dto").HostManualTierChangeDto,
+  ) {
     return this.prisma.$transaction(async (tx) => {
       // 1. Verify Host ownership
       const liveSession = await tx.liveSession.findUnique({
-        where: { id: liveSessionId }
+        where: { id: liveSessionId },
       });
       if (!liveSession || liveSession.hostId !== userId) {
-        throw new ForbiddenException("Not authorized to modify queue entries for this live session");
+        throw new ForbiddenException(
+          "Not authorized to modify queue entries for this live session",
+        );
       }
 
       // 2. Look up the entry
       const entry = await tx.queueEntry.findFirst({
         where: { id: entryId, liveSessionId },
-        include: { submission: true }
+        include: { submission: true },
       });
 
       if (!entry) {
@@ -664,12 +805,16 @@ export class LiveSessionsService {
       }
 
       const isCurrentlyFree = !entry.submission.isPriority;
-      const isDestinationFree = dto.destinationType === 'FREE';
+      const isDestinationFree = dto.destinationType === "FREE";
 
       if (isCurrentlyFree && isDestinationFree) {
         return { success: true, message: "Already in FREE line" };
       }
-      if (!isCurrentlyFree && !isDestinationFree && entry.submission.priorityTierSnapshotId === dto.tierSnapshotId) {
+      if (
+        !isCurrentlyFree &&
+        !isDestinationFree &&
+        entry.submission.priorityTierSnapshotId === dto.tierSnapshotId
+      ) {
         return { success: true, message: "Already in requested PRIORITY tier" };
       }
 
@@ -678,25 +823,36 @@ export class LiveSessionsService {
 
       // Group entries for destination ordering
       const destinationEntries = await tx.queueEntry.findMany({
-          where: {
-              liveSessionId,
-              priorityRank: isDestinationFree ? 0 : (await tx.livePriorityTierSnapshot.findFirst({where: {id: dto.tierSnapshotId, liveSessionId}})).priorityRank,
-              status: { in: ['QUEUED', 'NEXT'] }
-          },
-          orderBy: { sortOrder: 'asc' }
+        where: {
+          liveSessionId,
+          priorityRank: isDestinationFree
+            ? 0
+            : (
+                await tx.livePriorityTierSnapshot.findFirst({
+                  where: { id: dto.tierSnapshotId, liveSessionId },
+                })
+              ).priorityRank,
+          status: { in: ["QUEUED", "NEXT"] },
+        },
+        orderBy: { sortOrder: "asc" },
       });
-
 
       if (isDestinationFree) {
         newPriorityRank = 0;
 
         // Priority -> Free: Restore original free position if possible
-        if (entry.tierOriginPriorityRank !== null && entry.tierOriginSortOrder !== null) {
+        if (
+          entry.tierOriginPriorityRank !== null &&
+          entry.tierOriginSortOrder !== null
+        ) {
           // Attempt to restore near origin
           newSortOrder = entry.tierOriginSortOrder;
         } else {
           // Never previously Free, go to bottom
-          newSortOrder = this.queueOrderingService.calculateNewSortOrder(ReorderIntent.BOTTOM, destinationEntries as any).midpoint;
+          newSortOrder = this.queueOrderingService.calculateNewSortOrder(
+            ReorderIntent.BOTTOM,
+            destinationEntries as any,
+          ).midpoint;
         }
 
         // Update entry and submission
@@ -704,26 +860,27 @@ export class LiveSessionsService {
           where: { id: entry.submissionId },
           data: {
             isPriority: false,
-            priorityTierSnapshotId: null
-          }
+            priorityTierSnapshotId: null,
+          },
         });
 
         await tx.queueEntry.update({
           where: { id: entryId },
           data: {
             priorityRank: newPriorityRank,
-            sortOrder: newSortOrder
-          }
+            sortOrder: newSortOrder,
+          },
         });
-
       } else {
         // Free/Priority -> New Priority Tier
         if (!dto.tierSnapshotId) {
-          throw new BadRequestException("tierSnapshotId is required for PRIORITY_TIER destination");
+          throw new BadRequestException(
+            "tierSnapshotId is required for PRIORITY_TIER destination",
+          );
         }
 
         const tierSnapshot = await tx.livePriorityTierSnapshot.findFirst({
-          where: { id: dto.tierSnapshotId, liveSessionId }
+          where: { id: dto.tierSnapshotId, liveSessionId },
         });
 
         if (!tierSnapshot) {
@@ -734,30 +891,36 @@ export class LiveSessionsService {
 
         // If moving from Free -> Priority, save the Free origin
         let updateData: any = {
-          priorityRank: newPriorityRank
+          priorityRank: newPriorityRank,
         };
 
         if (isCurrentlyFree) {
-          if (entry.tierOriginPriorityRank === null && entry.tierOriginSortOrder === null) {
+          if (
+            entry.tierOriginPriorityRank === null &&
+            entry.tierOriginSortOrder === null
+          ) {
             updateData.tierOriginPriorityRank = entry.priorityRank;
             updateData.tierOriginSortOrder = entry.sortOrder;
           }
         }
 
         // Since we are changing tier, place at the bottom of the destination tier group
-        updateData.sortOrder = this.queueOrderingService.calculateNewSortOrder(ReorderIntent.BOTTOM, destinationEntries as any).midpoint;
+        updateData.sortOrder = this.queueOrderingService.calculateNewSortOrder(
+          ReorderIntent.BOTTOM,
+          destinationEntries as any,
+        ).midpoint;
 
         await tx.submission.update({
           where: { id: entry.submissionId },
           data: {
             isPriority: true,
-            priorityTierSnapshotId: tierSnapshot.id
-          }
+            priorityTierSnapshotId: tierSnapshot.id,
+          },
         });
 
         await tx.queueEntry.update({
           where: { id: entryId },
-          data: updateData
+          data: updateData,
         });
       }
 
@@ -765,25 +928,34 @@ export class LiveSessionsService {
     });
   }
 
-  async updateConfiguration(userId: string, liveSessionId: string, dto: import('./dto/update-live-session-config.dto').UpdateLiveSessionConfigDto) {
+  async updateConfiguration(
+    userId: string,
+    liveSessionId: string,
+    dto: import("./dto/update-live-session-config.dto").UpdateLiveSessionConfigDto,
+  ) {
     return this.prisma.$transaction(async (tx) => {
       const liveSession = await tx.liveSession.findUnique({
-        where: { id: liveSessionId }
+        where: { id: liveSessionId },
       });
       if (!liveSession || liveSession.hostId !== userId) {
-        throw new ForbiddenException("Not authorized to configure this live session");
+        throw new ForbiddenException(
+          "Not authorized to configure this live session",
+        );
       }
 
       // Update LiveSession properties
       const lsUpdateData: any = {};
-      if (dto.submissionsOpen !== undefined) lsUpdateData.submissionsOpen = dto.submissionsOpen;
-      if (dto.freeLineOpen !== undefined) lsUpdateData.freeLineOpen = dto.freeLineOpen;
-      if (dto.paidSubmissionsOpen !== undefined) lsUpdateData.paidSubmissionsOpen = dto.paidSubmissionsOpen;
+      if (dto.submissionsOpen !== undefined)
+        lsUpdateData.submissionsOpen = dto.submissionsOpen;
+      if (dto.freeLineOpen !== undefined)
+        lsUpdateData.freeLineOpen = dto.freeLineOpen;
+      if (dto.paidSubmissionsOpen !== undefined)
+        lsUpdateData.paidSubmissionsOpen = dto.paidSubmissionsOpen;
 
       if (Object.keys(lsUpdateData).length > 0) {
         await tx.liveSession.update({
           where: { id: liveSessionId },
-          data: lsUpdateData
+          data: lsUpdateData,
         });
       }
 
@@ -791,18 +963,30 @@ export class LiveSessionsService {
       if (dto.freeLine) {
         const currentFreeLine = await tx.freeLineConfiguration.findFirst({
           where: { liveSessionId },
-          orderBy: { createdAt: 'desc' }
+          orderBy: { createdAt: "desc" },
         });
         if (currentFreeLine) {
-            await tx.freeLineConfiguration.update({
-                where: { id: currentFreeLine.id },
-                data: {
-                    isEnabled: dto.freeLine.isEnabled !== undefined ? dto.freeLine.isEnabled : currentFreeLine.isEnabled,
-                    maxFreeSubmissionsPerUser: dto.freeLine.maxFreeSubmissionsPerUser !== undefined ? dto.freeLine.maxFreeSubmissionsPerUser! : currentFreeLine.maxFreeSubmissionsPerUser,
-                    totalFreeCapacityLimit: dto.freeLine.totalFreeCapacityLimit !== undefined ? dto.freeLine.totalFreeCapacityLimit : currentFreeLine.totalFreeCapacityLimit,
-                    activeEntryCapacityLimit: dto.freeLine.activeEntryCapacityLimit !== undefined ? dto.freeLine.activeEntryCapacityLimit : currentFreeLine.activeEntryCapacityLimit
-                }
-            });
+          await tx.freeLineConfiguration.update({
+            where: { id: currentFreeLine.id },
+            data: {
+              isEnabled:
+                dto.freeLine.isEnabled !== undefined
+                  ? dto.freeLine.isEnabled
+                  : currentFreeLine.isEnabled,
+              maxFreeSubmissionsPerUser:
+                dto.freeLine.maxFreeSubmissionsPerUser !== undefined
+                  ? dto.freeLine.maxFreeSubmissionsPerUser!
+                  : currentFreeLine.maxFreeSubmissionsPerUser,
+              totalFreeCapacityLimit:
+                dto.freeLine.totalFreeCapacityLimit !== undefined
+                  ? dto.freeLine.totalFreeCapacityLimit
+                  : currentFreeLine.totalFreeCapacityLimit,
+              activeEntryCapacityLimit:
+                dto.freeLine.activeEntryCapacityLimit !== undefined
+                  ? dto.freeLine.activeEntryCapacityLimit
+                  : currentFreeLine.activeEntryCapacityLimit,
+            },
+          });
         }
       }
 
@@ -810,17 +994,27 @@ export class LiveSessionsService {
       if (dto.priorityTiers && dto.priorityTiers.length > 0) {
         for (const tierDto of dto.priorityTiers) {
           const currentTier = await tx.livePriorityTierSnapshot.findFirst({
-            where: { id: tierDto.id, liveSessionId }
+            where: { id: tierDto.id, liveSessionId },
           });
           if (currentTier) {
             await tx.livePriorityTierSnapshot.update({
               where: { id: tierDto.id },
               data: {
-                name: tierDto.name !== undefined ? tierDto.name : currentTier.name,
-                priceCents: tierDto.priceCents !== undefined ? tierDto.priceCents : currentTier.priceCents,
-                isActive: tierDto.isActive !== undefined ? tierDto.isActive : currentTier.isActive,
-                maxPurchasesPerUserPerLive: tierDto.maxPurchasesPerUserPerLive !== undefined ? tierDto.maxPurchasesPerUserPerLive : currentTier.maxPurchasesPerUserPerLive
-              }
+                name:
+                  tierDto.name !== undefined ? tierDto.name : currentTier.name,
+                priceCents:
+                  tierDto.priceCents !== undefined
+                    ? tierDto.priceCents
+                    : currentTier.priceCents,
+                isActive:
+                  tierDto.isActive !== undefined
+                    ? tierDto.isActive
+                    : currentTier.isActive,
+                maxPurchasesPerUserPerLive:
+                  tierDto.maxPurchasesPerUserPerLive !== undefined
+                    ? tierDto.maxPurchasesPerUserPerLive
+                    : currentTier.maxPurchasesPerUserPerLive,
+              },
             });
           }
         }
@@ -829,5 +1023,4 @@ export class LiveSessionsService {
       return { success: true };
     });
   }
-
 }

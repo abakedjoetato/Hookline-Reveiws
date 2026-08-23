@@ -21,7 +21,7 @@ describe("AdminTracksService", () => {
     user: {
       findUnique: vi.fn(),
     },
-    $transaction: vi.fn(cb => cb(mockPrisma)),
+    $transaction: vi.fn((cb) => cb(mockPrisma)),
   };
 
   const mockQueueService = {
@@ -31,7 +31,10 @@ describe("AdminTracksService", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    service = new AdminTracksService(mockPrisma as any, mockQueueService as any);
+    service = new AdminTracksService(
+      mockPrisma as any,
+      mockQueueService as any,
+    );
   });
 
   describe("getAdminTracks", () => {
@@ -44,7 +47,9 @@ describe("AdminTracksService", () => {
         lastPlayedAt: new Date(),
         artistIdentity: { artistName: "Artist1" },
         user: { id: "user1", username: "user1" },
-        mediaVersions: [{ fileSize: 1000, storageStatus: StorageStatus.AVAILABLE }]
+        mediaVersions: [
+          { fileSize: 1000, storageStatus: StorageStatus.AVAILABLE },
+        ],
       };
 
       mockPrisma.track.findMany.mockResolvedValue([mockTrack]);
@@ -54,20 +59,24 @@ describe("AdminTracksService", () => {
       expect(result.length).toBe(1);
       expect(result[0].fileSize).toBe(1000);
       expect(result[0].title).toBe("Test Song");
-      expect(mockPrisma.track.findMany).toHaveBeenCalledWith(expect.objectContaining({
-        orderBy: { lastPlayedAt: "desc" }
-      }));
+      expect(mockPrisma.track.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          orderBy: { lastPlayedAt: "desc" },
+        }),
+      );
     });
 
     it("should filter by neverPlayed", async () => {
       mockPrisma.track.findMany.mockResolvedValue([]);
       await service.getAdminTracks({ neverPlayed: true });
 
-      expect(mockPrisma.track.findMany).toHaveBeenCalledWith(expect.objectContaining({
-        where: expect.objectContaining({
-          lastPlayedAt: null
-        })
-      }));
+      expect(mockPrisma.track.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            lastPlayedAt: null,
+          }),
+        }),
+      );
     });
   });
 
@@ -75,8 +84,20 @@ describe("AdminTracksService", () => {
     it("should update DB status and enqueue deletion job", async () => {
       const mockTrack = {
         id: "track1",
-        mediaVersions: [{ id: "m1", originalObjectKey: "o1", storageStatus: StorageStatus.AVAILABLE }],
-        artworks: [{ id: "a1", originalObjectKey: "o2", storageStatus: StorageStatus.AVAILABLE }]
+        mediaVersions: [
+          {
+            id: "m1",
+            originalObjectKey: "o1",
+            storageStatus: StorageStatus.AVAILABLE,
+          },
+        ],
+        artworks: [
+          {
+            id: "a1",
+            originalObjectKey: "o2",
+            storageStatus: StorageStatus.AVAILABLE,
+          },
+        ],
       };
       mockPrisma.track.findUnique.mockResolvedValue(mockTrack);
 
@@ -87,7 +108,7 @@ describe("AdminTracksService", () => {
       expect(mockPrisma.trackMediaVersion.updateMany).toHaveBeenCalled();
       expect(mockPrisma.trackArtwork.updateMany).toHaveBeenCalled();
       expect(mockQueueService.enqueueDeleteMediaObjects).toHaveBeenCalledWith({
-        objectKeys: ["o1", "o2"]
+        objectKeys: ["o1", "o2"],
       });
     });
   });

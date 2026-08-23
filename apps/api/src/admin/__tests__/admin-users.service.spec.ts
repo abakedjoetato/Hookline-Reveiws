@@ -13,7 +13,7 @@ describe("AdminUsersService", () => {
     ban: {
       create: vi.fn(),
     },
-    $transaction: vi.fn(cb => cb(mockPrisma)),
+    $transaction: vi.fn((cb) => cb(mockPrisma)),
   };
 
   const mockQueueService = {
@@ -29,16 +29,22 @@ describe("AdminUsersService", () => {
     it("should create ban, update user status, and enqueue cleanup", async () => {
       mockPrisma.user.findUnique.mockResolvedValue({ id: "user1" });
 
-      const res = await service.banUser("user1", "admin1", "VIOLATION", "Internal", "Public");
+      const res = await service.banUser(
+        "user1",
+        "admin1",
+        "VIOLATION",
+        "Internal",
+        "Public",
+      );
 
       expect(res.success).toBe(true);
       expect(mockPrisma.user.update).toHaveBeenCalledWith({
         where: { id: "user1" },
-        data: { accountStatus: AccountStatus.BANNED }
+        data: { accountStatus: AccountStatus.BANNED },
       });
       expect(mockPrisma.ban.create).toHaveBeenCalled();
       expect(mockQueueService.enqueueDeleteUserMedia).toHaveBeenCalledWith({
-        ownerUserId: "user1"
+        ownerUserId: "user1",
       });
     });
   });
@@ -50,12 +56,16 @@ describe("AdminUsersService", () => {
       const res = await service.deleteUser("user1");
 
       expect(res.success).toBe(true);
-      expect(mockPrisma.user.update).toHaveBeenCalledWith(expect.objectContaining({
-        where: { id: "user1" },
-        data: expect.objectContaining({ accountStatus: AccountStatus.DEACTIVATED })
-      }));
+      expect(mockPrisma.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: "user1" },
+          data: expect.objectContaining({
+            accountStatus: AccountStatus.DEACTIVATED,
+          }),
+        }),
+      );
       expect(mockQueueService.enqueueDeleteUserMedia).toHaveBeenCalledWith({
-        ownerUserId: "user1"
+        ownerUserId: "user1",
       });
     });
   });

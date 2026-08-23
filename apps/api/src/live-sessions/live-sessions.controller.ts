@@ -1,6 +1,7 @@
 import { HostManualTierChangeDto } from "./dto/live-session.dto";
 import { UpdateLiveSessionConfigDto } from "./dto/update-live-session-config.dto";
-import { Patch,
+import {
+  Patch,
   Controller,
   Post,
   Get,
@@ -17,7 +18,7 @@ import {
   PlayNextDto,
   MoveToNextDto,
   LoadQueueEntryDto,
-  ClearPlayerDto
+  ClearPlayerDto,
 } from "./dto/live-session.dto";
 import { SessionGuard } from "../auth/guards/session.guard";
 import { RequestWithUser } from "../auth/interfaces/request-with-user.interface";
@@ -28,10 +29,7 @@ export class LiveSessionsController {
   constructor(private readonly liveSessionsService: LiveSessionsService) {}
 
   @Post()
-  async create(
-    @Req() req: RequestWithUser,
-    @Body() dto: CreateLiveSessionDto,
-  ) {
+  async create(@Req() req: RequestWithUser, @Body() dto: CreateLiveSessionDto) {
     return this.liveSessionsService.createLiveSession(req.user.id, dto);
   }
 
@@ -46,7 +44,11 @@ export class LiveSessionsController {
     @Param("id") id: string,
     @Body() dto: ExpectedQueueRevisionDto,
   ) {
-    return this.liveSessionsService.startLiveSession(req.user.id, id, dto.expectedQueueRevision);
+    return this.liveSessionsService.startLiveSession(
+      req.user.id,
+      id,
+      dto.expectedQueueRevision,
+    );
   }
 
   @Post(":id/pause")
@@ -55,7 +57,11 @@ export class LiveSessionsController {
     @Param("id") id: string,
     @Body() dto: ExpectedQueueRevisionDto,
   ) {
-    return this.liveSessionsService.pauseLiveSession(req.user.id, id, dto.expectedQueueRevision);
+    return this.liveSessionsService.pauseLiveSession(
+      req.user.id,
+      id,
+      dto.expectedQueueRevision,
+    );
   }
 
   @Post(":id/resume")
@@ -64,7 +70,11 @@ export class LiveSessionsController {
     @Param("id") id: string,
     @Body() dto: ExpectedQueueRevisionDto,
   ) {
-    return this.liveSessionsService.resumeLiveSession(req.user.id, id, dto.expectedQueueRevision);
+    return this.liveSessionsService.resumeLiveSession(
+      req.user.id,
+      id,
+      dto.expectedQueueRevision,
+    );
   }
 
   @Post(":id/end")
@@ -73,7 +83,11 @@ export class LiveSessionsController {
     @Param("id") id: string,
     @Body() dto: ExpectedQueueRevisionDto,
   ) {
-    return this.liveSessionsService.endLiveSession(req.user.id, id, dto.expectedQueueRevision);
+    return this.liveSessionsService.endLiveSession(
+      req.user.id,
+      id,
+      dto.expectedQueueRevision,
+    );
   }
 
   @Post(":id/queue/entries")
@@ -96,7 +110,11 @@ export class LiveSessionsController {
     @Param("id") id: string,
     @Body() dto: PlayNextDto,
   ) {
-    return this.liveSessionsService.playNext(req.user.id, id, dto.expectedQueueRevision);
+    return this.liveSessionsService.playNext(
+      req.user.id,
+      id,
+      dto.expectedQueueRevision,
+    );
   }
 
   @Post(":id/queue/entries/:entryId/move-to-next")
@@ -106,7 +124,12 @@ export class LiveSessionsController {
     @Param("entryId") entryId: string,
     @Body() dto: MoveToNextDto,
   ) {
-    return this.liveSessionsService.moveToNext(req.user.id, id, entryId, dto.expectedQueueRevision);
+    return this.liveSessionsService.moveToNext(
+      req.user.id,
+      id,
+      entryId,
+      dto.expectedQueueRevision,
+    );
   }
 
   @Post(":id/queue/entries/:entryId/load")
@@ -116,7 +139,12 @@ export class LiveSessionsController {
     @Param("entryId") entryId: string,
     @Body() dto: LoadQueueEntryDto,
   ) {
-    return this.liveSessionsService.loadQueueEntry(req.user.id, id, entryId, dto.expectedQueueRevision);
+    return this.liveSessionsService.loadQueueEntry(
+      req.user.id,
+      id,
+      entryId,
+      dto.expectedQueueRevision,
+    );
   }
 
   @Post(":id/queue/player/clear")
@@ -125,15 +153,18 @@ export class LiveSessionsController {
     @Param("id") id: string,
     @Body() dto: ClearPlayerDto,
   ) {
-    return this.liveSessionsService.clearPlayer(req.user.id, id, dto.expectedQueueRevision);
+    return this.liveSessionsService.clearPlayer(
+      req.user.id,
+      id,
+      dto.expectedQueueRevision,
+    );
   }
-
 
   @Patch(":id/configuration")
   async updateConfiguration(
     @Req() req: RequestWithUser,
     @Param("id") id: string,
-    @Body() dto: UpdateLiveSessionConfigDto
+    @Body() dto: UpdateLiveSessionConfigDto,
   ) {
     return this.liveSessionsService.updateConfiguration(req.user.id, id, dto);
   }
@@ -143,9 +174,13 @@ export class LiveSessionsController {
     @Req() req: RequestWithUser,
     @Param("id") id: string,
     @Param("entryId") entryId: string,
-    @Body() dto: HostManualTierChangeDto
+    @Body() dto: HostManualTierChangeDto,
   ) {
-    return this.liveSessionsService.changeEntryTier(req.user.id, id, entryId, dto);
+    return this.liveSessionsService.changeEntryTier(
+      req.user.id,
+      id,
+      entryId,
+      dto,
+    );
   }
-
 }

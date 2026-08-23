@@ -1,4 +1,11 @@
-import { IsString, IsNotEmpty, IsEnum, IsNumber, IsOptional, IsUUID } from "class-validator";
+import {
+  IsString,
+  IsNotEmpty,
+  IsEnum,
+  IsNumber,
+  IsOptional,
+  IsUUID,
+} from "class-validator";
 import { StreamingPlatform } from "@platform/types";
 
 export class CreateLiveSessionDto {
@@ -58,10 +65,10 @@ export class ClearPlayerDto extends ExpectedQueueRevisionDto {}
 export class PlayNextDto extends ExpectedQueueRevisionDto {}
 
 export enum ReorderIntent {
-  BEFORE = 'BEFORE',
-  AFTER = 'AFTER',
-  TOP = 'TOP',
-  BOTTOM = 'BOTTOM'
+  BEFORE = "BEFORE",
+  AFTER = "AFTER",
+  TOP = "TOP",
+  BOTTOM = "BOTTOM",
 }
 
 export class ReorderQueueEntryDto extends ExpectedQueueRevisionDto {

@@ -1,9 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import {
-  PrismaClient,
-
-  generateUuidV7,
-} from "@platform/database";
+import { PrismaClient, generateUuidV7 } from "@platform/database";
 import {
   AccountStatus,
   Role,
