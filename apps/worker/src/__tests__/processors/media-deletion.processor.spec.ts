@@ -10,7 +10,7 @@ describe("MediaDeletionProcessor", () => {
   };
 
   const mockPrisma = {
-    $transaction: vi.fn(cb => cb(mockPrisma)),
+    $transaction: vi.fn((cb) => cb(mockPrisma)),
     trackMediaVersion: {
       updateMany: vi.fn(),
     },
@@ -19,7 +19,7 @@ describe("MediaDeletionProcessor", () => {
     },
     track: {
       findMany: vi.fn(),
-    }
+    },
   };
 
   const mockLogger = {
@@ -30,7 +30,11 @@ describe("MediaDeletionProcessor", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    processor = new MediaDeletionProcessor(mockStorageService as any, mockPrisma as any, mockLogger as any);
+    processor = new MediaDeletionProcessor(
+      mockStorageService as any,
+      mockPrisma as any,
+      mockLogger as any,
+    );
   });
 
   describe("processDeleteMediaObjects", () => {
@@ -46,16 +50,20 @@ describe("MediaDeletionProcessor", () => {
       expect(mockStorageService.deleteObject).toHaveBeenCalledTimes(2);
       expect(mockPrisma.trackMediaVersion.updateMany).toHaveBeenCalledWith({
         where: expect.any(Object),
-        data: { storageStatus: StorageStatus.DELETED }
+        data: { storageStatus: StorageStatus.DELETED },
       });
     });
 
     it("should aggregate errors and throw if deletions fail", async () => {
-      mockStorageService.deleteObject.mockRejectedValueOnce(new Error("S3 Error"));
+      mockStorageService.deleteObject.mockRejectedValueOnce(
+        new Error("S3 Error"),
+      );
 
       const job = { data: { objectKeys: ["key1"] } };
 
-      await expect(processor.processDeleteMediaObjects(job as any)).rejects.toThrow("Failed to delete 1 objects");
+      await expect(
+        processor.processDeleteMediaObjects(job as any),
+      ).rejects.toThrow("Failed to delete 1 objects");
       expect(mockPrisma.trackMediaVersion.updateMany).not.toHaveBeenCalled();
     });
   });
@@ -65,9 +73,19 @@ describe("MediaDeletionProcessor", () => {
       mockPrisma.track.findMany.mockResolvedValue([
         {
           id: "track1",
-          mediaVersions: [{ originalObjectKey: "mv1", storageStatus: StorageStatus.AVAILABLE }],
-          artworks: [{ originalObjectKey: "aw1", storageStatus: StorageStatus.AVAILABLE }]
-        }
+          mediaVersions: [
+            {
+              originalObjectKey: "mv1",
+              storageStatus: StorageStatus.AVAILABLE,
+            },
+          ],
+          artworks: [
+            {
+              originalObjectKey: "aw1",
+              storageStatus: StorageStatus.AVAILABLE,
+            },
+          ],
+        },
       ]);
       mockStorageService.deleteObject.mockResolvedValue(undefined);
 

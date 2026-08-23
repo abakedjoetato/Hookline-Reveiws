@@ -22,11 +22,11 @@ describe("LiveSessionsService - Slice 3", () => {
       },
       submission: {
         update: vi.fn(),
-      }
+      },
     };
 
     prismaMock = {
-      $transaction: vi.fn(async (cb) => cb(txMock))
+      $transaction: vi.fn(async (cb) => cb(txMock)),
     };
 
     queueOrderingServiceMock = {
@@ -35,12 +35,20 @@ describe("LiveSessionsService - Slice 3", () => {
       generateRebalanceUpdates: vi.fn(),
     };
 
-    service = new LiveSessionsService(prismaMock as any, queueOrderingServiceMock as any);
+    service = new LiveSessionsService(
+      prismaMock as any,
+      queueOrderingServiceMock as any,
+    );
   });
 
   describe("Play Next", () => {
     it("should displace current unplayed track to restore and load next highest priority QUEUED track", async () => {
-      const mockSession = { id: "sess-1", hostId: "host-1", queueRevision: 5, currentQueueEntryId: "entry-current" };
+      const mockSession = {
+        id: "sess-1",
+        hostId: "host-1",
+        queueRevision: 5,
+        currentQueueEntryId: "entry-current",
+      };
       txMock.$queryRaw.mockResolvedValue([mockSession]);
 
       const unplayedCurrentEntry = {
@@ -51,7 +59,7 @@ describe("LiveSessionsService - Slice 3", () => {
         priorityRank: 0,
         sortOrder: 1000,
         originPriorityRank: 0,
-        originSortOrder: 1000
+        originSortOrder: 1000,
       };
 
       txMock.queueEntry.findUnique.mockResolvedValue(unplayedCurrentEntry);
@@ -61,7 +69,7 @@ describe("LiveSessionsService - Slice 3", () => {
         submissionId: "sub-next",
         status: QueueStatus.QUEUED,
         priorityRank: 1, // Priority group
-        sortOrder: 500
+        sortOrder: 500,
       };
 
       txMock.queueEntry.findFirst.mockResolvedValue(nextEntry);
@@ -72,26 +80,43 @@ describe("LiveSessionsService - Slice 3", () => {
       expect(result.success).toBe(true);
 
       // Verify displacement (restore)
-      expect(txMock.queueEntry.update).toHaveBeenCalledWith(expect.objectContaining({
-        where: { id: "entry-current" },
-        data: expect.objectContaining({ status: QueueStatus.QUEUED, sortOrder: 1000 })
-      }));
+      expect(txMock.queueEntry.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: "entry-current" },
+          data: expect.objectContaining({
+            status: QueueStatus.QUEUED,
+            sortOrder: 1000,
+          }),
+        }),
+      );
 
       // Verify load
-      expect(txMock.queueEntry.update).toHaveBeenCalledWith(expect.objectContaining({
-        where: { id: "entry-next" },
-        data: expect.objectContaining({ status: QueueStatus.PLAYING })
-      }));
+      expect(txMock.queueEntry.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: "entry-next" },
+          data: expect.objectContaining({ status: QueueStatus.PLAYING }),
+        }),
+      );
 
       // Verify session update
-      expect(txMock.liveSession.update).toHaveBeenCalledWith(expect.objectContaining({
-        where: { id: "sess-1", queueRevision: 5 },
-        data: { queueRevision: { increment: 1 }, currentQueueEntryId: "entry-next" }
-      }));
+      expect(txMock.liveSession.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: "sess-1", queueRevision: 5 },
+          data: {
+            queueRevision: { increment: 1 },
+            currentQueueEntryId: "entry-next",
+          },
+        }),
+      );
     });
 
     it("should move current played track to history", async () => {
-      const mockSession = { id: "sess-1", hostId: "host-1", queueRevision: 5, currentQueueEntryId: "entry-current" };
+      const mockSession = {
+        id: "sess-1",
+        hostId: "host-1",
+        queueRevision: 5,
+        currentQueueEntryId: "entry-current",
+      };
       txMock.$queryRaw.mockResolvedValue([mockSession]);
 
       const playedCurrentEntry = {
@@ -102,7 +127,7 @@ describe("LiveSessionsService - Slice 3", () => {
         priorityRank: 0,
         sortOrder: 1000,
         originPriorityRank: 0,
-        originSortOrder: 1000
+        originSortOrder: 1000,
       };
 
       txMock.queueEntry.findUnique.mockResolvedValue(playedCurrentEntry);
@@ -113,19 +138,23 @@ describe("LiveSessionsService - Slice 3", () => {
       expect(result.success).toBe(true);
 
       // Verify displacement (history)
-      expect(txMock.queueEntry.update).toHaveBeenCalledWith(expect.objectContaining({
-        where: { id: "entry-current" },
-        data: expect.objectContaining({
-          status: QueueStatus.MOVED_TO_HISTORY,
-          wasPlayed: true
-        })
-      }));
+      expect(txMock.queueEntry.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: "entry-current" },
+          data: expect.objectContaining({
+            status: QueueStatus.MOVED_TO_HISTORY,
+            wasPlayed: true,
+          }),
+        }),
+      );
 
       // Verify session update
-      expect(txMock.liveSession.update).toHaveBeenCalledWith(expect.objectContaining({
-        where: { id: "sess-1", queueRevision: 5 },
-        data: { queueRevision: { increment: 1 }, currentQueueEntryId: null }
-      }));
+      expect(txMock.liveSession.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: "sess-1", queueRevision: 5 },
+          data: { queueRevision: { increment: 1 }, currentQueueEntryId: null },
+        }),
+      );
     });
   });
 
@@ -139,21 +168,26 @@ describe("LiveSessionsService - Slice 3", () => {
         liveSessionId: "sess-1",
         status: QueueStatus.QUEUED,
         priorityRank: 0,
-        sortOrder: 3000
+        sortOrder: 3000,
       };
       txMock.queueEntry.findUnique.mockResolvedValue(entryToMove);
 
       txMock.queueEntry.findMany.mockResolvedValue([entryToMove]);
       queueOrderingServiceMock.isNoOp.mockReturnValue(false);
-      queueOrderingServiceMock.calculateNewSortOrder.mockReturnValue({ needsRebalance: false, midpoint: 500 });
+      queueOrderingServiceMock.calculateNewSortOrder.mockReturnValue({
+        needsRebalance: false,
+        midpoint: 500,
+      });
 
       const result = await service.moveToNext("host-1", "sess-1", "entry-1", 5);
       expect(result.success).toBe(true);
 
-      expect(txMock.queueEntry.update).toHaveBeenCalledWith(expect.objectContaining({
-        where: { id: "entry-1" },
-        data: { sortOrder: 500 }
-      }));
+      expect(txMock.queueEntry.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: "entry-1" },
+          data: { sortOrder: 500 },
+        }),
+      );
       expect(txMock.liveSession.update).toHaveBeenCalled();
     });
 
@@ -161,7 +195,12 @@ describe("LiveSessionsService - Slice 3", () => {
       const mockSession = { id: "sess-1", hostId: "host-1", queueRevision: 5 };
       txMock.$queryRaw.mockResolvedValue([mockSession]);
 
-      const entryToMove = { id: "entry-1", liveSessionId: "sess-1", status: QueueStatus.QUEUED, priorityRank: 0 };
+      const entryToMove = {
+        id: "entry-1",
+        liveSessionId: "sess-1",
+        status: QueueStatus.QUEUED,
+        priorityRank: 0,
+      };
       txMock.queueEntry.findUnique.mockResolvedValue(entryToMove);
       queueOrderingServiceMock.isNoOp.mockReturnValue(true);
 

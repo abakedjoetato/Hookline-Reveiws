@@ -23,6 +23,7 @@ async function bootstrap() {
   }
 
   const app = await NestFactory.create(AppModule, {
+    rawBody: true,
     logger: {
       log: (msg) => logger.info(msg),
       error: (msg, stack) => logger.error(msg, new Error(stack || "")),

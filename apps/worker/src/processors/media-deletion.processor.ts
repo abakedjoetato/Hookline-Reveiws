@@ -1,5 +1,9 @@
 import { Job } from "bullmq";
-import { DeleteMediaObjectsPayload, DeleteUserMediaPayload, StorageStatus } from "@platform/types";
+import {
+  DeleteMediaObjectsPayload,
+  DeleteUserMediaPayload,
+  StorageStatus,
+} from "@platform/types";
 import { StorageService } from "../storage.service";
 import { PrismaClient } from "@platform/database";
 import { AppLogger } from "@platform/logger";
@@ -8,7 +12,7 @@ export class MediaDeletionProcessor {
   constructor(
     private readonly storageService: StorageService,
     private readonly prisma: PrismaClient,
-    private readonly logger: AppLogger
+    private readonly logger: AppLogger,
   ) {}
 
   async processDeleteMediaObjects(job: Job<DeleteMediaObjectsPayload>) {
@@ -23,13 +27,15 @@ export class MediaDeletionProcessor {
         // Note: For true consistency we might want to track completion per-key,
         // but for this milestone we can bulk-update them in the DB after.
       } catch (error: any) {
-        this.logger.warn(`Failed to delete object from storage: ${key} - ${error.message}`);
+        this.logger.warn(
+          `Failed to delete object from storage: ${key} - ${error.message}`,
+        );
         // We accumulate failed keys to avoid throwing immediately and stopping the batch
         failedKeys.push(key);
       }
     }
 
-    const successfulKeys = objectKeys.filter(k => !failedKeys.includes(k));
+    const successfulKeys = objectKeys.filter((k) => !failedKeys.includes(k));
 
     if (successfulKeys.length > 0) {
       await this.prisma.$transaction(async (tx) => {
@@ -37,10 +43,10 @@ export class MediaDeletionProcessor {
           where: {
             OR: [
               { originalObjectKey: { in: successfulKeys } },
-              { processedObjectKey: { in: successfulKeys } }
-            ]
+              { processedObjectKey: { in: successfulKeys } },
+            ],
           },
-          data: { storageStatus: StorageStatus.DELETED }
+          data: { storageStatus: StorageStatus.DELETED },
         });
 
         await tx.trackArtwork.updateMany({
@@ -48,16 +54,18 @@ export class MediaDeletionProcessor {
             OR: [
               { originalObjectKey: { in: successfulKeys } },
               { masterObjectKey: { in: successfulKeys } },
-              { thumbnailObjectKey: { in: successfulKeys } }
-            ]
+              { thumbnailObjectKey: { in: successfulKeys } },
+            ],
           },
-          data: { storageStatus: StorageStatus.DELETED }
+          data: { storageStatus: StorageStatus.DELETED },
         });
       });
     }
 
     if (failedKeys.length > 0) {
-      throw new Error(`Failed to delete ${failedKeys.length} objects from storage. Keys: ${failedKeys.join(', ')}`);
+      throw new Error(
+        `Failed to delete ${failedKeys.length} objects from storage. Keys: ${failedKeys.join(", ")}`,
+      );
     }
 
     this.logger.info(`Successfully deleted ${successfulKeys.length} objects.`);
@@ -70,24 +78,32 @@ export class MediaDeletionProcessor {
 
     const tracks = await this.prisma.track.findMany({
       where: { userId: ownerUserId },
-      include: { mediaVersions: true, artworks: true }
+      include: { mediaVersions: true, artworks: true },
     });
 
     const objectKeysToQueue: string[] = [];
 
     for (const track of tracks) {
       for (const mv of track.mediaVersions) {
-        if (mv.storageStatus === StorageStatus.AVAILABLE || mv.storageStatus === StorageStatus.DELETION_PENDING) {
+        if (
+          mv.storageStatus === StorageStatus.AVAILABLE ||
+          mv.storageStatus === StorageStatus.DELETION_PENDING
+        ) {
           objectKeysToQueue.push(mv.originalObjectKey);
-          if (mv.processedObjectKey) objectKeysToQueue.push(mv.processedObjectKey);
+          if (mv.processedObjectKey)
+            objectKeysToQueue.push(mv.processedObjectKey);
         }
       }
 
       for (const art of track.artworks) {
-        if (art.storageStatus === StorageStatus.AVAILABLE || art.storageStatus === StorageStatus.DELETION_PENDING) {
+        if (
+          art.storageStatus === StorageStatus.AVAILABLE ||
+          art.storageStatus === StorageStatus.DELETION_PENDING
+        ) {
           objectKeysToQueue.push(art.originalObjectKey);
           if (art.masterObjectKey) objectKeysToQueue.push(art.masterObjectKey);
-          if (art.thumbnailObjectKey) objectKeysToQueue.push(art.thumbnailObjectKey);
+          if (art.thumbnailObjectKey)
+            objectKeysToQueue.push(art.thumbnailObjectKey);
         }
       }
     }
@@ -97,18 +113,24 @@ export class MediaDeletionProcessor {
 
     // We update status to DELETION_PENDING first
     await this.prisma.$transaction(async (tx) => {
-        const trackIds = tracks.map(t => t.id);
+      const trackIds = tracks.map((t) => t.id);
 
-        if (trackIds.length > 0) {
-            await tx.trackMediaVersion.updateMany({
-                where: { trackId: { in: trackIds }, storageStatus: { not: StorageStatus.DELETED } },
-                data: { storageStatus: StorageStatus.DELETION_PENDING }
-            });
-            await tx.trackArtwork.updateMany({
-                where: { trackId: { in: trackIds }, storageStatus: { not: StorageStatus.DELETED } },
-                data: { storageStatus: StorageStatus.DELETION_PENDING }
-            });
-        }
+      if (trackIds.length > 0) {
+        await tx.trackMediaVersion.updateMany({
+          where: {
+            trackId: { in: trackIds },
+            storageStatus: { not: StorageStatus.DELETED },
+          },
+          data: { storageStatus: StorageStatus.DELETION_PENDING },
+        });
+        await tx.trackArtwork.updateMany({
+          where: {
+            trackId: { in: trackIds },
+            storageStatus: { not: StorageStatus.DELETED },
+          },
+          data: { storageStatus: StorageStatus.DELETION_PENDING },
+        });
+      }
     });
 
     // Note: Since this worker process cannot easily enqueue jobs back to the Bull queue
@@ -117,13 +139,17 @@ export class MediaDeletionProcessor {
 
     let totalDeleted = 0;
     for (let i = 0; i < objectKeysToQueue.length; i += CHUNK_SIZE) {
-        const chunk = objectKeysToQueue.slice(i, i + CHUNK_SIZE);
-        // We reuse the other function, but wrap it in a pseudo job object
-        const result = await this.processDeleteMediaObjects({ data: { objectKeys: chunk } } as Job<DeleteMediaObjectsPayload>);
-        totalDeleted += result.deletedCount;
+      const chunk = objectKeysToQueue.slice(i, i + CHUNK_SIZE);
+      // We reuse the other function, but wrap it in a pseudo job object
+      const result = await this.processDeleteMediaObjects({
+        data: { objectKeys: chunk },
+      } as Job<DeleteMediaObjectsPayload>);
+      totalDeleted += result.deletedCount;
     }
 
-    this.logger.info(`Successfully processed user media deletion for user ${ownerUserId}. Total items deleted: ${totalDeleted}`);
+    this.logger.info(
+      `Successfully processed user media deletion for user ${ownerUserId}. Total items deleted: ${totalDeleted}`,
+    );
     return { success: true, totalDeleted };
   }
 }

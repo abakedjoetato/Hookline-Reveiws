@@ -1,9 +1,20 @@
-import { Controller, Post, Get, Body, Param, UseGuards, Req } from "@nestjs/common";
+import {
+  Controller,
+  Post,
+  Get,
+  Body,
+  Param,
+  UseGuards,
+  Req,
+  Headers,
+  BadRequestException,
+} from "@nestjs/common";
 import { SubmissionsService } from "./submissions.service";
 import { SubmissionEligibilityService } from "./submission-eligibility.service";
 import { SessionGuard } from "../auth/guards/session.guard";
 import { RequestWithUser } from "../auth/interfaces/request-with-user.interface";
 import { IsString, IsOptional, IsUUID } from "class-validator";
+import { UpgradeSubmissionDto } from "./dto/upgrade-submission.dto";
 
 export class CreateSubmissionDto {
   @IsUUID()
@@ -22,7 +33,7 @@ export class CreateSubmissionDto {
 export class SubmissionsController {
   constructor(
     private readonly submissionsService: SubmissionsService,
-    private readonly eligibilityService: SubmissionEligibilityService
+    private readonly eligibilityService: SubmissionEligibilityService,
   ) {}
 
   @Get(":id/submission-eligibility")
@@ -34,8 +45,35 @@ export class SubmissionsController {
   async createSubmission(
     @Req() req: RequestWithUser,
     @Param("id") id: string,
-    @Body() dto: CreateSubmissionDto
+    @Body() dto: CreateSubmissionDto,
+    @Headers("idempotency-key") idempotencyKey?: string,
   ) {
-    return this.submissionsService.createSubmission(req.user.id, id, dto);
+    if (!idempotencyKey) {
+      throw new BadRequestException("Idempotency-Key header is required");
+    }
+    return this.submissionsService.createSubmission(
+      req.user.id,
+      id,
+      dto,
+      idempotencyKey,
+    );
+  }
+
+  @Post("submissions/:submissionId/upgrade")
+  async upgradeSubmission(
+    @Req() req: RequestWithUser,
+    @Param("submissionId") submissionId: string,
+    @Body() dto: UpgradeSubmissionDto,
+    @Headers("idempotency-key") idempotencyKey?: string,
+  ) {
+    if (!idempotencyKey) {
+      throw new BadRequestException("Idempotency-Key header is required");
+    }
+    return this.submissionsService.upgradeSubmission(
+      req.user.id,
+      submissionId,
+      dto,
+      idempotencyKey,
+    );
   }
 }

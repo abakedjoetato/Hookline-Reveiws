@@ -1,21 +1,28 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaClient } from "@platform/database";
 import { LiveSessionStatus, QueueStatus } from "@platform/types";
-import { SubmissionEligibilityResponse, SubmissionEligibilityReason, TierEligibilityInfo } from "./dto/submission.dto";
+import {
+  SubmissionEligibilityResponse,
+  SubmissionEligibilityReason,
+  TierEligibilityInfo,
+} from "./dto/submission.dto";
 
 @Injectable()
 export class SubmissionEligibilityService {
   constructor(private readonly prisma: PrismaClient) {}
 
-  async getEligibility(userId: string, liveSessionId: string): Promise<SubmissionEligibilityResponse> {
+  async getEligibility(
+    userId: string,
+    liveSessionId: string,
+  ): Promise<SubmissionEligibilityResponse> {
     const liveSession = await this.prisma.liveSession.findUnique({
       where: { id: liveSessionId },
       include: {
         freeLineConfigurations: true,
         priorityTierSnapshots: {
-          orderBy: { displayOrder: 'asc' }
-        }
-      }
+          orderBy: { displayOrder: "asc" },
+        },
+      },
     });
 
     if (!liveSession || liveSession.status !== LiveSessionStatus.LIVE) {
@@ -23,7 +30,7 @@ export class SubmissionEligibilityService {
     }
 
     const userUsage = await this.prisma.userLiveSubmissionUsage.findUnique({
-      where: { userId_liveSessionId: { userId, liveSessionId } }
+      where: { userId_liveSessionId: { userId, liveSessionId } },
     });
 
     const freeUsedCount = userUsage?.freeUsedCount || 0;
@@ -33,22 +40,26 @@ export class SubmissionEligibilityService {
     const activeFreeEntries = await this.prisma.queueEntry.findMany({
       where: {
         liveSessionId,
-        status: { in: [QueueStatus.QUEUED, QueueStatus.NEXT, QueueStatus.PLAYING] },
+        status: {
+          in: [QueueStatus.QUEUED, QueueStatus.NEXT, QueueStatus.PLAYING],
+        },
         submission: {
-          isPriority: false
-        }
+          isPriority: false,
+        },
       },
       include: {
-        submission: true
-      }
+        submission: true,
+      },
     });
 
     totalActiveFree = activeFreeEntries.length;
-    const userActiveFree = activeFreeEntries.filter(e => e.submission.submittingUserId === userId).length;
+    const userActiveFree = activeFreeEntries.filter(
+      (e) => e.submission.submittingUserId === userId,
+    ).length;
 
     const freeLineConfig = await this.prisma.freeLineConfiguration.findFirst({
-        where: { liveSessionId },
-        orderBy: { createdAt: 'desc' }
+      where: { liveSessionId },
+      orderBy: { createdAt: "desc" },
     });
 
     let freeAvailable = true;
@@ -57,16 +68,29 @@ export class SubmissionEligibilityService {
     if (!liveSession.submissionsOpen) {
       freeAvailable = false;
       freeReason = SubmissionEligibilityReason.SUBMISSIONS_DISABLED;
-    } else if (!liveSession.freeLineOpen || !freeLineConfig || !freeLineConfig.isEnabled) {
+    } else if (
+      !liveSession.freeLineOpen ||
+      !freeLineConfig ||
+      !freeLineConfig.isEnabled
+    ) {
       freeAvailable = false;
       freeReason = SubmissionEligibilityReason.FREE_LINE_DISABLED;
-    } else if (freeLineConfig.activeEntryCapacityLimit && userActiveFree >= freeLineConfig.activeEntryCapacityLimit) {
+    } else if (
+      freeLineConfig.activeEntryCapacityLimit &&
+      userActiveFree >= freeLineConfig.activeEntryCapacityLimit
+    ) {
       freeAvailable = false;
       freeReason = SubmissionEligibilityReason.ACTIVE_FREE_LIMIT_REACHED;
-    } else if (freeLineConfig.maxFreeSubmissionsPerUser && freeUsedCount >= freeLineConfig.maxFreeSubmissionsPerUser) {
+    } else if (
+      freeLineConfig.maxFreeSubmissionsPerUser &&
+      freeUsedCount >= freeLineConfig.maxFreeSubmissionsPerUser
+    ) {
       freeAvailable = false;
       freeReason = SubmissionEligibilityReason.TOTAL_FREE_LIMIT_REACHED;
-    } else if (freeLineConfig.totalFreeCapacityLimit && totalActiveFree >= freeLineConfig.totalFreeCapacityLimit) {
+    } else if (
+      freeLineConfig.totalFreeCapacityLimit &&
+      totalActiveFree >= freeLineConfig.totalFreeCapacityLimit
+    ) {
       freeAvailable = false;
       freeReason = SubmissionEligibilityReason.TOTAL_FREE_CAPACITY_REACHED;
     }
@@ -77,7 +101,7 @@ export class SubmissionEligibilityService {
       reason: freeReason,
       name: "Free Line",
       priceCents: 0,
-      priorityRank: 0
+      priorityRank: 0,
     };
 
     const priorityTiers: TierEligibilityInfo[] = [];
@@ -85,26 +109,33 @@ export class SubmissionEligibilityService {
     const userActivePriorityEntries = await this.prisma.queueEntry.findMany({
       where: {
         liveSessionId,
-        status: { in: [QueueStatus.AWAITING_PAYMENT, QueueStatus.QUEUED, QueueStatus.NEXT, QueueStatus.PLAYING] },
+        status: {
+          in: [
+            QueueStatus.AWAITING_PAYMENT,
+            QueueStatus.QUEUED,
+            QueueStatus.NEXT,
+            QueueStatus.PLAYING,
+          ],
+        },
         submission: {
           submittingUserId: userId,
-          isPriority: true
-        }
+          isPriority: true,
+        },
       },
       include: {
-        submission: true
-      }
+        submission: true,
+      },
     });
 
     const userUpgrades = await this.prisma.submissionUpgrade.findMany({
       where: {
         upgradedByUserId: userId,
-        newTierSnapshot: { liveSessionId }
-      }
+        newTierSnapshot: { liveSessionId },
+      },
     });
 
     const userSubmissions = await this.prisma.submission.findMany({
-        where: { submittingUserId: userId, liveSessionId, isPriority: true }
+      where: { submittingUserId: userId, liveSessionId, isPriority: true },
     });
 
     for (const tier of liveSession.priorityTierSnapshots || []) {
@@ -118,31 +149,44 @@ export class SubmissionEligibilityService {
         tierAvailable = false;
         tierReason = SubmissionEligibilityReason.TIER_DISABLED;
       } else {
-        const userActiveInTier = userActivePriorityEntries.filter(e => e.submission.priorityTierSnapshotId === tier.id).length;
-        if (tier.maxSimultaneousActiveEntries && userActiveInTier >= tier.maxSimultaneousActiveEntries) {
+        const userActiveInTier = userActivePriorityEntries.filter(
+          (e) => e.submission.priorityTierSnapshotId === tier.id,
+        ).length;
+        if (
+          tier.maxSimultaneousActiveEntries &&
+          userActiveInTier >= tier.maxSimultaneousActiveEntries
+        ) {
           tierAvailable = false;
           tierReason = SubmissionEligibilityReason.USER_TIER_LIMIT_REACHED;
         }
 
-        const totalUserPurchases = userSubmissions.filter(s => s.priorityTierSnapshotId === tier.id).length +
-                                   userUpgrades.filter(u => u.newTierSnapshotId === tier.id).length;
+        const totalUserPurchases =
+          userSubmissions.filter((s) => s.priorityTierSnapshotId === tier.id)
+            .length +
+          userUpgrades.filter((u) => u.newTierSnapshotId === tier.id).length;
 
-        if (tier.maxPurchasesPerUserPerLive && totalUserPurchases >= tier.maxPurchasesPerUserPerLive) {
-            tierAvailable = false;
-            tierReason = SubmissionEligibilityReason.USER_TIER_LIMIT_REACHED;
+        if (
+          tier.maxPurchasesPerUserPerLive &&
+          totalUserPurchases >= tier.maxPurchasesPerUserPerLive
+        ) {
+          tierAvailable = false;
+          tierReason = SubmissionEligibilityReason.USER_TIER_LIMIT_REACHED;
         }
 
         if (tier.maxPurchasesPerLive) {
-            const globalPurchases = await this.prisma.submission.count({
-                where: { priorityTierSnapshotId: tier.id }
-            }) + await this.prisma.submissionUpgrade.count({
-                where: { newTierSnapshotId: tier.id }
-            });
+          const globalPurchases =
+            (await this.prisma.submission.count({
+              where: { priorityTierSnapshotId: tier.id },
+            })) +
+            (await this.prisma.submissionUpgrade.count({
+              where: { newTierSnapshotId: tier.id },
+            }));
 
-            if (globalPurchases >= tier.maxPurchasesPerLive) {
-                tierAvailable = false;
-                tierReason = SubmissionEligibilityReason.TOTAL_TIER_CAPACITY_REACHED;
-            }
+          if (globalPurchases >= tier.maxPurchasesPerLive) {
+            tierAvailable = false;
+            tierReason =
+              SubmissionEligibilityReason.TOTAL_TIER_CAPACITY_REACHED;
+          }
         }
       }
 
@@ -154,14 +198,14 @@ export class SubmissionEligibilityService {
         name: tier.name,
         priceCents: tier.priceCents,
         priorityRank: tier.priorityRank,
-        colorSlot: tier.colorSlot
+        colorSlot: tier.colorSlot,
       });
     }
 
     return {
       liveSessionId,
       free: freeInfo,
-      priorityTiers
+      priorityTiers,
     };
   }
 }

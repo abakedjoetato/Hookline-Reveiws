@@ -1,4 +1,12 @@
-import { IsBoolean, IsNumber, IsOptional, IsString, IsArray, ValidateNested, IsUUID } from "class-validator";
+import {
+  IsBoolean,
+  IsNumber,
+  IsOptional,
+  IsString,
+  IsArray,
+  ValidateNested,
+  IsUUID,
+} from "class-validator";
 import { Type } from "class-transformer";
 
 export class UpdateFreeLineConfigDto {

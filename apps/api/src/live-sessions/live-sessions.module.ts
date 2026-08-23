@@ -13,7 +13,7 @@ import { PrismaClient } from "@platform/database";
     {
       provide: PrismaClient,
       useValue: new PrismaClient(),
-    }
+    },
   ],
   exports: [LiveSessionsService],
 })
