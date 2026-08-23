@@ -1,12 +1,16 @@
 {
   "name": "platform-monorepo",
   "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "engines": {
-    "node": ">=20.0.0",
-    "pnpm": ">=9.0.0"
+    "node": ">=20.0.0"
   },
+  "packageManager": "npm@10.8.2",
   "scripts": {
-    "dev": "turbo dev",
+    "dev": "npm run dev --workspace=apps/web",
     "build": "turbo build",
     "lint": "turbo lint",
     "typecheck": "turbo typecheck",
@@ -15,22 +19,7 @@
     "format": "prettier --write \"**/*.{ts,tsx,js,json,md,css}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,json,md,css}\"",
     "db:generate": "turbo db:generate",
-    "db:migrate": "turbo db:migrate",
-    "infrastructure:up": "docker compose -f infrastructure/docker/docker-compose.yml up -d",
-    "infrastructure:down": "docker compose -f infrastructure/docker/docker-compose.yml down",
-    "infrastructure:logs": "docker compose -f infrastructure/docker/docker-compose.yml logs -f",
-    "infrastructure:reset": "sh infrastructure/scripts/reset-infrastructure.sh",
-    "pre-commit": "sh infrastructure/scripts/pre-commit.sh",
-    "clean": "turbo clean && find . -name \"node_modules\" -type d -prune -exec rm -rf '{}' + && find . -name \".turbo\" -type d -prune -exec rm -rf '{}' + && find . -name \"dist\" -type d -prune -exec rm -rf '{}' + && find . -name \".next\" -type d -prune -exec rm -rf '{}' + && find . -name \"*.tsbuildinfo\" -delete"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "@prisma/client",
-      "@prisma/engines",
-      "prisma",
-      "argon2",
-      "esbuild"
-    ]
+    "db:migrate": "turbo db:migrate"
   },
   "devDependencies": {
     "playwright": "^1.48.0",
@@ -39,10 +28,11 @@
     "typescript": "^5.6.3",
     "vitest": "^2.1.3"
   },
-  "packageManager": "pnpm@10.30.3",
   "dependencies": {
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
-    "decimal.js": "^10.6.0"
+    "decimal.js": "^10.6.0",
+    "socket.io-client": "^4.8.3",
+    "tailwindcss": "^4.3.3"
   }
 }

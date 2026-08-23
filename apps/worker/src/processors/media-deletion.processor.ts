@@ -38,7 +38,7 @@ export class MediaDeletionProcessor {
     const successfulKeys = objectKeys.filter((k) => !failedKeys.includes(k));
 
     if (successfulKeys.length > 0) {
-      await this.prisma.$transaction(async (tx) => {
+      await this.prisma.$transaction(async (tx: any) => {
         await tx.trackMediaVersion.updateMany({
           where: {
             OR: [
@@ -112,8 +112,8 @@ export class MediaDeletionProcessor {
     const CHUNK_SIZE = 10;
 
     // We update status to DELETION_PENDING first
-    await this.prisma.$transaction(async (tx) => {
-      const trackIds = tracks.map((t) => t.id);
+    await this.prisma.$transaction(async (tx: any) => {
+      const trackIds = tracks.map((t: any) => t.id);
 
       if (trackIds.length > 0) {
         await tx.trackMediaVersion.updateMany({

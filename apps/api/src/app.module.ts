@@ -4,6 +4,7 @@ import {
   MiddlewareConsumer,
   RequestMethod,
 } from "@nestjs/common";
+import { ScheduleModule } from "@nestjs/schedule";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 import { HealthController } from "./health.controller";
 import { createLogger } from "@platform/logger";

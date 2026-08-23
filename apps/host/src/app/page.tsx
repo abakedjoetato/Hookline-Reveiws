@@ -1,134 +1,176 @@
+"use client";
+
 import * as React from "react";
+import Link from "next/link";
 import { Card, Button, Badge } from "@platform/ui";
 import {
   Radio,
   Users,
   Sparkles,
-  Sliders,
   Play,
-  Settings,
-  DollarSign,
+  Layers,
+  ArrowRight,
+  Disc3,
+  CheckCircle2,
 } from "lucide-react";
+import { useHostLiveSession } from "../providers/HostLiveSessionProvider";
+import { useAuth } from "../providers/AuthProvider";
 
-export default function HostPage() {
+export default function HostOverviewPage() {
+  const { sessionId, liveSession, queue } = useHostLiveSession();
+  const { user, isHost } = useAuth();
+
+  const priorityCount = queue.filter((e) => e.submission.isPriority).length;
+
   return (
-    <div className="space-y-10">
-      {/* Welcome Banner */}
-      <section className="bg-gradient-to-r from-amber-600/10 via-zinc-900 to-zinc-950 border border-zinc-800 rounded-lg p-8 md:p-12 space-y-6">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div className="space-y-2">
-            <Badge variant="warning" className="px-3 py-1 text-xs">
-              Station Ready
-            </Badge>
-            <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight text-zinc-100">
-              Welcome Back, Stream Host
+    <div className="space-y-8">
+      {/* Welcome Broadcast Banner */}
+      <section className="relative overflow-hidden rounded-2xl border border-zinc-800 bg-gradient-to-br from-zinc-900 via-zinc-950 to-zinc-950 p-8 md:p-10 shadow-2xl">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative z-10">
+          <div className="space-y-3 max-w-2xl">
+            <div className="flex items-center gap-2">
+              <Badge variant="warning" className="text-xs px-3 py-0.5">
+                Host Control Center
+              </Badge>
+              {sessionId ? (
+                <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/20">
+                  <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                  Active Session Attached
+                </span>
+              ) : (
+                <span className="text-xs text-zinc-500 font-mono">
+                  Standby Mode
+                </span>
+              )}
+            </div>
+
+            <h1 className="text-3xl md:text-4xl font-black tracking-tight text-zinc-50">
+              Welcome Back{user?.displayName ? `, ${user.displayName}` : ""}.
             </h1>
-            <p className="text-zinc-400 max-w-xl leading-relaxed text-sm md:text-base">
-              Set up your live stream overlay, configure submission tiers, open
-              your public queues, and manage submitted tracks with the
-              browser-based DJ panel.
+
+            <p className="text-zinc-400 text-sm md:text-base leading-relaxed">
+              Arm your live audio player, review priority and free line
+              submissions, enforce the 2-minute qualification rule, and manage
+              broadcast state in real-time.
             </p>
           </div>
-          <Button
-            variant="primary"
-            className="bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white shadow-lg shadow-amber-500/10"
-          >
-            <Radio className="mr-2 h-4 w-4" /> Go Live
-          </Button>
+
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            <Link href="/queue">
+              <Button
+                variant="primary"
+                size="lg"
+                className="w-full bg-amber-600 hover:bg-amber-500 text-zinc-950 font-bold px-6 shadow-xl shadow-amber-600/20"
+              >
+                <Radio className="mr-2 h-5 w-5" /> Launch Live DJ Deck
+              </Button>
+            </Link>
+          </div>
         </div>
       </section>
 
-      {/* Host Feature Metrics Mockup */}
+      {/* Metrics Row */}
       <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="p-5 flex items-center gap-4 border-zinc-800 bg-zinc-900/10">
-          <div className="p-3 rounded-lg bg-amber-600/10 text-amber-500">
+        <Card className="p-5 flex items-center gap-4 border-zinc-800 bg-zinc-900/30">
+          <div className="p-3 rounded-xl bg-amber-600/10 text-amber-500 border border-amber-500/20">
             <Users className="h-6 w-6" />
           </div>
           <div>
-            <span className="text-xs text-zinc-500 font-medium">
-              Queue Status
+            <span className="text-xs text-zinc-400 font-medium">
+              Queue Submissions
             </span>
-            <h4 className="text-xl font-bold text-zinc-100">0 Tracks</h4>
+            <h4 className="text-2xl font-bold text-zinc-100">
+              {queue.length} Tracks
+            </h4>
           </div>
         </Card>
 
-        <Card className="p-5 flex items-center gap-4 border-zinc-800 bg-zinc-900/10">
-          <div className="p-3 rounded-lg bg-violet-600/10 text-violet-500">
+        <Card className="p-5 flex items-center gap-4 border-zinc-800 bg-zinc-900/30">
+          <div className="p-3 rounded-xl bg-violet-600/10 text-violet-400 border border-violet-500/20">
             <Sparkles className="h-6 w-6" />
           </div>
           <div>
-            <span className="text-xs text-zinc-500 font-medium">
-              Priority Tier
+            <span className="text-xs text-zinc-400 font-medium">
+              Priority Submissions
             </span>
-            <h4 className="text-xl font-bold text-zinc-100">Active</h4>
+            <h4 className="text-2xl font-bold text-zinc-100">
+              {priorityCount} VIP
+            </h4>
           </div>
         </Card>
 
-        <Card className="p-5 flex items-center gap-4 border-zinc-800 bg-zinc-900/10">
-          <div className="p-3 rounded-lg bg-green-600/10 text-green-500">
-            <DollarSign className="h-6 w-6" />
+        <Card className="p-5 flex items-center gap-4 border-zinc-800 bg-zinc-900/30">
+          <div className="p-3 rounded-xl bg-emerald-600/10 text-emerald-400 border border-emerald-500/20">
+            <Disc3 className="h-6 w-6" />
           </div>
           <div>
-            <span className="text-xs text-zinc-500 font-medium">
-              Monthly Revenue
+            <span className="text-xs text-zinc-400 font-medium">
+              Master Deck
             </span>
-            <h4 className="text-xl font-bold text-zinc-100">$0.00</h4>
+            <h4 className="text-xl font-bold text-zinc-100">
+              {liveSession?.currentQueueEntryId ? "Loaded" : "Idle"}
+            </h4>
           </div>
         </Card>
 
-        <Card className="p-5 flex items-center gap-4 border-zinc-800 bg-zinc-900/10">
-          <div className="p-3 rounded-lg bg-blue-600/10 text-blue-500">
+        <Card className="p-5 flex items-center gap-4 border-zinc-800 bg-zinc-900/30">
+          <div className="p-3 rounded-xl bg-blue-600/10 text-blue-400 border border-blue-500/20">
             <Play className="h-6 w-6" />
           </div>
           <div>
-            <span className="text-xs text-zinc-500 font-medium">
-              Streaming On
+            <span className="text-xs text-zinc-400 font-medium">
+              Broadcast Status
             </span>
-            <h4 className="text-xl font-bold text-zinc-100">None</h4>
+            <h4 className="text-xl font-bold text-zinc-100 uppercase">
+              {liveSession?.status || "Standby"}
+            </h4>
           </div>
         </Card>
       </section>
 
-      {/* Grid Actions */}
+      {/* Quick Launch Cards */}
       <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card className="space-y-4">
-          <div className="h-10 w-10 rounded-md bg-amber-600/10 flex items-center justify-center text-amber-500">
-            <Sliders className="h-5 w-5" />
+        <Card className="p-6 space-y-4 border-zinc-800 bg-zinc-950 flex flex-col justify-between">
+          <div className="space-y-3">
+            <div className="h-11 w-11 rounded-xl bg-amber-600/10 flex items-center justify-center text-amber-500 border border-amber-500/20">
+              <Radio className="h-6 w-6" />
+            </div>
+            <h3 className="text-xl font-bold text-zinc-100">
+              Live DJ Deck & Queue Engine
+            </h3>
+            <p className="text-zinc-400 text-xs sm:text-sm leading-relaxed">
+              Open the low-latency host dashboard to advance tracks, preview
+              artwork, scrub audio, and trigger authoritative Next actions.
+            </p>
           </div>
-          <h3 className="text-xl font-bold text-zinc-100">
-            Station Configuration
-          </h3>
-          <p className="text-zinc-400 text-sm leading-relaxed">
-            Configure stream branding, submission thresholds, upload formats,
-            free line settings, and priority tier structures. Centralize your
-            overlay browser source settings.
-          </p>
-          <div className="pt-4 flex gap-3">
-            <Button variant="outline" size="sm">
-              Edit Settings
-            </Button>
-            <Button variant="ghost" size="sm">
-              View Live Preview
-            </Button>
+          <div className="pt-4">
+            <Link href="/queue">
+              <Button
+                variant="outline"
+                size="md"
+                className="w-full border-zinc-700 bg-zinc-900 hover:bg-zinc-800 text-amber-400 hover:text-amber-300 font-semibold flex items-center justify-center gap-2"
+              >
+                Open DJ Control Deck <ArrowRight className="h-4 w-4" />
+              </Button>
+            </Link>
           </div>
         </Card>
 
-        <Card className="space-y-4">
-          <div className="h-10 w-10 rounded-md bg-violet-600/10 flex items-center justify-center text-violet-500">
-            <Play className="h-5 w-5" />
+        <Card className="p-6 space-y-4 border-zinc-800 bg-zinc-950 flex flex-col justify-between">
+          <div className="space-y-3">
+            <div className="h-11 w-11 rounded-xl bg-emerald-600/10 flex items-center justify-center text-emerald-400 border border-emerald-500/20">
+              <CheckCircle2 className="h-6 w-6" />
+            </div>
+            <h3 className="text-xl font-bold text-zinc-100">
+              2-Minute Qualification Standard
+            </h3>
+            <p className="text-zinc-400 text-xs sm:text-sm leading-relaxed">
+              TheQueue protects artists and stream integrity: tracks loaded for
+              over 120 seconds automatically qualify into stream history.
+            </p>
           </div>
-          <h3 className="text-xl font-bold text-zinc-100">
-            Browser-based DJ Panel
-          </h3>
-          <p className="text-zinc-400 text-sm leading-relaxed">
-            Manage your submissions live. Reorder, skip, play, preview metadata,
-            and monitor host audio directly inside the browser. Feed active
-            stream artwork to overlays.
-          </p>
-          <div className="pt-4">
-            <Button variant="outline" size="sm" className="w-full">
-              Open DJ Control Panel
-            </Button>
+          <div className="pt-4 text-xs font-mono text-zinc-500 bg-zinc-900/50 p-3 rounded-lg border border-zinc-800/80">
+            Authoritative Revision Concurrency Enabled
           </div>
         </Card>
       </section>

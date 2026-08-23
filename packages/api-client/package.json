@@ -16,8 +16,8 @@
     "axios": "^1.7.7"
   },
   "devDependencies": {
-    "@platform/config": "workspace:*",
-    "@platform/types": "workspace:*",
+    "@platform/config": "*",
+    "@platform/types": "*",
     "typescript": "^5.6.3",
     "@types/node": "^20.11.0"
   }

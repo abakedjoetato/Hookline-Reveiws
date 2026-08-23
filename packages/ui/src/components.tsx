@@ -574,3 +574,187 @@ export const ErrorState: React.FC<ErrorStateProps> = ({
     </div>
   );
 };
+
+// ============================================================================
+// 18. Live Status Badge
+// ============================================================================
+export interface LiveStatusBadgeProps {
+  status: "SCHEDULED" | "PREPARING" | "LIVE" | "PAUSED" | "ENDING" | "ENDED" | "CANCELLED" | string;
+  className?: string;
+}
+
+export const LiveStatusBadge: React.FC<LiveStatusBadgeProps> = ({
+  status,
+  className,
+}) => {
+  const normalized = status?.toUpperCase() || "PREPARING";
+
+  if (normalized === "LIVE") {
+    return (
+      <span
+        className={cn(
+          "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wider bg-red-500/10 text-red-400 border border-red-500/30",
+          className,
+        )}
+      >
+        <span className="relative flex h-2 w-2">
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+          <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+        </span>
+        LIVE ON AIR
+      </span>
+    );
+  }
+
+  if (normalized === "PAUSED") {
+    return (
+      <span
+        className={cn(
+          "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wider bg-amber-500/10 text-amber-400 border border-amber-500/30",
+          className,
+        )}
+      >
+        <span className="h-2 w-2 rounded-full bg-amber-500"></span>
+        PAUSED
+      </span>
+    );
+  }
+
+  if (normalized === "PREPARING" || normalized === "SCHEDULED") {
+    return (
+      <span
+        className={cn(
+          "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wider bg-blue-500/10 text-blue-400 border border-blue-500/30",
+          className,
+        )}
+      >
+        <span className="h-2 w-2 rounded-full bg-blue-500"></span>
+        {normalized}
+      </span>
+    );
+  }
+
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wider bg-zinc-800 text-zinc-400 border border-zinc-700",
+        className,
+      )}
+    >
+      <span className="h-2 w-2 rounded-full bg-zinc-500"></span>
+      {normalized}
+    </span>
+  );
+};
+
+// ============================================================================
+// 19. Tier Badge
+// ============================================================================
+export interface TierBadgeProps {
+  isPriority: boolean;
+  tierName?: string;
+  priceCents?: number;
+  colorSlot?: string;
+  className?: string;
+}
+
+export const TierBadge: React.FC<TierBadgeProps> = ({
+  isPriority,
+  tierName,
+  priceCents,
+  colorSlot,
+  className,
+}) => {
+  if (!isPriority) {
+    return (
+      <span
+        className={cn(
+          "inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-semibold bg-zinc-800/80 text-zinc-300 border border-zinc-700",
+          className,
+        )}
+      >
+        Free Line
+      </span>
+    );
+  }
+
+  // Tier color lookup
+  const colorStyles: Record<string, string> = {
+    TIER_COLOR_1: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30",
+    TIER_COLOR_2: "bg-amber-500/15 text-amber-300 border-amber-500/30",
+    TIER_COLOR_3: "bg-blue-500/15 text-blue-300 border-blue-500/30",
+    TIER_COLOR_4: "bg-purple-500/15 text-purple-300 border-purple-500/30",
+    TIER_COLOR_5: "bg-pink-500/15 text-pink-300 border-pink-500/30",
+    TIER_COLOR_6: "bg-cyan-500/15 text-cyan-300 border-cyan-500/30",
+    TIER_COLOR_7: "bg-orange-500/15 text-orange-300 border-orange-500/30",
+    TIER_COLOR_8: "bg-lime-500/15 text-lime-300 border-lime-500/30",
+    TIER_COLOR_9: "bg-indigo-500/15 text-indigo-300 border-indigo-500/30",
+    TIER_COLOR_10: "bg-rose-500/15 text-rose-300 border-rose-500/30",
+  };
+
+  const activeColor =
+    (colorSlot && colorStyles[colorSlot]) ||
+    "bg-amber-500/15 text-amber-300 border-amber-500/30";
+
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-bold border",
+        activeColor,
+        className,
+      )}
+    >
+      <span>💎 {tierName || "Priority"}</span>
+      {priceCents !== undefined && (
+        <span className="opacity-75 font-mono text-[11px]">
+          ${(priceCents / 100).toFixed(2)}
+        </span>
+      )}
+    </span>
+  );
+};
+
+// ============================================================================
+// 20. Progress Bar
+// ============================================================================
+export interface ProgressBarProps {
+  value: number; // 0 to 100
+  max?: number;
+  markerPosition?: number; // 0 to 100, e.g. 2-min mark
+  markerLabel?: string;
+  className?: string;
+  barClassName?: string;
+}
+
+export const ProgressBar: React.FC<ProgressBarProps> = ({
+  value,
+  max = 100,
+  markerPosition,
+  markerLabel,
+  className,
+  barClassName,
+}) => {
+  const percentage = Math.min(100, Math.max(0, (value / max) * 100));
+
+  return (
+    <div className={cn("relative w-full", className)}>
+      <div className="h-2 w-full overflow-hidden rounded-full bg-zinc-800">
+        <div
+          className={cn(
+            "h-full bg-amber-500 transition-all duration-150 rounded-full",
+            barClassName,
+          )}
+          style={{ width: `${percentage}%` }}
+        />
+      </div>
+      {markerPosition !== undefined && (
+        <div
+          className="absolute top-0 bottom-0 w-0.5 bg-green-400 z-10 -mt-0.5 -mb-0.5"
+          style={{ left: `${markerPosition}%` }}
+          title={markerLabel || "2-minute qualification mark"}
+        />
+      )}
+    </div>
+  );
+};
+

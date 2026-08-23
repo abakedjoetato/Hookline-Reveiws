@@ -44,7 +44,7 @@ export class AudioMetadataProcessor {
       const audioCodec = format.codec || null;
 
       // 4. Atomic Database Update (Handling Audio Replacement Safety)
-      await this.prisma.$transaction(async (tx) => {
+      await this.prisma.$transaction(async (tx: any) => {
         // Find existing current version
         const currentVersion = await tx.trackMediaVersion.findFirst({
           where: { trackId, isCurrent: true, id: { not: mediaVersionId } },
@@ -96,7 +96,7 @@ export class AudioMetadataProcessor {
         `Failed to extract audio metadata for version ${mediaVersionId}: ${error.message}`,
       );
 
-      await this.prisma.$transaction(async (tx) => {
+      await this.prisma.$transaction(async (tx: any) => {
         await tx.trackMediaVersion.update({
           where: { id: mediaVersionId },
           data: {

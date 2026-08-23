@@ -105,6 +105,90 @@ export class ApiClient {
       "/readiness",
     );
   }
+
+  // Live Session API
+  public liveSessions = {
+    create: (data: {
+      stationId: string;
+      liveTitle: string;
+      primaryStreamingPlatform: string;
+      savedProfileUrlSnapshot: string;
+    }) => this.post<any>("/live-sessions", data),
+
+    get: (id: string) => this.get<any>(`/live-sessions/${id}`),
+
+    start: (id: string, expectedQueueRevision: number) =>
+      this.post<any>(`/live-sessions/${id}/start`, { expectedQueueRevision }),
+
+    pause: (id: string, expectedQueueRevision: number) =>
+      this.post<any>(`/live-sessions/${id}/pause`, { expectedQueueRevision }),
+
+    resume: (id: string, expectedQueueRevision: number) =>
+      this.post<any>(`/live-sessions/${id}/resume`, { expectedQueueRevision }),
+
+    end: (id: string, expectedQueueRevision: number) =>
+      this.post<any>(`/live-sessions/${id}/end`, { expectedQueueRevision }),
+
+    getQueue: (id: string) => this.get<any[]>(`/live-sessions/${id}/queue`),
+
+    playNext: (id: string, expectedQueueRevision: number) =>
+      this.post<{ success: boolean }>(`/live-sessions/${id}/queue/play-next`, {
+        expectedQueueRevision,
+      }),
+
+    loadQueueEntry: (
+      id: string,
+      entryId: string,
+      expectedQueueRevision: number,
+    ) =>
+      this.post<{ success: boolean }>(
+        `/live-sessions/${id}/queue/entries/${entryId}/load`,
+        { expectedQueueRevision },
+      ),
+
+    clearPlayer: (id: string, expectedQueueRevision: number) =>
+      this.post<{ success: boolean }>(
+        `/live-sessions/${id}/queue/player/clear`,
+        { expectedQueueRevision },
+      ),
+
+    moveToNext: (id: string, entryId: string, expectedQueueRevision: number) =>
+      this.post<{ success: boolean }>(
+        `/live-sessions/${id}/queue/entries/${entryId}/move-to-next`,
+        { expectedQueueRevision },
+      ),
+
+    changeEntryTier: (
+      id: string,
+      entryId: string,
+      data: { destinationType: "FREE" | "PRIORITY_TIER"; tierSnapshotId?: string },
+    ) =>
+      this.post<{ success: boolean; message?: string }>(
+        `/live-sessions/${id}/queue/entries/${entryId}/tier`,
+        data,
+      ),
+
+    updateConfiguration: (id: string, data: any) =>
+      this.patch<{ success: boolean }>(`/live-sessions/${id}/configuration`, data),
+  };
+
+  // Tracks API
+  public tracks = {
+    get: (trackId: string) => this.get<any>(`/tracks/${trackId}`),
+    download: (trackId: string, versionId?: string) =>
+      this.post<{ downloadUrl: string; mimeType?: string }>(
+        `/tracks/${trackId}/download`,
+        { versionId },
+      ),
+  };
+
+  // Auth API
+  public auth = {
+    getMe: () => this.get<{ user: any }>("/auth/me"),
+    login: (data: { emailOrUsername: string; passwordPlain: string }) =>
+      this.post<{ success: boolean }>("/auth/login", data),
+    logout: () => this.post<{ success: boolean }>("/auth/logout"),
+  };
 }
 
 export const createApiClient = (options?: ApiClientOptions): ApiClient => {
