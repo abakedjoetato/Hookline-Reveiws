@@ -1,5 +1,5 @@
 
-import { QueueOrderingService } from "./queue-ordering.service";
+import { QueueOrderingService } from "./queue-ordering/queue-ordering.service";
 import { ReorderIntent } from "./dto/live-session.dto";
 
 import {
@@ -637,6 +637,194 @@ export class LiveSessionsService {
         where: { id, queueRevision: expectedQueueRevision },
         data: { queueRevision: { increment: 1 } }
       });
+
+      return { success: true };
+    });
+  }
+
+
+  async changeEntryTier(userId: string, liveSessionId: string, entryId: string, dto: import('./dto/live-session.dto').HostManualTierChangeDto) {
+    return this.prisma.$transaction(async (tx) => {
+      // 1. Verify Host ownership
+      const liveSession = await tx.liveSession.findUnique({
+        where: { id: liveSessionId }
+      });
+      if (!liveSession || liveSession.hostId !== userId) {
+        throw new ForbiddenException("Not authorized to modify queue entries for this live session");
+      }
+
+      // 2. Look up the entry
+      const entry = await tx.queueEntry.findFirst({
+        where: { id: entryId, liveSessionId },
+        include: { submission: true }
+      });
+
+      if (!entry) {
+        throw new NotFoundException("Queue entry not found");
+      }
+
+      const isCurrentlyFree = !entry.submission.isPriority;
+      const isDestinationFree = dto.destinationType === 'FREE';
+
+      if (isCurrentlyFree && isDestinationFree) {
+        return { success: true, message: "Already in FREE line" };
+      }
+      if (!isCurrentlyFree && !isDestinationFree && entry.submission.priorityTierSnapshotId === dto.tierSnapshotId) {
+        return { success: true, message: "Already in requested PRIORITY tier" };
+      }
+
+      let newPriorityRank = 0;
+      let newSortOrder: any = entry.sortOrder;
+
+      // Group entries for destination ordering
+      const destinationEntries = await tx.queueEntry.findMany({
+          where: {
+              liveSessionId,
+              priorityRank: isDestinationFree ? 0 : (await tx.livePriorityTierSnapshot.findFirst({where: {id: dto.tierSnapshotId, liveSessionId}})).priorityRank,
+              status: { in: ['QUEUED', 'NEXT'] }
+          },
+          orderBy: { sortOrder: 'asc' }
+      });
+
+
+      if (isDestinationFree) {
+        newPriorityRank = 0;
+
+        // Priority -> Free: Restore original free position if possible
+        if (entry.tierOriginPriorityRank !== null && entry.tierOriginSortOrder !== null) {
+          // Attempt to restore near origin
+          newSortOrder = entry.tierOriginSortOrder;
+        } else {
+          // Never previously Free, go to bottom
+          newSortOrder = this.queueOrderingService.calculateNewSortOrder(ReorderIntent.BOTTOM, destinationEntries as any).midpoint;
+        }
+
+        // Update entry and submission
+        await tx.submission.update({
+          where: { id: entry.submissionId },
+          data: {
+            isPriority: false,
+            priorityTierSnapshotId: null
+          }
+        });
+
+        await tx.queueEntry.update({
+          where: { id: entryId },
+          data: {
+            priorityRank: newPriorityRank,
+            sortOrder: newSortOrder
+          }
+        });
+
+      } else {
+        // Free/Priority -> New Priority Tier
+        if (!dto.tierSnapshotId) {
+          throw new BadRequestException("tierSnapshotId is required for PRIORITY_TIER destination");
+        }
+
+        const tierSnapshot = await tx.livePriorityTierSnapshot.findFirst({
+          where: { id: dto.tierSnapshotId, liveSessionId }
+        });
+
+        if (!tierSnapshot) {
+          throw new NotFoundException("Destination priority tier not found");
+        }
+
+        newPriorityRank = tierSnapshot.priorityRank;
+
+        // If moving from Free -> Priority, save the Free origin
+        let updateData: any = {
+          priorityRank: newPriorityRank
+        };
+
+        if (isCurrentlyFree) {
+          if (entry.tierOriginPriorityRank === null && entry.tierOriginSortOrder === null) {
+            updateData.tierOriginPriorityRank = entry.priorityRank;
+            updateData.tierOriginSortOrder = entry.sortOrder;
+          }
+        }
+
+        // Since we are changing tier, place at the bottom of the destination tier group
+        updateData.sortOrder = this.queueOrderingService.calculateNewSortOrder(ReorderIntent.BOTTOM, destinationEntries as any).midpoint;
+
+        await tx.submission.update({
+          where: { id: entry.submissionId },
+          data: {
+            isPriority: true,
+            priorityTierSnapshotId: tierSnapshot.id
+          }
+        });
+
+        await tx.queueEntry.update({
+          where: { id: entryId },
+          data: updateData
+        });
+      }
+
+      return { success: true };
+    });
+  }
+
+  async updateConfiguration(userId: string, liveSessionId: string, dto: import('./dto/update-live-session-config.dto').UpdateLiveSessionConfigDto) {
+    return this.prisma.$transaction(async (tx) => {
+      const liveSession = await tx.liveSession.findUnique({
+        where: { id: liveSessionId }
+      });
+      if (!liveSession || liveSession.hostId !== userId) {
+        throw new ForbiddenException("Not authorized to configure this live session");
+      }
+
+      // Update LiveSession properties
+      const lsUpdateData: any = {};
+      if (dto.submissionsOpen !== undefined) lsUpdateData.submissionsOpen = dto.submissionsOpen;
+      if (dto.freeLineOpen !== undefined) lsUpdateData.freeLineOpen = dto.freeLineOpen;
+      if (dto.paidSubmissionsOpen !== undefined) lsUpdateData.paidSubmissionsOpen = dto.paidSubmissionsOpen;
+
+      if (Object.keys(lsUpdateData).length > 0) {
+        await tx.liveSession.update({
+          where: { id: liveSessionId },
+          data: lsUpdateData
+        });
+      }
+
+      // Update FreeLineConfiguration
+      if (dto.freeLine) {
+        const currentFreeLine = await tx.freeLineConfiguration.findFirst({
+          where: { liveSessionId },
+          orderBy: { createdAt: 'desc' }
+        });
+        if (currentFreeLine) {
+            await tx.freeLineConfiguration.update({
+                where: { id: currentFreeLine.id },
+                data: {
+                    isEnabled: dto.freeLine.isEnabled !== undefined ? dto.freeLine.isEnabled : currentFreeLine.isEnabled,
+                    maxFreeSubmissionsPerUser: dto.freeLine.maxFreeSubmissionsPerUser !== undefined ? dto.freeLine.maxFreeSubmissionsPerUser! : currentFreeLine.maxFreeSubmissionsPerUser,
+                    totalFreeCapacityLimit: dto.freeLine.totalFreeCapacityLimit !== undefined ? dto.freeLine.totalFreeCapacityLimit : currentFreeLine.totalFreeCapacityLimit,
+                    activeEntryCapacityLimit: dto.freeLine.activeEntryCapacityLimit !== undefined ? dto.freeLine.activeEntryCapacityLimit : currentFreeLine.activeEntryCapacityLimit
+                }
+            });
+        }
+      }
+
+      // Update PriorityTiers
+      if (dto.priorityTiers && dto.priorityTiers.length > 0) {
+        for (const tierDto of dto.priorityTiers) {
+          const currentTier = await tx.livePriorityTierSnapshot.findFirst({
+            where: { id: tierDto.id, liveSessionId }
+          });
+          if (currentTier) {
+            await tx.livePriorityTierSnapshot.update({
+              where: { id: tierDto.id },
+              data: {
+                name: tierDto.name !== undefined ? tierDto.name : currentTier.name,
+                priceCents: tierDto.priceCents !== undefined ? tierDto.priceCents : currentTier.priceCents,
+                isActive: tierDto.isActive !== undefined ? tierDto.isActive : currentTier.isActive,
+                maxPurchasesPerUserPerLive: tierDto.maxPurchasesPerUserPerLive !== undefined ? tierDto.maxPurchasesPerUserPerLive : currentTier.maxPurchasesPerUserPerLive
+              }
+            });
+          }
+        }
+      }
 
       return { success: true };
     });
