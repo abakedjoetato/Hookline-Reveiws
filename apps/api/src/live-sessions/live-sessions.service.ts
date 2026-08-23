@@ -10,7 +10,7 @@ import {
   BadRequestException,
 } from "@nestjs/common";
 import { PrismaClient, generateUuidV7, QueueEntry } from "@platform/database";
-import { LiveSessionStatus, QueueStatus } from "@platform/types";
+import { LiveSessionStatus, QueueStatus, StreamingPlatform } from "@platform/types";
 import { CreateLiveSessionDto, AddQueueEntryDto } from "./dto/live-session.dto";
 
 @Injectable()
@@ -438,6 +438,177 @@ export class LiveSessionsService {
       },
     }));
   }
+
+  async getPublicLiveSessions(): Promise<import("./dto/live-session.dto").PublicLiveSessionSummary[]> {
+    const sessions = await this.prisma.liveSession.findMany({
+      where: {
+        status: {
+          in: [LiveSessionStatus.LIVE, LiveSessionStatus.PAUSED],
+        },
+        station: {
+          isPublicVisible: true,
+          deletedAt: null,
+        },
+      },
+      orderBy: { startedAt: "desc" },
+      include: {
+        station: {
+          include: {
+            host: true,
+          },
+        },
+      },
+    });
+
+    return sessions.map((s) => ({
+      id: s.id,
+      stationId: s.stationId,
+      stationName: s.station.stationName,
+      stationSlug: s.station.slug,
+      hostName: s.station.host.publicHostName,
+      liveTitle: s.liveTitle,
+      status: s.status as LiveSessionStatus,
+      startedAt: s.startedAt,
+      primaryStreamingPlatform: s.primaryStreamingPlatform as StreamingPlatform,
+      streamUrl: s.sessionLiveUrl || s.savedProfileUrlSnapshot || null,
+      submissionsOpen: s.submissionsOpen,
+      freeLineOpen: s.freeLineOpen,
+      paidSubmissionsOpen: s.paidSubmissionsOpen,
+    }));
+  }
+
+  async getPublicLiveSession(
+    id: string,
+  ): Promise<import("./dto/live-session.dto").PublicLiveSessionDetail> {
+    const session = await this.prisma.liveSession.findUnique({
+      where: { id },
+      include: {
+        station: {
+          include: {
+            host: true,
+          },
+        },
+      },
+    });
+
+    if (!session) {
+      throw new NotFoundException("Live session not found");
+    }
+
+    let currentTrack: {
+      songName: string;
+      artistName: string;
+      durationSeconds: number;
+    } | null = null;
+
+    if (session.currentQueueEntryId) {
+      const currentEntry = await this.prisma.queueEntry.findUnique({
+        where: { id: session.currentQueueEntryId },
+        include: {
+          submission: {
+            include: {
+              sourceTrack: {
+                include: { artistIdentity: true },
+              },
+              trackSnapshot: true,
+            },
+          },
+        },
+      });
+
+      if (currentEntry?.submission) {
+        const snap = currentEntry.submission.trackSnapshot;
+        const track = currentEntry.submission.sourceTrack;
+        currentTrack = {
+          songName: snap?.songName || track?.songName || "Untitled Track",
+          artistName:
+            snap?.artistName ||
+            track?.artistIdentity?.artistName ||
+            "Unknown Artist",
+          durationSeconds: snap?.durationSeconds ?? track?.durationSeconds ?? 0,
+        };
+      }
+    }
+
+    return {
+      id: session.id,
+      stationId: session.stationId,
+      stationName: session.station.stationName,
+      stationSlug: session.station.slug,
+      hostName: session.station.host.publicHostName,
+      hostBio: session.station.host.biography,
+      liveTitle: session.liveTitle,
+      status: session.status as LiveSessionStatus,
+      startedAt: session.startedAt,
+      primaryStreamingPlatform: session.primaryStreamingPlatform as StreamingPlatform,
+      streamUrl: session.sessionLiveUrl || session.savedProfileUrlSnapshot || null,
+      queueRevision: session.queueRevision,
+      submissionsOpen: session.submissionsOpen,
+      freeLineOpen: session.freeLineOpen,
+      paidSubmissionsOpen: session.paidSubmissionsOpen,
+      currentQueueEntryId: session.currentQueueEntryId,
+      currentTrack,
+    };
+  }
+
+  async getPublicQueue(
+    id: string,
+  ): Promise<import("./dto/live-session.dto").PublicQueueEntry[]> {
+    const session = await this.prisma.liveSession.findUnique({
+      where: { id },
+    });
+
+    if (!session) {
+      throw new NotFoundException("Live session not found");
+    }
+
+    const entries = await this.prisma.queueEntry.findMany({
+      where: {
+        liveSessionId: id,
+        status: {
+          in: [QueueStatus.QUEUED, QueueStatus.NEXT, QueueStatus.PLAYING],
+        },
+      },
+      orderBy: [{ priorityRank: "desc" }, { sortOrder: "asc" }],
+      include: {
+        submission: {
+          include: {
+            sourceTrack: {
+              include: { artistIdentity: true },
+            },
+            trackSnapshot: true,
+            priorityTierSnapshot: true,
+          },
+        },
+      },
+    });
+
+    return entries.map((entry) => {
+      const snap = entry.submission.trackSnapshot;
+      const track = entry.submission.sourceTrack;
+      const tier = entry.submission.priorityTierSnapshot;
+      return {
+        id: entry.id,
+        liveSessionId: entry.liveSessionId,
+        status: entry.status as QueueStatus,
+        sortOrder: Number(entry.sortOrder),
+        priorityRank: entry.priorityRank,
+        isPriority: entry.submission.isPriority,
+        tierName:
+          tier?.name ||
+          (entry.submission.isPriority ? "Priority" : "Free Line"),
+        colorSlot: tier?.colorSlot || "FREE_LINE",
+        songName: snap?.songName || track?.songName || "Untitled Track",
+        artistName:
+          snap?.artistName ||
+          track?.artistIdentity?.artistName ||
+          "Unknown Artist",
+        durationSeconds: snap?.durationSeconds ?? track?.durationSeconds ?? 0,
+        submittedAt: entry.submission.submittedAt,
+      };
+    });
+  }
+
 
   private async qualifyAndDisplaceCurrentPlayer(
     tx: any,

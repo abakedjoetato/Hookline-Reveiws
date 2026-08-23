@@ -80,5 +80,12 @@ export class ReorderQueueEntryDto extends ExpectedQueueRevisionDto {
   targetEntryId?: string;
 }
 
+export {
+  PublicLiveSessionSummary,
+  PublicLiveSessionDetail,
+  PublicQueueEntry,
+} from "@platform/types";
+
 import { HostManualTierChangeDto as SubmissionsTierChangeDto } from "../../submissions/dto/submission.dto";
 export { HostManualTierChangeDto } from "../../submissions/dto/submission.dto";
+

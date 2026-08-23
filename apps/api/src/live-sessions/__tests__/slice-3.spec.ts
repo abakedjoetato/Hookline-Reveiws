@@ -104,10 +104,10 @@ describe("LiveSessionsService - Slice 3", () => {
       expect(txMock.liveSession.update).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: "sess-1", queueRevision: 5 },
-          data: {
+          data: expect.objectContaining({
             queueRevision: { increment: 1 },
             currentQueueEntryId: "entry-next",
-          },
+          }),
         }),
       );
     });
@@ -154,7 +154,10 @@ describe("LiveSessionsService - Slice 3", () => {
       expect(txMock.liveSession.update).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: "sess-1", queueRevision: 5 },
-          data: { queueRevision: { increment: 1 }, currentQueueEntryId: null },
+          data: expect.objectContaining({
+            queueRevision: { increment: 1 },
+            currentQueueEntryId: null,
+          }),
         }),
       );
     });

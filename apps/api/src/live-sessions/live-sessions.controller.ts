@@ -22,14 +22,34 @@ import {
 } from "./dto/live-session.dto";
 import { SessionGuard } from "../auth/guards/session.guard";
 import { RequestWithUser } from "../auth/interfaces/request-with-user.interface";
+import { PublicRoute } from "../auth/decorators/auth.decorators";
 
 @Controller("live-sessions")
 @UseGuards(SessionGuard)
 export class LiveSessionsController {
   constructor(private readonly liveSessionsService: LiveSessionsService) {}
 
+  @PublicRoute()
+  @Get("public")
+  async getPublicLiveSessions() {
+    return this.liveSessionsService.getPublicLiveSessions();
+  }
+
+  @PublicRoute()
+  @Get(":id/public")
+  async getPublicLiveSession(@Param("id") id: string) {
+    return this.liveSessionsService.getPublicLiveSession(id);
+  }
+
+  @PublicRoute()
+  @Get(":id/queue/public")
+  async getPublicQueue(@Param("id") id: string) {
+    return this.liveSessionsService.getPublicQueue(id);
+  }
+
   @Post()
   async create(@Req() req: RequestWithUser, @Body() dto: CreateLiveSessionDto) {
+
     return this.liveSessionsService.createLiveSession(req.user.id, dto);
   }
 

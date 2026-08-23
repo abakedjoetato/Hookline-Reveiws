@@ -18,8 +18,12 @@
     "@platform/types": "*",
     "@platform/config": "*",
     "@platform/validation": "*",
-    "@platform/api-client": "*"
+    "@platform/api-client": "*",
+    "@stripe/stripe-js": "^4.8.0",
+    "@stripe/react-stripe-js": "^2.8.1",
+    "socket.io-client": "^4.8.3"
   },
+
   "devDependencies": {
     "typescript": "^5.6.3",
     "@types/node": "^20.11.0",

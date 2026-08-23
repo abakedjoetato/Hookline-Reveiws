@@ -41,7 +41,13 @@ export class SubmissionsController {
     return this.eligibilityService.getEligibility(req.user.id, id);
   }
 
+  @Get("submissions/mine")
+  async getMySubmissions(@Req() req: RequestWithUser) {
+    return this.submissionsService.getMySubmissions(req.user.id);
+  }
+
   @Post(":id/submissions")
+
   async createSubmission(
     @Req() req: RequestWithUser,
     @Param("id") id: string,

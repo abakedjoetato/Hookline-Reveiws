@@ -108,6 +108,41 @@ export class ApiClient {
 
   // Live Session API
   public liveSessions = {
+    getPublic: () =>
+      this.get<import("@platform/types").PublicLiveSessionSummary[]>(
+        "/live-sessions/public",
+      ),
+
+    getPublicById: (id: string) =>
+      this.get<import("@platform/types").PublicLiveSessionDetail>(
+        `/live-sessions/${id}/public`,
+      ),
+
+    getPublicQueue: (id: string) =>
+      this.get<import("@platform/types").PublicQueueEntry[]>(
+        `/live-sessions/${id}/queue/public`,
+      ),
+
+    getSubmissionEligibility: (id: string) =>
+      this.get<import("@platform/types").SubmissionEligibilityResponse>(
+        `/live-sessions/${id}/submission-eligibility`,
+      ),
+
+    createSubmission: (
+      id: string,
+      data: import("@platform/types").CreateSubmissionDto,
+      idempotencyKey: string,
+    ) =>
+      this.post<import("@platform/types").CreateSubmissionResponse>(
+        `/live-sessions/${id}/submissions`,
+        data,
+        {
+          headers: {
+            "idempotency-key": idempotencyKey,
+          },
+        },
+      ),
+
     create: (data: {
       stationId: string;
       liveTitle: string;
@@ -172,9 +207,51 @@ export class ApiClient {
       this.patch<{ success: boolean }>(`/live-sessions/${id}/configuration`, data),
   };
 
+  // Submissions API
+  public submissions = {
+    getMine: () =>
+      this.get<import("@platform/types").UserSubmissionSummary[]>(
+        "/submissions/mine",
+      ),
+
+    upgrade: (
+      submissionId: string,
+      data: import("@platform/types").UpgradeSubmissionDto,
+      idempotencyKey: string,
+    ) =>
+      this.post<import("@platform/types").UpgradeSubmissionResponse>(
+        `/submissions/${submissionId}/upgrade`,
+        data,
+        {
+          headers: {
+            "idempotency-key": idempotencyKey,
+          },
+        },
+      ),
+  };
+
   // Tracks API
   public tracks = {
-    get: (trackId: string) => this.get<any>(`/tracks/${trackId}`),
+    list: () =>
+      this.get<import("@platform/types").TrackSummary[]>("/tracks"),
+
+    get: (trackId: string) =>
+      this.get<import("@platform/types").TrackSummary>(`/tracks/${trackId}`),
+
+    createUploadUrl: (dto: import("@platform/types").CreateTrackUploadUrlDto) =>
+      this.post<import("@platform/types").CreateUploadUrlResponse>(
+        "/tracks/upload-url",
+        dto,
+      ),
+
+    completeUpload: (trackId: string, uploadIntentId: string) =>
+      this.post<{ success: boolean }>(`/tracks/${trackId}/upload-complete`, {
+        uploadIntentId,
+      }),
+
+    delete: (trackId: string) =>
+      this.delete<{ success: boolean }>(`/tracks/${trackId}`),
+
     download: (trackId: string, versionId?: string) =>
       this.post<{ downloadUrl: string; mimeType?: string }>(
         `/tracks/${trackId}/download`,
@@ -189,6 +266,7 @@ export class ApiClient {
       this.post<{ success: boolean }>("/auth/login", data),
     logout: () => this.post<{ success: boolean }>("/auth/logout"),
   };
+
 }
 
 export const createApiClient = (options?: ApiClientOptions): ApiClient => {

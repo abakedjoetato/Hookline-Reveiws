@@ -17,7 +17,9 @@ import { StorageModule } from "./storage/storage.module";
 import { TracksModule } from "./tracks/tracks.module";
 import { AdminTracksModule } from "./admin/admin-tracks.module";
 import { LiveSessionsModule } from "./live-sessions/live-sessions.module";
+import { SubmissionsModule } from "./submissions/submissions.module";
 import { BullModule } from "@nestjs/bullmq";
+
 import { IdempotencyModule } from "./common/idempotency/idempotency.module";
 import { PaymentsModule } from "./payments/payments.module";
 
@@ -70,7 +72,9 @@ import { PaymentsModule } from "./payments/payments.module";
     TracksModule,
     AdminTracksModule,
     LiveSessionsModule,
+    SubmissionsModule,
     IdempotencyModule,
+
     PaymentsModule,
   ],
   controllers: [HealthController],

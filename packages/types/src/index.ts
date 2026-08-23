@@ -290,3 +290,206 @@ export interface User {
   createdAt: Date;
   updatedAt: Date;
 }
+
+export interface PublicLiveSessionSummary {
+  id: string;
+  stationId: string;
+  stationName: string;
+  stationSlug: string;
+  hostName: string;
+  liveTitle: string;
+  status: LiveSessionStatus;
+  startedAt: Date | string | null;
+  primaryStreamingPlatform: StreamingPlatform;
+  streamUrl: string | null;
+  submissionsOpen: boolean;
+  freeLineOpen: boolean;
+  paidSubmissionsOpen: boolean;
+}
+
+export interface PublicLiveSessionDetail {
+  id: string;
+  stationId: string;
+  stationName: string;
+  stationSlug: string;
+  hostName: string;
+  hostBio: string | null;
+  liveTitle: string;
+  status: LiveSessionStatus;
+  startedAt: Date | string | null;
+  primaryStreamingPlatform: StreamingPlatform;
+  streamUrl: string | null;
+  queueRevision: number;
+  submissionsOpen: boolean;
+  freeLineOpen: boolean;
+  paidSubmissionsOpen: boolean;
+  currentQueueEntryId: string | null;
+  currentTrack: {
+    songName: string;
+    artistName: string;
+    durationSeconds: number;
+  } | null;
+}
+
+export interface PublicQueueEntry {
+  id: string;
+  liveSessionId: string;
+  status: QueueStatus;
+  sortOrder: number;
+  priorityRank: number;
+  isPriority: boolean;
+  tierName: string | null;
+  colorSlot: string;
+  songName: string;
+  artistName: string;
+  durationSeconds: number;
+  submittedAt: Date | string;
+}
+
+export interface UserSubmissionSummary {
+  id: string;
+  liveSessionId: string;
+  sessionTitle: string;
+  sessionStatus: LiveSessionStatus;
+  stationName: string;
+  songName: string;
+  artistName: string;
+  durationSeconds: number;
+  isPriority: boolean;
+  tierName: string | null;
+  tierColorSlot: string | null;
+  currentQueueStatus: QueueStatus;
+  submittedAt: Date | string;
+  queueEntry: {
+    id: string;
+    status: QueueStatus;
+    priorityRank: number;
+    sortOrder: number;
+  } | null;
+}
+
+export enum SubmissionEligibilityReason {
+  AVAILABLE = "AVAILABLE",
+  SUBMISSIONS_DISABLED = "SUBMISSIONS_DISABLED",
+  FREE_LINE_DISABLED = "FREE_LINE_DISABLED",
+  TIER_DISABLED = "TIER_DISABLED",
+  ACTIVE_FREE_LIMIT_REACHED = "ACTIVE_FREE_LIMIT_REACHED",
+  TOTAL_FREE_LIMIT_REACHED = "TOTAL_FREE_LIMIT_REACHED",
+  TOTAL_FREE_CAPACITY_REACHED = "TOTAL_FREE_CAPACITY_REACHED",
+  USER_TIER_LIMIT_REACHED = "USER_TIER_LIMIT_REACHED",
+  TOTAL_TIER_CAPACITY_REACHED = "TOTAL_TIER_CAPACITY_REACHED",
+  SESSION_NOT_FOUND = "SESSION_NOT_FOUND",
+  INVALID_TIER = "INVALID_TIER",
+}
+
+export interface TierEligibilityInfo {
+  tierSnapshotId?: string;
+  isFree: boolean;
+  available: boolean;
+  reason: SubmissionEligibilityReason;
+  name: string;
+  priceCents: number;
+  priorityRank: number;
+  colorSlot?: string;
+}
+
+export interface SubmissionEligibilityResponse {
+  liveSessionId: string;
+  free: TierEligibilityInfo;
+  priorityTiers: TierEligibilityInfo[];
+}
+
+export interface TrackSummary {
+  id: string;
+  userId: string;
+  artistIdentityId: string;
+  songName: string;
+  albumName?: string | null;
+  explicitContent: boolean;
+  bpm?: number | null;
+  musicalKey?: string | null;
+  durationSeconds: number;
+  processingState: ProcessingState;
+  artistIdentity?: {
+    id: string;
+    artistName: string;
+  };
+  createdAt: Date | string;
+  updatedAt: Date | string;
+}
+
+export interface CreateTrackUploadUrlDto {
+  artistName: string;
+  songName: string;
+  albumName?: string;
+  explicitContent?: boolean;
+  bpm?: number;
+  musicalKey?: string;
+  originalFilename: string;
+  mimeType: string;
+  fileSize: number;
+}
+
+export interface CreateUploadUrlResponse {
+  trackId: string;
+  uploadIntentId: string;
+  uploadUrl: string;
+  expiresAt: Date | string;
+}
+
+export interface CreateSubmissionDto {
+  sourceTrackId: string;
+  artistIdentityId: string;
+  tierSnapshotId?: string;
+}
+
+export interface CreateSubmissionResponse {
+  submission: {
+    id: string;
+    submittingUserId: string;
+    sourceTrackId: string;
+    artistIdentityId: string;
+    liveSessionId: string;
+    isPriority: boolean;
+    priorityTierSnapshotId?: string | null;
+    currentQueueStatus: QueueStatus;
+    submittedAt: Date | string;
+  };
+  queueEntry: {
+    id: string;
+    liveSessionId: string;
+    submissionId: string;
+    status: QueueStatus;
+    priorityRank: number;
+    sortOrder: number;
+  };
+  clientSecret?: string;
+}
+
+export interface UpgradeSubmissionDto {
+  tierSnapshotId: string;
+}
+
+export interface UpgradeSubmissionResponse {
+  submission: {
+    id: string;
+    submittingUserId: string;
+    sourceTrackId: string;
+    artistIdentityId: string;
+    liveSessionId: string;
+    isPriority: boolean;
+    priorityTierSnapshotId?: string | null;
+    currentQueueStatus: QueueStatus;
+    submittedAt: Date | string;
+  };
+  queueEntry: {
+    id: string;
+    liveSessionId: string;
+    submissionId: string;
+    status: QueueStatus;
+    priorityRank: number;
+    sortOrder: number;
+  };
+  clientSecret: string;
+}
+

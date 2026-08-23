@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { PrismaClient, generateUuidV7 } from "@platform/database";
-import { QueueStatus } from "@platform/types";
+import { QueueStatus, LiveSessionStatus } from "@platform/types";
 import { SubmissionEligibilityService } from "./submission-eligibility.service";
 import { QueueOrderingService } from "../live-sessions/queue-ordering/queue-ordering.service";
 import { ReorderIntent } from "../live-sessions/dto/live-session.dto";
@@ -420,4 +420,62 @@ export class SubmissionsService {
       throw error;
     }
   }
+
+  async getMySubmissions(
+    userId: string,
+  ): Promise<import("@platform/types").UserSubmissionSummary[]> {
+    const submissions = await this.prisma.submission.findMany({
+      where: { submittingUserId: userId },
+      orderBy: { submittedAt: "desc" },
+      include: {
+        liveSession: {
+          include: {
+            station: true,
+          },
+        },
+        sourceTrack: {
+          include: {
+            artistIdentity: true,
+          },
+        },
+        trackSnapshot: true,
+        priorityTierSnapshot: true,
+        queueEntry: true,
+      },
+    });
+
+    return submissions.map((sub) => {
+      const snap = sub.trackSnapshot;
+      const track = sub.sourceTrack;
+      const tier = sub.priorityTierSnapshot;
+      return {
+        id: sub.id,
+        liveSessionId: sub.liveSessionId,
+        sessionTitle: sub.liveSession.liveTitle,
+        sessionStatus: sub.liveSession.status as LiveSessionStatus,
+        stationName: sub.liveSession.station.stationName,
+        songName: snap?.songName || track?.songName || "Untitled Track",
+        artistName:
+          snap?.artistName ||
+          track?.artistIdentity?.artistName ||
+          "Unknown Artist",
+        durationSeconds: snap?.durationSeconds ?? track?.durationSeconds ?? 0,
+        isPriority: sub.isPriority,
+        tierName:
+          tier?.name || (sub.isPriority ? "Priority" : "Free Line"),
+        tierColorSlot: tier?.colorSlot || (sub.isPriority ? "TIER_COLOR_1" : "FREE_LINE"),
+        currentQueueStatus: sub.currentQueueStatus as QueueStatus,
+        submittedAt: sub.submittedAt,
+        queueEntry: sub.queueEntry
+          ? {
+              id: sub.queueEntry.id,
+              status: sub.queueEntry.status as QueueStatus,
+              priorityRank: sub.queueEntry.priorityRank,
+              sortOrder: Number(sub.queueEntry.sortOrder),
+            }
+          : null,
+      };
+    });
+  }
 }
+

@@ -53,16 +53,12 @@ export class LiveSessionsGateway
         token = cookies["queue_session"];
       }
 
-      if (!token) {
-        client.disconnect();
-        return;
+      if (token) {
+        const user = await this.sessionService.validateSession(token);
+        (client as any).user = user;
       }
-
-      const user = await this.sessionService.validateSession(token);
-
-      (client as any).user = user;
     } catch (error) {
-      client.disconnect();
+      // Anonymous connection remains valid without user context
     }
   }
 
@@ -76,21 +72,19 @@ export class LiveSessionsGateway
   ) {
     try {
       const user = (client as any).user;
-      if (!user) return { success: false, message: "Unauthorized" };
       if (!data || !data.sessionId) return { success: false, message: "Missing sessionId" };
 
       const sessionId = data.sessionId;
 
       const session = await this.prisma.liveSession.findUnique({
         where: { id: sessionId },
-        include: { queueEntries: { include: { submission: true } } },
       });
 
       if (!session) {
         return { success: false, message: "Session not found" };
       }
 
-      const isHost = session.hostId === user.id;
+      const isHost = Boolean(user && session.hostId === user.id);
 
       client.join(`session:PUBLIC:${sessionId}`);
       if (isHost) {
@@ -115,4 +109,5 @@ export class LiveSessionsGateway
       return { success: false, message: "Error joining session" };
     }
   }
+
 }
