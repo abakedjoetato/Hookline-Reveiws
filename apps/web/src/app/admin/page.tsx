@@ -49,6 +49,14 @@ export default function AdminDashboardPage() {
 
   const adminModules = [
     {
+      title: "Host Applications & Approvals",
+      description: "Review broadcaster applications, verify Stripe Connect payout status, toggle manual approval policies, and manage host stations.",
+      href: "/admin/hosts",
+      icon: Radio,
+      badge: "Broadcasters",
+      color: "from-amber-600 to-orange-600",
+    },
+    {
       title: "Global Theme & Customization",
       description: "Manage platform branding, logos, site name, 12-token color palettes, and live visual preview.",
       href: "/admin/customization",
@@ -57,8 +65,8 @@ export default function AdminDashboardPage() {
       color: "from-violet-600 to-indigo-600",
     },
     {
-      title: "Live Station Broadcasts",
-      description: "Monitor active host streams, manage channel approvals, inspect queue states and session metrics.",
+      title: "Live Station Directory",
+      description: "Monitor active host streams, inspect queue states, and explore broadcaster vanity stations.",
       href: "/hosts",
       icon: Radio,
       badge: "Stations",
@@ -78,7 +86,7 @@ export default function AdminDashboardPage() {
       href: "/account/security",
       icon: Shield,
       badge: "RBAC & Audits",
-      color: "from-amber-600 to-orange-600",
+      color: "from-blue-600 to-cyan-600",
     },
   ];
 

@@ -328,6 +328,9 @@ export interface PublicLiveSessionDetail {
     songName: string;
     artistName: string;
     durationSeconds: number;
+    submitterName?: string;
+    audioUrl?: string;
+    artworkUrl?: string | null;
   } | null;
 }
 
@@ -606,5 +609,190 @@ export interface UserPreferencesDto {
   marketingEmails: boolean;
   soundEffects: boolean;
   themeMode: "dark" | "system";
+}
+
+// ============================================================================
+// Host, Station, Stripe Connect & Platform Settings Types
+// ============================================================================
+
+export interface PlatformSettingsDto {
+  requireManualHostApproval: boolean;
+  allowPublicRegistrations?: boolean;
+  maxActiveStations?: number;
+  maintenanceMode?: boolean;
+  updatedAt?: Date | string;
+  updatedByUserId?: string | null;
+}
+
+export type PlatformSettings = PlatformSettingsDto;
+
+export interface UpdatePlatformSettingsDto {
+  requireManualHostApproval: boolean;
+}
+
+export interface HostProfileSummary {
+  id: string;
+  userId: string;
+  publicHostName: string;
+  normalizedHostName: string;
+  hostSlug: string;
+  normalizedHostSlug: string;
+  isApproved: boolean;
+  biography?: string | null;
+  profileImageKey?: string | null;
+  bannerImageKey?: string | null;
+  primaryStreamingPlatform: StreamingPlatform;
+  primaryStreamingProfileUrl?: string | null;
+  country?: string | null;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+}
+
+export interface StationSummary {
+  id: string;
+  hostId: string;
+  stationName: string;
+  normalizedStationName: string;
+  slug: string;
+  description?: string | null;
+  profileImageKey?: string | null;
+  bannerImageKey?: string | null;
+  status: StationStatus;
+  isPublicVisible: boolean;
+  isApproved: boolean;
+  primaryStreamingPlatform: StreamingPlatform;
+  streamUrl?: string | null;
+  acceptedContentRules?: string | null;
+  explicitContentAllowed: boolean;
+  maxTrackDurationSeconds: number;
+  maxQueueSize: number;
+  isLive?: boolean;
+  currentLiveSessionId?: string | null;
+  hostName?: string;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+}
+
+export type HostStationDetail = StationSummary & {
+  isLive?: boolean;
+  currentSessionId?: string | null;
+  currentSession?: PublicLiveSessionDetail | null;
+};
+
+export interface PublicStationDetail {
+  id: string;
+  stationName: string;
+  hostname: string;
+  slug: string;
+  description?: string | null;
+  profileImageKey?: string | null;
+  bannerImageKey?: string | null;
+  primaryStreamingPlatform: StreamingPlatform;
+  streamUrl?: string | null;
+  acceptedContentRules?: string | null;
+  explicitContentAllowed: boolean;
+  maxTrackDurationSeconds: number;
+  maxQueueSize: number;
+  hostName: string;
+  hostBio?: string | null;
+  isLive: boolean;
+  currentSession: PublicLiveSessionDetail | null;
+}
+
+export interface HostApplicationSummary {
+  id: string;
+  applicantUserId: string;
+  applicantUser?: {
+    id: string;
+    email: string;
+    username: string;
+    displayName: string;
+  };
+  publicHostName: string;
+  normalizedHostName: string;
+  primaryStreamingPlatform: StreamingPlatform;
+  primaryStreamingProfileUrl: string;
+  country: string;
+  biography?: string | null;
+  acceptedGenres?: string | null;
+  exampleLivestreamLinks?: string | null;
+  payoutOnboardingStatus: string;
+  status: HostApplicationStatus;
+  reviewedByUserId?: string | null;
+  rejectionReasonCode?: string | null;
+  internalRejectionNotes?: string | null;
+  userFacingRejectionReason?: string | null;
+  submittedAt: Date | string;
+  reviewedAt?: Date | string | null;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+  stripeConnected: boolean;
+  stripeAccountId?: string | null;
+  stripeChargesEnabled: boolean;
+  stripePayoutsEnabled: boolean;
+  stripeDetailsSubmitted: boolean;
+  isEligibleForApproval: boolean;
+  stationSlug?: string | null;
+}
+
+export type AdminHostApplicationDetail = HostApplicationSummary;
+
+export interface HostOnboardingStatus {
+  hasApplication: boolean;
+  application: HostApplicationSummary | null;
+  stripeConnected: boolean;
+  stripeAccountId: string | null;
+  stripeChargesEnabled: boolean;
+  stripePayoutsEnabled: boolean;
+  stripeDetailsSubmitted: boolean;
+  isEligibleForApproval: boolean;
+  isApproved: boolean;
+  status: HostApplicationStatus | "NOT_STARTED";
+  station: StationSummary | null;
+  requireManualHostApproval: boolean;
+}
+
+export interface CreateHostApplicationDto {
+  publicHostName: string;
+  primaryStreamingPlatform: StreamingPlatform;
+  primaryStreamingProfileUrl: string;
+  country: string;
+  biography?: string;
+  acceptedGenres?: string;
+  exampleLivestreamLinks?: string;
+}
+
+export interface StripeConnectLinkResponse {
+  accountLinkUrl: string;
+  accountId: string;
+  expiresAt?: Date | string;
+}
+
+export interface StripeConnectStatusResponse {
+  connected: boolean;
+  accountId: string | null;
+  detailsSubmitted: boolean;
+  chargesEnabled: boolean;
+  payoutsEnabled: boolean;
+  isComplete: boolean;
+}
+
+export interface UpdateStationDto {
+  description?: string | null;
+  primaryStreamingPlatform?: StreamingPlatform;
+  streamUrl?: string | null;
+  acceptedContentRules?: string | null;
+  explicitContentAllowed?: boolean;
+  maxTrackDurationSeconds?: number;
+  maxQueueSize?: number;
+}
+
+export interface GoLiveDto {
+  liveTitle: string;
+  primaryStreamingPlatform: StreamingPlatform;
+  streamUrl?: string | null;
+  submissionsOpen?: boolean;
+  freeLineOpen?: boolean;
+  paidSubmissionsOpen?: boolean;
 }
 

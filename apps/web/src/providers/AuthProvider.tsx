@@ -15,6 +15,7 @@ interface AuthContextType {
   requestPasswordReset: (email: string) => Promise<{ success: boolean; message?: string }>;
   confirmPasswordReset: (token: string, password: string) => Promise<{ success: boolean; message?: string }>;
   refreshUser: () => Promise<UserProfile | null>;
+  refreshAuth: () => Promise<UserProfile | null>;
   updateProfile: (data: UpdateUserProfileDto) => Promise<UserProfile>;
   changePassword: (data: ChangePasswordDto) => Promise<{ success: boolean; message?: string }>;
 }
@@ -30,6 +31,7 @@ const AuthContext = createContext<AuthContextType>({
   requestPasswordReset: async () => ({ success: false }),
   confirmPasswordReset: async () => ({ success: false }),
   refreshUser: async () => null,
+  refreshAuth: async () => null,
   updateProfile: async () => ({} as UserProfile),
   changePassword: async () => ({ success: false }),
 });
@@ -185,6 +187,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         requestPasswordReset,
         confirmPasswordReset,
         refreshUser,
+        refreshAuth: refreshUser,
         updateProfile,
         changePassword,
       }}

@@ -58,12 +58,16 @@ export const useLiveSocket = (
       return;
     }
 
-    const socketUrl =
-      typeof window !== "undefined"
-        ? window.location.hostname === "localhost"
-          ? "http://localhost:4000"
-          : `${window.location.protocol}//${window.location.hostname}`
-        : "http://localhost:4000";
+    const wsUrl = process.env.NEXT_PUBLIC_WS_URL;
+    if (!wsUrl) {
+      setIsConnected(true);
+      const pollInterval = setInterval(() => {
+        handlersRef.current.onReconcile?.();
+      }, 5000);
+      return () => clearInterval(pollInterval);
+    }
+
+    const socketUrl = wsUrl;
 
     const socket = io(socketUrl, {
       withCredentials: true,

@@ -373,6 +373,7 @@ export const RESERVED_SLUGS = [
   "admin",
   "api",
   "host",
+  "hosts",
   "login",
   "register",
   "account",
@@ -387,7 +388,31 @@ export const RESERVED_SLUGS = [
   "music",
   "queue",
   "uploads",
+  "library",
+  "submissions",
+  "session",
+  "auth",
+  "theme",
+  "apply-host",
+  "onboarding",
+  "become-host",
+  "verify-email",
+  "forgot-password",
+  "reset-password",
+  "favicon.ico",
+  "robots.txt",
+  "sitemap.xml",
+  "manifest.json",
 ] as const;
+
+export function slugifyHostname(name: string): string {
+  const clean = name
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9_-]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return clean || "station";
+}
 
 export const hostSlugSchema = z
   .string()
@@ -462,4 +487,75 @@ export const updateCustomizationSchema = z.object({
 
 export type UpdateCustomizationInput = z.infer<
   typeof updateCustomizationSchema
+>;
+
+// ============================================================================
+// O. Host Application, Station & Platform Settings Validation
+// ============================================================================
+
+export const createHostApplicationSchema = z.object({
+  publicHostName: z
+    .string()
+    .min(2, "Public host name must be at least 2 characters")
+    .max(50, "Public host name cannot exceed 50 characters"),
+  primaryStreamingPlatform: z.enum([
+    "KICK",
+    "YOUTUBE",
+    "TIKTOK",
+    "FACEBOOK",
+    "TWITCH",
+  ]),
+  primaryStreamingProfileUrl: z
+    .string()
+    .url("Must be a valid profile or channel URL"),
+  country: z.string().min(2, "Country is required").max(100),
+  biography: z.string().max(1000).optional(),
+  acceptedGenres: z.string().max(300).optional(),
+  exampleLivestreamLinks: z.string().max(500).optional(),
+});
+
+export type CreateHostApplicationInput = z.infer<
+  typeof createHostApplicationSchema
+>;
+
+export const updateStationSchema = z.object({
+  description: z.string().max(1000).optional().nullable(),
+  primaryStreamingPlatform: z
+    .enum(["KICK", "YOUTUBE", "TIKTOK", "FACEBOOK", "TWITCH"])
+    .optional(),
+  streamUrl: z.string().url().optional().nullable().or(z.literal("")),
+  acceptedContentRules: z.string().max(1000).optional().nullable(),
+  explicitContentAllowed: z.boolean().optional(),
+  maxTrackDurationSeconds: z.number().int().min(30).max(1800).optional(),
+  maxQueueSize: z.number().int().min(1).max(200).optional(),
+});
+
+export type UpdateStationInput = z.infer<typeof updateStationSchema>;
+
+export const goLiveSchema = z.object({
+  liveTitle: z
+    .string()
+    .min(3, "Broadcast title must be at least 3 characters")
+    .max(120, "Broadcast title cannot exceed 120 characters"),
+  primaryStreamingPlatform: z.enum([
+    "KICK",
+    "YOUTUBE",
+    "TIKTOK",
+    "FACEBOOK",
+    "TWITCH",
+  ]),
+  streamUrl: z.string().url().optional().nullable().or(z.literal("")),
+  submissionsOpen: z.boolean().optional().default(true),
+  freeLineOpen: z.boolean().optional().default(true),
+  paidSubmissionsOpen: z.boolean().optional().default(true),
+});
+
+export type GoLiveInput = z.infer<typeof goLiveSchema>;
+
+export const updatePlatformSettingsSchema = z.object({
+  requireManualHostApproval: z.boolean(),
+});
+
+export type UpdatePlatformSettingsInput = z.infer<
+  typeof updatePlatformSettingsSchema
 >;

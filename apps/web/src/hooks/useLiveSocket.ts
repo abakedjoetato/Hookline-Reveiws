@@ -60,20 +60,16 @@ export const useLiveSocket = (
     }
 
     const wsUrl = process.env.NEXT_PUBLIC_WS_URL;
-    if (!wsUrl && typeof window !== "undefined" && window.location.hostname !== "localhost") {
-      // In cloud preview environment where separate WS port is not exposed, use polling fallback
+    if (!wsUrl) {
+      // When separate WS URL is not configured, use authoritative polling fallback
       setIsConnected(true);
       const pollInterval = setInterval(() => {
         handlersRef.current.onReconcile?.();
-      }, 8000);
+      }, 5000);
       return () => clearInterval(pollInterval);
     }
 
-    const socketUrl =
-      wsUrl ||
-      (typeof window !== "undefined" && window.location.hostname === "localhost"
-        ? "http://localhost:4000"
-        : "http://localhost:4000");
+    const socketUrl = wsUrl;
 
     let socket: Socket | null = null;
     try {

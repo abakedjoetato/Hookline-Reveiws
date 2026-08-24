@@ -53,6 +53,8 @@ export function Navbar() {
     user?.roles?.includes(Role.OWNER_ADMIN) ||
     user?.roles?.includes(Role.MODERATOR);
 
+  const isHost = user?.roles?.includes(Role.HOST);
+
   const navLinks = [
     { href: "/", label: "Home" },
     { href: "/library", label: "Music Library" },
@@ -213,6 +215,28 @@ export function Navbar() {
                     </Link>
                   </div>
 
+                  <div className="py-1 text-xs">
+                    {isHost ? (
+                      <Link
+                        href="/host/studio"
+                        onClick={() => setUserDropdownOpen(false)}
+                        className="flex items-center gap-2.5 px-4 py-2 text-amber-400 hover:bg-amber-950/40 hover:text-amber-300 font-semibold transition-colors"
+                      >
+                        <Radio className="h-4 w-4" />
+                        <span>Host Studio & Broadcast</span>
+                      </Link>
+                    ) : (
+                      <Link
+                        href="/host/onboarding"
+                        onClick={() => setUserDropdownOpen(false)}
+                        className="flex items-center gap-2.5 px-4 py-2 text-emerald-400 hover:bg-emerald-950/40 hover:text-emerald-300 font-semibold transition-colors"
+                      >
+                        <Sparkles className="h-4 w-4" />
+                        <span>Become a Broadcaster</span>
+                      </Link>
+                    )}
+                  </div>
+
                   {isAdmin && (
                     <div className="py-1 text-xs">
                       <Link
@@ -221,7 +245,7 @@ export function Navbar() {
                         className="flex items-center gap-2.5 px-4 py-2 text-violet-400 hover:bg-violet-950/40 hover:text-violet-300 font-semibold transition-colors"
                       >
                         <Shield className="h-4 w-4" />
-                        <span>Admin HQ & Branding</span>
+                        <span>Admin HQ & Approvals</span>
                       </Link>
                     </div>
                   )}
@@ -320,6 +344,21 @@ export function Navbar() {
               >
                 Preferences
               </Link>
+              {isHost ? (
+                <Link
+                  href="/host/studio"
+                  className="block px-3 py-2 text-sm text-amber-400 font-semibold hover:bg-amber-950/40 rounded-lg"
+                >
+                  Host Studio & Broadcast
+                </Link>
+              ) : (
+                <Link
+                  href="/host/onboarding"
+                  className="block px-3 py-2 text-sm text-emerald-400 font-semibold hover:bg-emerald-950/40 rounded-lg"
+                >
+                  Become a Broadcaster
+                </Link>
+              )}
               {isAdmin && (
                 <Link
                   href="/admin"

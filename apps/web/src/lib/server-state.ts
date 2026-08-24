@@ -6,6 +6,9 @@ import {
   AccountStatus,
   Role,
   AdminPermission,
+  HostApplicationStatus,
+  StationStatus,
+  PayoutProvider,
   PublicLiveSessionSummary,
   PublicLiveSessionDetail,
   PublicQueueEntry,
@@ -25,7 +28,13 @@ import {
   UserSessionInfo,
   SecurityEventLog,
   UserPreferencesDto,
+  PlatformSettingsDto,
+  HostApplicationSummary,
+  HostProfileSummary,
+  StationSummary,
+  PublicStationDetail,
 } from "@platform/types";
+import { RESERVED_SLUGS, slugifyHostname } from "@platform/validation";
 
 export interface StoredUser extends UserProfile {
   passwordHash: string;
@@ -47,6 +56,27 @@ export interface StoredSecurityLog extends SecurityEventLog {
 }
 
 export interface StoredThemeCustomization extends AdminCustomizationConfig {}
+
+export interface StoredHostApplication extends HostApplicationSummary {}
+
+export interface StoredHostProfile extends HostProfileSummary {}
+
+export interface StoredStation extends StationSummary {}
+
+export interface StoredPayoutAccount {
+  id: string;
+  hostId: string;
+  userId: string;
+  provider: PayoutProvider;
+  providerAccountId: string;
+  chargesEnabled: boolean;
+  payoutsEnabled: boolean;
+  detailsSubmitted: boolean;
+  isIdentityVerified: boolean;
+  onboardingState: string;
+  createdAt: string;
+  updatedAt: string;
+}
 
 export interface StoredSession extends PublicLiveSessionDetail {
   tiers: {
@@ -87,6 +117,15 @@ declare global {
         securityLogs: StoredSecurityLog[];
         userPreferences: Map<string, UserPreferencesDto>;
         themeCustomization: StoredThemeCustomization;
+        platformSettings: {
+          requireManualHostApproval: boolean;
+          updatedAt: string;
+          updatedByUserId: string | null;
+        };
+        hostApplications: Map<string, StoredHostApplication>;
+        hostProfiles: Map<string, StoredHostProfile>;
+        stations: Map<string, StoredStation>;
+        payoutAccounts: Map<string, StoredPayoutAccount>;
         sessions: Map<string, StoredSession>;
         queues: Map<string, StoredQueueEntry[]>;
         tracks: Map<string, StoredTrack>;
@@ -203,6 +242,279 @@ function initDatabase() {
     updatedByUserId: adminUser.id,
     updatedAt: new Date().toISOString(),
   };
+
+  const platformSettings = {
+    requireManualHostApproval: true,
+    updatedAt: new Date().toISOString(),
+    updatedByUserId: adminUser.id,
+  };
+
+  const hostApplications = new Map<string, StoredHostApplication>();
+  const hostProfiles = new Map<string, StoredHostProfile>();
+  const stations = new Map<string, StoredStation>();
+  const payoutAccounts = new Map<string, StoredPayoutAccount>();
+
+  // Seed Host Users, Profiles & Stations
+  const kvibeUser: StoredUser = {
+    id: "user-kvibe",
+    email: "djkvibe@thequeue.live",
+    username: "djkvibe",
+    displayName: "DJ K-Vibe",
+    passwordHash: "HostPassword123!",
+    accountStatus: AccountStatus.ACTIVE,
+    emailVerified: true,
+    bio: "Streamer & Producer listening to independent hip-hop, R&B, and electronic music. Giving honest feedback and playlist placements.",
+    avatarUrl: null,
+    country: "United States",
+    websiteUrl: "https://twitch.tv/djkvibe",
+    roles: [Role.USER, Role.HOST],
+    permissions: [],
+    createdAt: new Date(Date.now() - 86400000 * 90).toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  users.set(kvibeUser.id, kvibeUser);
+
+  const aurabeatsUser: StoredUser = {
+    id: "user-aurabeats",
+    email: "aurabeats@thequeue.live",
+    username: "aurabeats",
+    displayName: "AuraBeats",
+    passwordHash: "HostPassword123!",
+    accountStatus: AccountStatus.ACTIVE,
+    emailVerified: true,
+    bio: "Multi-platinum sound designer & mix engineer reviewing community submissions live on stream.",
+    avatarUrl: null,
+    country: "Canada",
+    websiteUrl: "https://youtube.com/@aurabeats",
+    roles: [Role.USER, Role.HOST],
+    permissions: [],
+    createdAt: new Date(Date.now() - 86400000 * 60).toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  users.set(aurabeatsUser.id, aurabeatsUser);
+
+  const metrowaveUser: StoredUser = {
+    id: "user-metrowave",
+    email: "metrowave@thequeue.live",
+    username: "metrowave",
+    displayName: "MetroWave",
+    passwordHash: "HostPassword123!",
+    accountStatus: AccountStatus.ACTIVE,
+    emailVerified: true,
+    bio: "Synthwave, Cyberpunk, and Retro Electro live station. Reviewing tracks for Spotify editorial pitch.",
+    avatarUrl: null,
+    country: "United Kingdom",
+    websiteUrl: "https://kick.com/metrowave",
+    roles: [Role.USER, Role.HOST],
+    permissions: [],
+    createdAt: new Date(Date.now() - 86400000 * 45).toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  users.set(metrowaveUser.id, metrowaveUser);
+
+  // Seed Host Profiles
+  const kvibeProfile: StoredHostProfile = {
+    id: "host-profile-kvibe",
+    userId: kvibeUser.id,
+    publicHostName: "DJ K-Vibe",
+    normalizedHostName: "dj k-vibe",
+    hostSlug: "dj-k-vibe",
+    normalizedHostSlug: "dj-k-vibe",
+    isApproved: true,
+    biography: kvibeUser.bio,
+    primaryStreamingPlatform: StreamingPlatform.TWITCH,
+    primaryStreamingProfileUrl: "https://twitch.tv/djkvibe",
+    country: "United States",
+    createdAt: new Date(Date.now() - 86400000 * 90).toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  hostProfiles.set(kvibeProfile.id, kvibeProfile);
+
+  const auraProfile: StoredHostProfile = {
+    id: "host-profile-aurabeats",
+    userId: aurabeatsUser.id,
+    publicHostName: "AuraBeats",
+    normalizedHostName: "aurabeats",
+    hostSlug: "aurabeats-studio",
+    normalizedHostSlug: "aurabeats-studio",
+    isApproved: true,
+    biography: aurabeatsUser.bio,
+    primaryStreamingPlatform: StreamingPlatform.YOUTUBE,
+    primaryStreamingProfileUrl: "https://youtube.com/@aurabeats",
+    country: "Canada",
+    createdAt: new Date(Date.now() - 86400000 * 60).toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  hostProfiles.set(auraProfile.id, auraProfile);
+
+  const metroProfile: StoredHostProfile = {
+    id: "host-profile-metrowave",
+    userId: metrowaveUser.id,
+    publicHostName: "MetroWave",
+    normalizedHostName: "metrowave",
+    hostSlug: "metrowave-synth",
+    normalizedHostSlug: "metrowave-synth",
+    isApproved: true,
+    biography: metrowaveUser.bio,
+    primaryStreamingPlatform: StreamingPlatform.KICK,
+    primaryStreamingProfileUrl: "https://kick.com/metrowave",
+    country: "United Kingdom",
+    createdAt: new Date(Date.now() - 86400000 * 45).toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  hostProfiles.set(metroProfile.id, metroProfile);
+
+  // Seed Payout Accounts (Stripe Connected)
+  payoutAccounts.set(kvibeUser.id, {
+    id: "payout-kvibe",
+    hostId: kvibeProfile.id,
+    userId: kvibeUser.id,
+    provider: PayoutProvider.STRIPE,
+    providerAccountId: "acct_kvibe_live_123456",
+    chargesEnabled: true,
+    payoutsEnabled: true,
+    detailsSubmitted: true,
+    isIdentityVerified: true,
+    onboardingState: "COMPLETED",
+    createdAt: new Date(Date.now() - 86400000 * 90).toISOString(),
+    updatedAt: new Date().toISOString(),
+  });
+
+  payoutAccounts.set(aurabeatsUser.id, {
+    id: "payout-aura",
+    hostId: auraProfile.id,
+    userId: aurabeatsUser.id,
+    provider: PayoutProvider.STRIPE,
+    providerAccountId: "acct_aura_live_234567",
+    chargesEnabled: true,
+    payoutsEnabled: true,
+    detailsSubmitted: true,
+    isIdentityVerified: true,
+    onboardingState: "COMPLETED",
+    createdAt: new Date(Date.now() - 86400000 * 60).toISOString(),
+    updatedAt: new Date().toISOString(),
+  });
+
+  payoutAccounts.set(metrowaveUser.id, {
+    id: "payout-metro",
+    hostId: metroProfile.id,
+    userId: metrowaveUser.id,
+    provider: PayoutProvider.STRIPE,
+    providerAccountId: "acct_metro_live_345678",
+    chargesEnabled: true,
+    payoutsEnabled: true,
+    detailsSubmitted: true,
+    isIdentityVerified: true,
+    onboardingState: "COMPLETED",
+    createdAt: new Date(Date.now() - 86400000 * 45).toISOString(),
+    updatedAt: new Date().toISOString(),
+  });
+
+  // Seed Stations
+  const station1: StoredStation = {
+    id: "station-k-vibe",
+    hostId: kvibeProfile.id,
+    stationName: "DJ K-Vibe",
+    normalizedStationName: "dj k-vibe",
+    slug: "dj-k-vibe",
+    description: "Streamer & Producer listening to independent hip-hop, R&B, and electronic music. Honest live feedback and playlist placements.",
+    profileImageKey: null,
+    bannerImageKey: null,
+    status: StationStatus.ACTIVE,
+    isPublicVisible: true,
+    isApproved: true,
+    primaryStreamingPlatform: StreamingPlatform.TWITCH,
+    streamUrl: "https://twitch.tv",
+    acceptedContentRules: "Hip-Hop, R&B, Electronic. MP3/WAV under 5 minutes.",
+    explicitContentAllowed: true,
+    maxTrackDurationSeconds: 300,
+    maxQueueSize: 50,
+    isLive: true,
+    currentLiveSessionId: "session-k-vibe",
+    hostName: "DJ K-Vibe",
+    createdAt: new Date(Date.now() - 86400000 * 90).toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  stations.set(station1.id, station1);
+
+  const station2: StoredStation = {
+    id: "station-aurabeats",
+    hostId: auraProfile.id,
+    stationName: "AuraBeats",
+    normalizedStationName: "aurabeats",
+    slug: "aurabeats-studio",
+    description: "Multi-platinum sound designer & mix engineer reviewing community submissions live on stream.",
+    profileImageKey: null,
+    bannerImageKey: null,
+    status: StationStatus.ACTIVE,
+    isPublicVisible: true,
+    isApproved: true,
+    primaryStreamingPlatform: StreamingPlatform.YOUTUBE,
+    streamUrl: "https://youtube.com",
+    acceptedContentRules: "All genres welcome. High quality audio preferred.",
+    explicitContentAllowed: true,
+    maxTrackDurationSeconds: 360,
+    maxQueueSize: 40,
+    isLive: true,
+    currentLiveSessionId: "session-aurabeats",
+    hostName: "AuraBeats",
+    createdAt: new Date(Date.now() - 86400000 * 60).toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  stations.set(station2.id, station2);
+
+  const station3: StoredStation = {
+    id: "station-metrowave",
+    hostId: metroProfile.id,
+    stationName: "MetroWave",
+    normalizedStationName: "metrowave",
+    slug: "metrowave-synth",
+    description: "Synthwave, Cyberpunk, and Retro Electro live station. Reviewing tracks for Spotify editorial pitch.",
+    profileImageKey: null,
+    bannerImageKey: null,
+    status: StationStatus.ACTIVE,
+    isPublicVisible: true,
+    isApproved: true,
+    primaryStreamingPlatform: StreamingPlatform.KICK,
+    streamUrl: "https://kick.com",
+    acceptedContentRules: "Synthwave, Darksynth, Retrowave, Cyberpunk.",
+    explicitContentAllowed: false,
+    maxTrackDurationSeconds: 420,
+    maxQueueSize: 30,
+    isLive: true,
+    currentLiveSessionId: "session-metrowave",
+    hostName: "MetroWave",
+    createdAt: new Date(Date.now() - 86400000 * 45).toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  stations.set(station3.id, station3);
+
+  // Seed an approved offline station
+  const station4: StoredStation = {
+    id: "station-soundwave",
+    hostId: "host-profile-soundwave",
+    stationName: "SoundWave FM",
+    normalizedStationName: "soundwave fm",
+    slug: "soundwave-fm",
+    description: "Indie Pop, Rock and Singer-Songwriter showcases every Tuesday and Thursday.",
+    profileImageKey: null,
+    bannerImageKey: null,
+    status: StationStatus.ACTIVE,
+    isPublicVisible: true,
+    isApproved: true,
+    primaryStreamingPlatform: StreamingPlatform.TWITCH,
+    streamUrl: "https://twitch.tv",
+    acceptedContentRules: "Original tracks only. No unmixed voice memos.",
+    explicitContentAllowed: true,
+    maxTrackDurationSeconds: 300,
+    maxQueueSize: 25,
+    isLive: false,
+    currentLiveSessionId: null,
+    hostName: "SoundWave FM",
+    createdAt: new Date(Date.now() - 86400000 * 30).toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  stations.set(station4.id, station4);
 
   const sessions = new Map<string, StoredSession>();
   const queues = new Map<string, StoredQueueEntry[]>();
@@ -517,6 +829,11 @@ function initDatabase() {
     securityLogs,
     userPreferences,
     themeCustomization,
+    platformSettings,
+    hostApplications,
+    hostProfiles,
+    stations,
+    payoutAccounts,
     sessions,
     queues,
     tracks,
@@ -528,6 +845,256 @@ function initDatabase() {
 }
 
 export const serverDb = initDatabase();
+
+// Station, Host & Slug helper functions
+export function generateUniqueStationSlug(baseName: string, excludeStationId?: string): string {
+  let candidate = slugifyHostname(baseName);
+  if (!candidate || candidate.length < 3) {
+    candidate = "station";
+  }
+
+  // Check if reserved
+  if (RESERVED_SLUGS.includes(candidate as any)) {
+    candidate = `${candidate}-station`;
+  }
+
+  // Check existing slugs in database
+  let slug = candidate;
+  let counter = 2;
+  const isSlugTaken = (testSlug: string) => {
+    for (const st of serverDb.stations.values()) {
+      if (st.id !== excludeStationId && st.slug.toLowerCase() === testSlug.toLowerCase()) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  while (isSlugTaken(slug)) {
+    slug = `${candidate}-${counter}`;
+    counter++;
+  }
+
+  return slug;
+}
+
+export function getPublicStationsList(): StationSummary[] {
+  const result: StationSummary[] = [];
+  for (const st of serverDb.stations.values()) {
+    if (st.isApproved && st.isPublicVisible && st.status === StationStatus.ACTIVE) {
+      // Look up if currently live
+      let live = false;
+      let sessionId: string | null = null;
+      for (const sess of serverDb.sessions.values()) {
+        if (sess.stationId === st.id && sess.status === LiveSessionStatus.LIVE) {
+          live = true;
+          sessionId = sess.id;
+          break;
+        }
+      }
+      result.push({
+        ...st,
+        isLive: live,
+        currentLiveSessionId: sessionId,
+      });
+    }
+  }
+  return result;
+}
+
+export function getPublicStationDetail(hostnameOrSlug: string): PublicStationDetail | null {
+  const normalized = hostnameOrSlug.toLowerCase().trim();
+  let station: StoredStation | null = null;
+  for (const st of serverDb.stations.values()) {
+    if (st.slug.toLowerCase() === normalized) {
+      station = st;
+      break;
+    }
+  }
+
+  if (!station || !station.isApproved || station.status !== StationStatus.ACTIVE) {
+    return null;
+  }
+
+  // Find active live session if any
+  let currentSession: PublicLiveSessionDetail | null = null;
+  let isLive = false;
+  for (const sess of serverDb.sessions.values()) {
+    if (sess.stationId === station.id && sess.status === LiveSessionStatus.LIVE) {
+      currentSession = sess;
+      isLive = true;
+      break;
+    }
+  }
+
+  // Find host bio
+  const hostProfile = serverDb.hostProfiles.get(station.hostId);
+  const hostUser = hostProfile ? serverDb.users.get(hostProfile.userId) : null;
+
+  return {
+    id: station.id,
+    stationName: station.stationName,
+    hostname: station.slug,
+    slug: station.slug,
+    description: station.description || null,
+    profileImageKey: station.profileImageKey || null,
+    bannerImageKey: station.bannerImageKey || null,
+    primaryStreamingPlatform: station.primaryStreamingPlatform,
+    streamUrl: station.streamUrl || null,
+    acceptedContentRules: station.acceptedContentRules || null,
+    explicitContentAllowed: station.explicitContentAllowed,
+    maxTrackDurationSeconds: station.maxTrackDurationSeconds,
+    maxQueueSize: station.maxQueueSize,
+    hostName: station.hostName || hostProfile?.publicHostName || station.stationName,
+    hostBio: hostProfile?.biography || hostUser?.bio || null,
+    isLive,
+    currentSession,
+  };
+}
+
+export function approveHostApplicationInternal(
+  applicationId: string,
+  actorUserId: string,
+): { success: boolean; station?: StoredStation; error?: string } {
+  const app = serverDb.hostApplications.get(applicationId);
+  if (!app) {
+    return { success: false, error: "Host application not found" };
+  }
+
+  // Strict check: Stripe Connect must be complete
+  const payout = serverDb.payoutAccounts.get(app.applicantUserId);
+  const isStripeComplete =
+    payout?.chargesEnabled && payout?.payoutsEnabled && payout?.detailsSubmitted;
+
+  if (!isStripeComplete) {
+    return {
+      success: false,
+      error: "Cannot approve host application: Stripe Connect onboarding is incomplete",
+    };
+  }
+
+  // Assign Role.HOST to applicant user
+  const applicant = serverDb.users.get(app.applicantUserId);
+  if (applicant) {
+    if (!applicant.roles.includes(Role.HOST)) {
+      applicant.roles.push(Role.HOST);
+      applicant.updatedAt = new Date().toISOString();
+    }
+  }
+
+  // Create or update HostProfile
+  let hostProfile: StoredHostProfile | undefined;
+  for (const hp of serverDb.hostProfiles.values()) {
+    if (hp.userId === app.applicantUserId) {
+      hostProfile = hp;
+      break;
+    }
+  }
+
+  const generatedSlug = generateUniqueStationSlug(app.publicHostName);
+
+  if (!hostProfile) {
+    hostProfile = {
+      id: `host-profile-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      userId: app.applicantUserId,
+      publicHostName: app.publicHostName,
+      normalizedHostName: app.publicHostName.toLowerCase().trim(),
+      hostSlug: generatedSlug,
+      normalizedHostSlug: generatedSlug,
+      isApproved: true,
+      biography: app.biography || applicant?.bio || null,
+      primaryStreamingPlatform: app.primaryStreamingPlatform,
+      primaryStreamingProfileUrl: app.primaryStreamingProfileUrl,
+      country: app.country,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    serverDb.hostProfiles.set(hostProfile.id, hostProfile);
+  } else {
+    hostProfile.isApproved = true;
+    hostProfile.updatedAt = new Date().toISOString();
+  }
+
+  // Link payout account to host profile
+  if (payout) {
+    payout.hostId = hostProfile.id;
+  }
+
+  // Create or activate persistent Station
+  let station: StoredStation | undefined;
+  for (const st of serverDb.stations.values()) {
+    if (st.hostId === hostProfile.id) {
+      station = st;
+      break;
+    }
+  }
+
+  if (!station) {
+    station = {
+      id: `station-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      hostId: hostProfile.id,
+      stationName: app.publicHostName,
+      normalizedStationName: app.publicHostName.toLowerCase().trim(),
+      slug: hostProfile.hostSlug,
+      description: app.biography || applicant?.bio || "Live music review and broadcaster station.",
+      profileImageKey: null,
+      bannerImageKey: null,
+      status: StationStatus.ACTIVE,
+      isPublicVisible: true,
+      isApproved: true,
+      primaryStreamingPlatform: app.primaryStreamingPlatform,
+      streamUrl: app.primaryStreamingProfileUrl,
+      acceptedContentRules: app.acceptedGenres ? `Genres: ${app.acceptedGenres}` : "All original music welcome.",
+      explicitContentAllowed: true,
+      maxTrackDurationSeconds: 300,
+      maxQueueSize: 50,
+      isLive: false,
+      currentLiveSessionId: null,
+      hostName: app.publicHostName,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    serverDb.stations.set(station.id, station);
+  } else {
+    station.isApproved = true;
+    station.status = StationStatus.ACTIVE;
+    station.isPublicVisible = true;
+    station.updatedAt = new Date().toISOString();
+  }
+
+  // Update application record
+  app.status = HostApplicationStatus.APPROVED;
+  app.payoutOnboardingStatus = "COMPLETED";
+  app.reviewedByUserId = actorUserId;
+  app.reviewedAt = new Date().toISOString();
+  app.stationSlug = station.slug;
+  app.updatedAt = new Date().toISOString();
+
+  return { success: true, station };
+}
+
+// When requireManualHostApproval is set to false, auto-approve any eligible applications with complete Stripe
+export function syncAutomaticApprovalsIfApplicable(actorUserId = "system") {
+  if (serverDb.platformSettings.requireManualHostApproval) {
+    return;
+  }
+
+  for (const app of serverDb.hostApplications.values()) {
+    if (
+      app.status === HostApplicationStatus.SUBMITTED ||
+      app.status === HostApplicationStatus.UNDER_REVIEW ||
+      app.status === HostApplicationStatus.PAYMENT_VERIFICATION_REQUIRED
+    ) {
+      const payout = serverDb.payoutAccounts.get(app.applicantUserId);
+      const isStripeComplete =
+        payout?.chargesEnabled && payout?.payoutsEnabled && payout?.detailsSubmitted;
+
+      if (isStripeComplete) {
+        approveHostApplicationInternal(app.id, actorUserId);
+      }
+    }
+  }
+}
 
 // Auth helper functions for Next.js API Routes
 export function getAuthenticatedUser(cookieHeader?: string | null): StoredUser | null {

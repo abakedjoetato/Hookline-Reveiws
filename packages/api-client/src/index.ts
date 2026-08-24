@@ -10,13 +10,48 @@ export class ApiClient {
   private instance: AxiosInstance;
 
   constructor(options: ApiClientOptions = {}) {
-    const defaultApiUrl =
-      typeof window !== "undefined"
-        ? "/api/v1"
-        : process.env.API_URL || "http://localhost:4000/api/v1";
+    let resolvedBaseUrl = options.baseURL;
+
+    if (typeof window !== "undefined") {
+      // In browser environment:
+      // Default to same-origin relative '/api/v1' unless an explicit custom non-localhost:4000 URL is provided
+      if (
+        !resolvedBaseUrl ||
+        resolvedBaseUrl.includes("localhost:4000") ||
+        resolvedBaseUrl.includes("127.0.0.1:4000")
+      ) {
+        const publicUrl =
+          typeof process !== "undefined" && process.env?.NEXT_PUBLIC_API_URL
+            ? process.env.NEXT_PUBLIC_API_URL
+            : undefined;
+
+        if (
+          publicUrl &&
+          !publicUrl.includes("localhost:4000") &&
+          !publicUrl.includes("127.0.0.1:4000")
+        ) {
+          resolvedBaseUrl = publicUrl;
+        } else {
+          resolvedBaseUrl = "/api/v1";
+        }
+      }
+    } else {
+      // In server environment (Node/Next.js SSR):
+      if (
+        !resolvedBaseUrl ||
+        resolvedBaseUrl.includes("localhost:4000") ||
+        resolvedBaseUrl.includes("127.0.0.1:4000")
+      ) {
+        resolvedBaseUrl =
+          process.env.API_URL ||
+          (process.env.PORT
+            ? `http://127.0.0.1:${process.env.PORT}/api/v1`
+            : "http://127.0.0.1:3000/api/v1");
+      }
+    }
 
     this.instance = axios.create({
-      baseURL: options.baseURL || defaultApiUrl,
+      baseURL: resolvedBaseUrl,
       timeout: options.timeout || 10000,
       withCredentials: true,
       headers: {
@@ -329,6 +364,45 @@ export class ApiClient {
       this.get<import("@platform/types").PublicThemeConfig>("/theme/public"),
   };
 
+  // Public Stations API
+  public stations = {
+    list: () =>
+      this.get<import("@platform/types").StationSummary[]>("/stations"),
+
+    getByHostname: (hostname: string) =>
+      this.get<import("@platform/types").PublicStationDetail>(`/stations/${hostname}`),
+  };
+
+  // Host Studio & Station Management API
+  public host = {
+    getOnboardingStatus: () =>
+      this.get<import("@platform/types").HostOnboardingStatus>("/host/onboarding-status"),
+
+    apply: (data: import("@platform/types").CreateHostApplicationDto) =>
+      this.post<import("@platform/types").HostApplicationSummary>("/host/apply", data),
+
+    createStripeConnectLink: () =>
+      this.post<import("@platform/types").StripeConnectLinkResponse>("/host/stripe/connect"),
+
+    getStripeStatus: () =>
+      this.get<import("@platform/types").StripeConnectStatusResponse>("/host/stripe/status"),
+
+    verifyStripeTest: () =>
+      this.post<import("@platform/types").StripeConnectStatusResponse>("/host/stripe/status"),
+
+    getStation: () =>
+      this.get<import("@platform/types").StationSummary>("/host/station"),
+
+    updateStation: (data: import("@platform/types").UpdateStationDto) =>
+      this.patch<import("@platform/types").StationSummary>("/host/station", data),
+
+    goLive: (data: import("@platform/types").GoLiveDto) =>
+      this.post<import("@platform/types").PublicLiveSessionDetail>("/host/go-live", data),
+
+    goOffline: () =>
+      this.post<{ success: boolean; message: string }>("/host/go-offline"),
+  };
+
   // Admin Customization & Management API
   public admin = {
     getCustomization: () =>
@@ -347,6 +421,33 @@ export class ApiClient {
     createAssetUploadUrl: (data: { assetType: "logo" | "favicon" | "artwork"; mimeType: string }) =>
       this.post<{ uploadUrl: string; assetUrl: string }>(
         "/admin/customization/assets/upload-url",
+        data,
+      ),
+    getHostApplications: (status?: string) =>
+      this.get<import("@platform/types").HostApplicationSummary[]>(
+        `/admin/host-applications${status ? `?status=${status}` : ""}`,
+      ),
+    approveHostApplication: (id: string) =>
+      this.post<{ success: boolean; message: string; station?: import("@platform/types").StationSummary }>(
+        `/admin/host-applications/${id}/approve`,
+      ),
+    rejectHostApplication: (id: string, data?: { reason?: string }) =>
+      this.post<{ success: boolean; message: string }>(
+        `/admin/host-applications/${id}/reject`,
+        data,
+      ),
+    suspendHost: (id: string, data?: { reason?: string }) =>
+      this.post<{ success: boolean; message: string }>(
+        `/admin/host-applications/${id}/suspend`,
+        data,
+      ),
+    getPlatformSettings: () =>
+      this.get<import("@platform/types").PlatformSettingsDto>(
+        "/admin/platform-settings",
+      ),
+    updatePlatformSettings: (data: import("@platform/types").UpdatePlatformSettingsDto) =>
+      this.put<import("@platform/types").PlatformSettingsDto>(
+        "/admin/platform-settings",
         data,
       ),
   };
