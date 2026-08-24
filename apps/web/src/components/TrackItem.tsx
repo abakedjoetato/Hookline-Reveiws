@@ -11,6 +11,8 @@ interface TrackItemProps {
   onDeleted?: () => void;
   onSelect?: (track: TrackSummary) => void;
   isSelected?: boolean;
+  activePlayingTrackId?: string | null;
+  onPlayToggle?: (trackId: string | null) => void;
 }
 
 export const TrackItem: React.FC<TrackItemProps> = ({
@@ -18,25 +20,34 @@ export const TrackItem: React.FC<TrackItemProps> = ({
   onDeleted,
   onSelect,
   isSelected,
+  activePlayingTrackId,
+  onPlayToggle,
 }) => {
-  const [isPlaying, setIsPlaying] = React.useState(false);
+  const isPlaying = activePlayingTrackId === track.id;
   const [audioUrl, setAudioUrl] = React.useState<string | null>(null);
   const [isLoadingAudio, setIsLoadingAudio] = React.useState(false);
   const [isDeleting, setIsDeleting] = React.useState(false);
   const audioRef = React.useRef<HTMLAudioElement | null>(null);
 
   const formatDuration = (seconds: number) => {
-    if (!seconds) return "0:00";
+    if (!seconds || seconds <= 0) return "--:--";
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
+  // Pause if another track became active
+  React.useEffect(() => {
+    if (!isPlaying && audioRef.current && !audioRef.current.paused) {
+      audioRef.current.pause();
+    }
+  }, [isPlaying]);
+
   const handlePlayToggle = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (isPlaying) {
       audioRef.current?.pause();
-      setIsPlaying(false);
+      onPlayToggle?.(null);
       return;
     }
 
@@ -48,14 +59,15 @@ export const TrackItem: React.FC<TrackItemProps> = ({
         if (audioRef.current) {
           audioRef.current.src = downloadUrl;
           await audioRef.current.play();
-          setIsPlaying(true);
+          onPlayToggle?.(track.id);
         }
       } else if (audioRef.current) {
         await audioRef.current.play();
-        setIsPlaying(true);
+        onPlayToggle?.(track.id);
       }
     } catch (err) {
       console.error("Failed to load audio preview", err);
+      onPlayToggle?.(null);
     } finally {
       setIsLoadingAudio(false);
     }
@@ -94,7 +106,7 @@ export const TrackItem: React.FC<TrackItemProps> = ({
   return (
     <div
       onClick={() => onSelect?.(track)}
-      className={`flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 rounded-lg border transition-all ${
+      className={`flex flex-col sm:flex-row items-start sm:items-center justify-between p-3.5 sm:p-4 rounded-lg border transition-all ${
         isSelected
           ? "border-violet-500 bg-violet-950/20"
           : "border-zinc-800 bg-zinc-900/60 hover:bg-zinc-900 hover:border-zinc-700"
@@ -102,46 +114,51 @@ export const TrackItem: React.FC<TrackItemProps> = ({
     >
       <audio
         ref={audioRef}
-        onEnded={() => setIsPlaying(false)}
-        onPause={() => setIsPlaying(false)}
+        onEnded={() => onPlayToggle?.(null)}
+        onPause={() => {
+          if (activePlayingTrackId === track.id) {
+            onPlayToggle?.(null);
+          }
+        }}
       />
 
-      <div className="flex items-center gap-3.5 min-w-0 flex-1">
+      <div className="flex items-center gap-3 min-w-0 flex-1 w-full sm:w-auto">
         <button
           type="button"
           onClick={handlePlayToggle}
           disabled={track.processingState !== "READY" || isLoadingAudio}
-          className="h-10 w-10 shrink-0 rounded-full bg-zinc-800 hover:bg-violet-600 text-zinc-200 hover:text-white flex items-center justify-center transition-colors disabled:opacity-40 disabled:hover:bg-zinc-800 cursor-pointer"
+          aria-label={isPlaying ? `Pause preview of ${track.songName}` : `Play preview of ${track.songName}`}
+          className="h-11 w-11 shrink-0 rounded-full bg-zinc-800 hover:bg-violet-600 text-zinc-200 hover:text-white flex items-center justify-center transition-colors disabled:opacity-40 disabled:hover:bg-zinc-800 cursor-pointer min-h-[44px] min-w-[44px]"
         >
           {isLoadingAudio ? (
             <Activity className="h-4 w-4 animate-spin text-violet-400" />
           ) : isPlaying ? (
-            <Pause className="h-4 w-4" />
+            <Pause className="h-5 w-5" />
           ) : (
-            <Play className="h-4 w-4 ml-0.5" />
+            <Play className="h-5 w-5 ml-0.5" />
           )}
         </button>
 
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
-            <h4 className="font-semibold text-sm text-zinc-100 truncate">
+            <h4 className="font-bold text-sm text-zinc-100 truncate">
               {track.songName}
             </h4>
             {track.explicitContent && (
-              <span className="px-1.5 py-0.5 text-[10px] font-bold bg-zinc-800 text-zinc-300 rounded border border-zinc-700">
+              <span className="px-1.5 py-0.2 text-[10px] font-bold bg-zinc-800 text-zinc-300 rounded border border-zinc-700">
                 E
               </span>
             )}
             {getProcessingBadge()}
           </div>
-          <div className="flex items-center gap-3 text-xs text-zinc-400 mt-1 flex-wrap">
+          <div className="flex items-center gap-2.5 text-xs text-zinc-400 mt-1 flex-wrap">
             <span className="text-zinc-300 font-medium">
               {track.artistIdentity?.artistName || "Unknown Artist"}
             </span>
             {track.albumName && <span>• {track.albumName}</span>}
             {track.bpm && <span>• {track.bpm} BPM</span>}
             {track.musicalKey && <span>• Key {track.musicalKey}</span>}
-            <span className="flex items-center gap-1">
+            <span className="flex items-center gap-1 text-zinc-500">
               <Clock className="h-3 w-3" />
               {formatDuration(track.durationSeconds)}
             </span>
@@ -159,6 +176,7 @@ export const TrackItem: React.FC<TrackItemProps> = ({
               e.stopPropagation();
               onSelect(track);
             }}
+            className="min-h-[40px]"
           >
             {isSelected ? "Selected" : "Select"}
           </Button>
@@ -169,7 +187,8 @@ export const TrackItem: React.FC<TrackItemProps> = ({
             type="button"
             onClick={handleDelete}
             disabled={isDeleting}
-            className="p-2 text-zinc-500 hover:text-red-400 hover:bg-zinc-800 rounded-md transition-colors disabled:opacity-50"
+            aria-label={`Delete ${track.songName}`}
+            className="p-2 text-zinc-500 hover:text-red-400 hover:bg-zinc-800 rounded-md transition-colors disabled:opacity-50 min-h-[44px] min-w-[44px] flex items-center justify-center cursor-pointer"
             title="Delete Track"
           >
             <Trash2 className="h-4 w-4" />

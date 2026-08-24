@@ -19,6 +19,9 @@ import {
   WifiOff,
   User,
   ArrowLeft,
+  Tv,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 import Link from "next/link";
 import { api } from "../../../lib/api";
@@ -31,15 +34,12 @@ export default function PublicSessionPage() {
   const router = useRouter();
   const sessionId = params?.id as string;
 
-  const [session, setSession] = React.useState<PublicLiveSessionDetail | null>(
-    null,
-  );
+  const [session, setSession] = React.useState<PublicLiveSessionDetail | null>(null);
   const [queueEntries, setQueueEntries] = React.useState<PublicQueueEntry[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [isRefreshing, setIsRefreshing] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
-  const [isSubmissionModalOpen, setIsSubmissionModalOpen] =
-    React.useState(false);
+  const [isSubmissionModalOpen, setIsSubmissionModalOpen] = React.useState(false);
 
   // Authoritative data fetch
   const fetchSessionData = async (silent = false) => {
@@ -68,13 +68,22 @@ export default function PublicSessionPage() {
     onReconcile: () => {
       fetchSessionData(true);
     },
+    onSessionEnded: () => {
+      fetchSessionData(true);
+    },
+    onSessionPaused: () => {
+      fetchSessionData(true);
+    },
+    onSessionStarted: () => {
+      fetchSessionData(true);
+    },
   });
 
   React.useEffect(() => {
     fetchSessionData();
   }, [sessionId]);
 
-  const getPlatformLabel = (platform: string) => {
+  const getPlatformLabel = (platform?: string) => {
     switch (platform) {
       case "TWITCH":
         return "Twitch";
@@ -85,7 +94,7 @@ export default function PublicSessionPage() {
       case "KICK":
         return "Kick";
       default:
-        return platform;
+        return platform || "Stream";
     }
   };
 
@@ -100,7 +109,7 @@ export default function PublicSessionPage() {
 
   if (error || !session) {
     return (
-      <div className="text-center py-16 space-y-4 max-w-md mx-auto">
+      <div className="text-center py-16 space-y-4 max-w-md mx-auto px-4">
         <div className="h-14 w-14 rounded-full bg-red-950/50 border border-red-800 text-red-400 flex items-center justify-center mx-auto">
           <AlertCircle className="h-7 w-7" />
         </div>
@@ -128,13 +137,17 @@ export default function PublicSessionPage() {
     );
   }
 
+  const isLive = session.status === "LIVE";
+  const isPaused = session.status === "PAUSED";
+  const isEnded = session.status === "ENDED" || session.status === "CANCELLED";
+
   return (
-    <div className="space-y-8">
-      {/* Top Navigation / Breadcrumbs */}
-      <div className="flex items-center justify-between">
+    <div className="space-y-6 sm:space-y-8 pb-20 md:pb-8">
+      {/* Top Navigation & Status */}
+      <div className="flex items-center justify-between gap-2 flex-wrap">
         <Link
           href="/hosts"
-          className="inline-flex items-center gap-1.5 text-xs text-zinc-400 hover:text-zinc-200 transition-colors"
+          className="inline-flex items-center gap-1.5 text-xs text-zinc-400 hover:text-zinc-200 transition-colors min-h-[44px]"
         >
           <ArrowLeft className="h-3.5 w-3.5" /> Back to Stations
         </Link>
@@ -147,7 +160,7 @@ export default function PublicSessionPage() {
             </Badge>
           ) : (
             <Badge variant="warning" className="gap-1 text-[11px]">
-              <WifiOff className="h-3 w-3" /> Reconnecting
+              <WifiOff className="h-3 w-3" /> Reconnecting...
             </Badge>
           )}
 
@@ -156,29 +169,40 @@ export default function PublicSessionPage() {
             size="sm"
             onClick={() => fetchSessionData(true)}
             disabled={isRefreshing}
-            className="h-7 px-2 text-xs"
+            className="h-8 px-2 text-xs min-w-[36px]"
+            title="Refresh session queue"
           >
             <RefreshCw
-              className={`h-3 w-3 ${isRefreshing ? "animate-spin" : ""}`}
+              className={`h-3.5 w-3.5 ${isRefreshing ? "animate-spin" : ""}`}
             />
           </Button>
         </div>
       </div>
 
       {/* Main Station Banner */}
-      <Card className="border-zinc-800 bg-gradient-to-b from-zinc-900 to-zinc-950 p-6 sm:p-8 space-y-6">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="space-y-2">
-            <div className="flex items-center gap-2.5 flex-wrap">
+      <Card className="border-zinc-800 bg-gradient-to-b from-zinc-900 via-zinc-900/90 to-zinc-950 p-4 sm:p-6 md:p-8 space-y-6">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+          <div className="space-y-3 min-w-0 flex-1">
+            <div className="flex items-center gap-2 flex-wrap">
               <Badge
-                variant={session.status === "LIVE" ? "success" : "warning"}
+                variant={isLive ? "success" : isPaused ? "warning" : "secondary"}
                 className="gap-1.5"
               >
                 <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                  {isLive && (
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  )}
+                  <span
+                    className={`relative inline-flex rounded-full h-2 w-2 ${
+                      isLive
+                        ? "bg-emerald-500"
+                        : isPaused
+                          ? "bg-amber-500"
+                          : "bg-zinc-500"
+                    }`}
+                  ></span>
                 </span>
-                {session.status === "LIVE" ? "STREAM LIVE" : "SESSION PAUSED"}
+                {isLive ? "BROADCAST LIVE" : isPaused ? "STREAM PAUSED" : "SESSION ENDED"}
               </Badge>
 
               <span className="text-xs font-semibold px-2.5 py-0.5 rounded bg-zinc-800 text-zinc-300 border border-zinc-700">
@@ -186,25 +210,33 @@ export default function PublicSessionPage() {
               </span>
 
               {session.submissionsOpen ? (
-                <Badge variant="info" className="gap-1">
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-semibold">
                   <Send className="h-3 w-3" /> Submissions Open
-                </Badge>
+                </span>
               ) : (
-                <Badge variant="secondary">Submissions Closed</Badge>
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded bg-zinc-800 text-zinc-400 text-xs font-semibold">
+                  Submissions Closed
+                </span>
               )}
             </div>
 
-            <h1 className="text-2xl sm:text-4xl font-extrabold text-zinc-50 tracking-tight">
-              {session.stationName}
-            </h1>
-            <p className="text-sm sm:text-base text-violet-400 font-medium">
-              Host: {session.hostName}
-            </p>
-            <p className="text-xs sm:text-sm text-zinc-400 max-w-2xl">
-              {session.liveTitle}
-            </p>
+            <div>
+              <h1 className="text-xl sm:text-3xl md:text-4xl font-black text-zinc-50 tracking-tight break-words">
+                {session.stationName}
+              </h1>
+              <p className="text-xs sm:text-sm font-semibold text-violet-400 mt-0.5">
+                Host: {session.hostName}
+              </p>
+            </div>
+
+            {session.liveTitle && (
+              <p className="text-xs sm:text-sm text-zinc-300 max-w-2xl leading-relaxed">
+                {session.liveTitle}
+              </p>
+            )}
+
             {session.hostBio && (
-              <p className="text-xs text-zinc-500 italic pt-1 border-t border-zinc-800/80">
+              <p className="text-xs text-zinc-400 italic pt-1 border-t border-zinc-800/80">
                 "{session.hostBio}"
               </p>
             )}
@@ -217,21 +249,26 @@ export default function PublicSessionPage() {
                 href={session.streamUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-md border border-zinc-700 bg-zinc-800/80 hover:bg-zinc-700 text-zinc-200 text-sm font-semibold transition-colors"
+                className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-md border border-zinc-700 bg-zinc-800/90 hover:bg-zinc-700 text-zinc-100 text-sm font-semibold transition-colors min-h-[44px]"
               >
-                <ExternalLink className="h-4 w-4" /> Watch Broadcast
+                <Tv className="h-4 w-4 text-violet-400" />
+                Watch on {getPlatformLabel(session.primaryStreamingPlatform)}
               </a>
             )}
 
             <Button
               variant="primary"
               size="lg"
-              disabled={!session.submissionsOpen}
+              disabled={!session.submissionsOpen || isEnded}
               onClick={() => setIsSubmissionModalOpen(true)}
-              className="gap-2 shadow-lg shadow-violet-900/30"
+              className="gap-2 shadow-lg min-h-[44px]"
             >
               <Send className="h-4 w-4" />
-              {session.submissionsOpen ? "Submit Music to Queue" : "Submissions Closed"}
+              {session.submissionsOpen
+                ? "Submit Track to Queue"
+                : isEnded
+                  ? "Session Has Ended"
+                  : "Submissions Closed"}
             </Button>
           </div>
         </div>
@@ -242,6 +279,20 @@ export default function PublicSessionPage() {
         entries={queueEntries}
         currentTrack={session.currentTrack}
       />
+
+      {/* Sticky Bottom Bar on Mobile for Quick Submission */}
+      {session.submissionsOpen && !isEnded && (
+        <div className="fixed bottom-0 left-0 right-0 p-3 bg-zinc-950/95 border-t border-zinc-800 backdrop-blur-md md:hidden z-40">
+          <Button
+            variant="primary"
+            size="md"
+            onClick={() => setIsSubmissionModalOpen(true)}
+            className="w-full gap-2 font-bold shadow-lg shadow-violet-900/40 min-h-[44px]"
+          >
+            <Send className="h-4 w-4" /> Submit Track to Queue
+          </Button>
+        </div>
+      )}
 
       {/* Submission Modal */}
       <SubmissionModal

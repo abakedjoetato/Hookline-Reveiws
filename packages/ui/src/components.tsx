@@ -29,31 +29,31 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         ref={ref}
         disabled={disabled || isLoading}
         className={cn(
-          "inline-flex items-center justify-center rounded-md font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 disabled:pointer-events-none disabled:opacity-50 cursor-pointer",
+          "inline-flex items-center justify-center rounded-md font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950 disabled:pointer-events-none disabled:opacity-50 cursor-pointer select-none",
           // Variant classes
           {
-            "bg-violet-600 text-white hover:bg-violet-700 active:bg-violet-800":
+            "bg-violet-600 text-white hover:bg-violet-700 active:bg-violet-800 shadow-sm":
               variant === "primary",
-            "bg-zinc-800 text-zinc-100 hover:bg-zinc-700 active:bg-zinc-600":
+            "bg-zinc-800 text-zinc-100 hover:bg-zinc-700 active:bg-zinc-600 border border-zinc-700/60":
               variant === "secondary",
-            "bg-red-600 text-white hover:bg-red-700 active:bg-red-800":
+            "bg-red-600 text-white hover:bg-red-700 active:bg-red-800 shadow-sm":
               variant === "danger",
-            "border border-zinc-700 text-zinc-100 hover:bg-zinc-800 active:bg-zinc-700":
+            "border border-zinc-700 text-zinc-200 hover:bg-zinc-800 hover:text-white active:bg-zinc-700":
               variant === "outline",
-            "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100":
+            "text-zinc-400 hover:bg-zinc-800/80 hover:text-zinc-100 active:bg-zinc-800":
               variant === "ghost",
           },
-          // Size classes
+          // Size classes with touch-friendly min-heights
           {
-            "h-8 px-3 text-xs": size === "sm",
-            "h-10 px-4 text-sm": size === "md",
-            "h-12 px-6 text-base": size === "lg",
+            "min-h-[36px] sm:min-h-[32px] px-3 text-xs gap-1.5": size === "sm",
+            "min-h-[44px] px-4 py-2 text-sm gap-2": size === "md",
+            "min-h-[48px] px-6 py-3 text-base gap-2.5": size === "lg",
           },
           className,
         )}
         {...props}
       >
-        {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+        {isLoading && <Loader2 className="h-4 w-4 animate-spin shrink-0" aria-hidden="true" />}
         {children}
       </button>
     );
@@ -192,6 +192,7 @@ export interface DialogProps {
   onClose: () => void;
   title: string;
   children: React.ReactNode;
+  className?: string;
 }
 
 export const Dialog: React.FC<DialogProps> = ({
@@ -199,21 +200,65 @@ export const Dialog: React.FC<DialogProps> = ({
   onClose,
   title,
   children,
+  className,
 }) => {
+  const dialogRef = React.useRef<HTMLDivElement>(null);
+  const titleId = React.useId();
+
+  // Escape key listener & focus management
+  React.useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        onClose();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    // Prevent background scrolling on mobile & desktop
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = originalOverflow;
+    };
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-md rounded-lg border border-zinc-800 bg-zinc-950 p-6 shadow-xl animate-in fade-in zoom-in-95 duration-150">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-zinc-50">{title}</h3>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/75 backdrop-blur-sm overflow-y-auto animate-in fade-in duration-200"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={titleId}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div
+        ref={dialogRef}
+        className={cn(
+          "relative w-full max-w-lg rounded-xl border border-zinc-800 bg-zinc-950 p-4 sm:p-6 shadow-2xl animate-in zoom-in-95 duration-150 my-auto max-h-[92vh] overflow-y-auto flex flex-col",
+          className,
+        )}
+      >
+        <div className="flex items-center justify-between pb-3 mb-3 border-b border-zinc-800/80 gap-3 shrink-0">
+          <h3 id={titleId} className="text-base sm:text-lg font-bold text-zinc-100 truncate">
+            {title}
+          </h3>
           <button
             onClick={onClose}
-            className="p-1 rounded-md text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100 transition-colors"
+            aria-label="Close dialog"
+            className="flex items-center justify-center h-9 w-9 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 shrink-0 cursor-pointer"
           >
-            <X className="h-4 w-4" />
+            <X className="h-5 w-5" aria-hidden="true" />
           </button>
         </div>
-        <div>{children}</div>
+        <div className="flex-1 text-zinc-200">{children}</div>
       </div>
     </div>
   );
@@ -228,6 +273,7 @@ export interface DrawerProps {
   title: string;
   children: React.ReactNode;
   position?: "left" | "right";
+  className?: string;
 }
 
 export const Drawer: React.FC<DrawerProps> = ({
@@ -236,23 +282,58 @@ export const Drawer: React.FC<DrawerProps> = ({
   title,
   children,
   position = "right",
+  className,
 }) => {
+  const titleId = React.useId();
+
+  // Escape key & overflow lock
+  React.useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        onClose();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = originalOverflow;
+    };
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
+
   return (
-    <div className="fixed inset-0 z-50 flex bg-black/60 backdrop-blur-sm">
+    <div
+      className="fixed inset-0 z-50 flex bg-black/75 backdrop-blur-sm animate-in fade-in duration-200"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={titleId}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
       <div
         className={cn(
-          "fixed inset-y-0 w-80 bg-zinc-950 border-zinc-800 p-6 flex flex-col shadow-xl transition-transform duration-300",
-          position === "right" ? "right-0 border-l" : "left-0 border-r",
+          "fixed inset-y-0 w-full sm:w-96 max-w-full bg-zinc-950 border-zinc-800 p-4 sm:p-6 flex flex-col shadow-2xl transition-transform duration-300",
+          position === "right" ? "right-0 border-l animate-in slide-in-from-right" : "left-0 border-r animate-in slide-in-from-left",
+          className,
         )}
       >
-        <div className="flex items-center justify-between mb-6">
-          <h3 className="text-lg font-semibold text-zinc-50">{title}</h3>
+        <div className="flex items-center justify-between pb-4 mb-4 border-b border-zinc-800 gap-3">
+          <h3 id={titleId} className="text-lg font-bold text-zinc-50 truncate">{title}</h3>
           <button
             onClick={onClose}
-            className="p-1 rounded-md text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100 transition-colors"
+            aria-label="Close drawer"
+            className="flex items-center justify-center h-9 w-9 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 cursor-pointer"
           >
-            <X className="h-4 w-4" />
+            <X className="h-5 w-5" aria-hidden="true" />
           </button>
         </div>
         <div className="flex-1 overflow-y-auto">{children}</div>

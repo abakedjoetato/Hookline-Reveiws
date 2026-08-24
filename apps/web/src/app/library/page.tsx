@@ -14,6 +14,7 @@ export default function MusicLibraryPage() {
   const [isRefreshing, setIsRefreshing] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [isUploadModalOpen, setIsUploadModalOpen] = React.useState(false);
+  const [activePlayingTrackId, setActivePlayingTrackId] = React.useState<string | null>(null);
 
   const fetchTracks = async (silent = false) => {
     if (!silent) setIsLoading(true);
@@ -36,26 +37,26 @@ export default function MusicLibraryPage() {
   }, []);
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 sm:space-y-8 pb-8">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-zinc-50 flex items-center gap-3">
-            <Music className="h-7 w-7 text-violet-500" />
+            <Music className="h-6 w-6 sm:h-7 sm:w-7 text-violet-500" />
             Music Library
           </h1>
-          <p className="text-sm text-zinc-400 mt-1">
+          <p className="text-xs sm:text-sm text-zinc-400 mt-1">
             Manage your audio tracks, metadata, and submissions library
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5 sm:gap-3 flex-wrap">
           <Button
             variant="outline"
             size="sm"
             onClick={() => fetchTracks(true)}
             disabled={isLoading || isRefreshing}
-            className="gap-2"
+            className="gap-2 min-h-[44px]"
           >
             <RefreshCw
               className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`}
@@ -66,7 +67,7 @@ export default function MusicLibraryPage() {
             variant="primary"
             size="sm"
             onClick={() => setIsUploadModalOpen(true)}
-            className="gap-2"
+            className="gap-2 min-h-[44px]"
           >
             <Plus className="h-4 w-4" />
             Upload New Track
@@ -103,7 +104,7 @@ export default function MusicLibraryPage() {
           <Button
             variant="primary"
             onClick={() => setIsUploadModalOpen(true)}
-            className="gap-2"
+            className="gap-2 min-h-[44px]"
           >
             <Plus className="h-4 w-4" />
             Upload Your First Track
@@ -121,7 +122,14 @@ export default function MusicLibraryPage() {
               <TrackItem
                 key={track.id}
                 track={track}
-                onDeleted={() => fetchTracks(true)}
+                activePlayingTrackId={activePlayingTrackId}
+                onPlayToggle={(id) => setActivePlayingTrackId(id)}
+                onDeleted={() => {
+                  if (activePlayingTrackId === track.id) {
+                    setActivePlayingTrackId(null);
+                  }
+                  fetchTracks(true);
+                }}
               />
             ))}
           </div>

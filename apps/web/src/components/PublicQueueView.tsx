@@ -3,7 +3,7 @@
 import * as React from "react";
 import { Badge, Card } from "@platform/ui";
 import { PublicQueueEntry } from "@platform/types";
-import { Music, Clock, Sparkles, Disc, Radio, Volume2 } from "lucide-react";
+import { Music, Clock, Sparkles, Disc, Radio, Volume2, Layers } from "lucide-react";
 
 interface PublicQueueViewProps {
   entries: PublicQueueEntry[];
@@ -19,7 +19,7 @@ export const PublicQueueView: React.FC<PublicQueueViewProps> = ({
   currentTrack,
 }) => {
   const formatDuration = (seconds: number) => {
-    if (!seconds) return "0:00";
+    if (!seconds || seconds <= 0) return "--:--";
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, "0")}`;
@@ -41,16 +41,24 @@ export const PublicQueueView: React.FC<PublicQueueViewProps> = ({
     }
   };
 
+  const priorityCount = entries.filter((e) => e.isPriority).length;
+  const freeCount = entries.filter((e) => !e.isPriority).length;
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-5 sm:space-y-6">
       {/* Now Playing Banner */}
       {currentTrack && (
         <div className="p-4 sm:p-5 rounded-xl border border-violet-500/40 bg-gradient-to-r from-violet-950/40 via-zinc-900 to-zinc-900 shadow-lg shadow-violet-950/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3.5">
-            <div className="h-12 w-12 rounded-lg bg-violet-600/20 border border-violet-500/30 flex items-center justify-center text-violet-400 shrink-0">
-              <Volume2 className="h-6 w-6 animate-pulse" />
+          <div className="flex items-center gap-3.5 min-w-0">
+            <div className="h-12 w-12 rounded-lg bg-violet-600/20 border border-violet-500/30 flex items-center justify-center text-violet-400 shrink-0 relative overflow-hidden">
+              <Volume2 className="h-6 w-6 text-violet-400" />
+              <div className="absolute bottom-1 flex items-end gap-0.5 h-2">
+                <span className="w-1 bg-violet-400 animate-pulse h-full rounded-sm"></span>
+                <span className="w-1 bg-violet-400 animate-pulse h-2/3 rounded-sm"></span>
+                <span className="w-1 bg-violet-400 animate-pulse h-4/5 rounded-sm"></span>
+              </div>
             </div>
-            <div>
+            <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
                 <Badge variant="success" className="text-[10px] uppercase font-bold tracking-wider">
                   Live On Deck
@@ -59,14 +67,14 @@ export const PublicQueueView: React.FC<PublicQueueViewProps> = ({
               <h4 className="text-base sm:text-lg font-bold text-zinc-50 mt-0.5 truncate">
                 {currentTrack.songName}
               </h4>
-              <p className="text-xs sm:text-sm font-medium text-violet-300">
+              <p className="text-xs sm:text-sm font-medium text-violet-300 truncate">
                 {currentTrack.artistName}
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 self-end sm:self-center text-xs font-mono text-zinc-400 bg-zinc-950/60 px-3 py-1.5 rounded-md border border-zinc-800">
-            <Clock className="h-3.5 w-3.5" />
+          <div className="flex items-center gap-2 self-start sm:self-center text-xs font-mono text-zinc-400 bg-zinc-950/80 px-3 py-1.5 rounded-md border border-zinc-800 shrink-0">
+            <Clock className="h-3.5 w-3.5 text-zinc-500" />
             <span>{formatDuration(currentTrack.durationSeconds)}</span>
           </div>
         </div>
@@ -74,12 +82,24 @@ export const PublicQueueView: React.FC<PublicQueueViewProps> = ({
 
       {/* Up Next / Live Queue List */}
       <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h3 className="text-base font-bold text-zinc-100 flex items-center gap-2">
-            <Radio className="h-4 w-4 text-violet-400" />
-            Authoritative Live Queue ({entries.length})
-          </h3>
-          <span className="text-xs text-zinc-500">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h3 className="text-base font-bold text-zinc-100 flex items-center gap-2">
+              <Radio className="h-4 w-4 text-violet-400" />
+              Authoritative Live Queue ({entries.length})
+            </h3>
+            {priorityCount > 0 && (
+              <span className="px-2 py-0.5 text-[11px] font-semibold rounded bg-amber-500/10 text-amber-300 border border-amber-500/20">
+                {priorityCount} Priority
+              </span>
+            )}
+            {freeCount > 0 && (
+              <span className="px-2 py-0.5 text-[11px] font-semibold rounded bg-zinc-800 text-zinc-400 border border-zinc-700">
+                {freeCount} Free Line
+              </span>
+            )}
+          </div>
+          <span className="text-[11px] text-zinc-500 font-medium">
             Priority sorted & live synchronized
           </span>
         </div>
@@ -101,46 +121,47 @@ export const PublicQueueView: React.FC<PublicQueueViewProps> = ({
               return (
                 <div
                   key={entry.id}
-                  className={`flex items-center justify-between p-3.5 sm:p-4 rounded-lg border transition-all ${
+                  className={`flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-4 p-3.5 sm:p-4 rounded-lg border transition-all ${
                     isPlaying
-                      ? "border-violet-500 bg-violet-950/20"
+                      ? "border-violet-500/70 bg-violet-950/20 shadow-sm"
                       : isNext
                         ? "border-amber-500/50 bg-amber-950/10"
                         : "border-zinc-800/80 bg-zinc-900/40 hover:bg-zinc-900/70"
                   }`}
                 >
+                  {/* Left: Position & Track Info */}
                   <div className="flex items-center gap-3 min-w-0 flex-1">
                     {/* Position Number */}
-                    <div className="h-7 w-7 rounded-md bg-zinc-800/80 text-zinc-300 font-mono text-xs font-bold flex items-center justify-center shrink-0">
+                    <div
+                      className={`h-7 w-7 rounded-md font-mono text-xs font-bold flex items-center justify-center shrink-0 ${
+                        isPlaying
+                          ? "bg-violet-600 text-white"
+                          : isNext
+                            ? "bg-amber-600/30 text-amber-300 border border-amber-500/30"
+                            : "bg-zinc-800/80 text-zinc-300 border border-zinc-700"
+                      }`}
+                    >
                       #{index + 1}
                     </div>
 
                     {/* Track Info */}
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-semibold text-sm text-zinc-100 truncate">
+                        <span className="font-bold text-sm text-zinc-100 truncate max-w-[200px] sm:max-w-xs md:max-w-md">
                           {entry.songName}
                         </span>
 
-                        {/* Priority Rank & Tier Badge */}
-                        {entry.isPriority ? (
-                          <span
-                            className={`inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-bold rounded border ${getTierColorClass(
-                              entry.colorSlot,
-                              true,
-                            )}`}
-                          >
-                            <Sparkles className="h-3 w-3" />
-                            {entry.tierName || "Priority"}
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-semibold rounded bg-zinc-800 text-zinc-400 border border-zinc-700">
-                            Free Line
-                          </span>
+                        {/* Status Badges */}
+                        {isPlaying && (
+                          <Badge variant="success" className="text-[10px] uppercase font-bold py-0">
+                            Playing
+                          </Badge>
                         )}
-
-                        {isPlaying && <Badge variant="success">Playing</Badge>}
-                        {isNext && <Badge variant="warning">Up Next</Badge>}
+                        {isNext && (
+                          <Badge variant="warning" className="text-[10px] uppercase font-bold py-0">
+                            Up Next
+                          </Badge>
+                        )}
                       </div>
 
                       <p className="text-xs text-zinc-400 mt-0.5 truncate">
@@ -149,9 +170,30 @@ export const PublicQueueView: React.FC<PublicQueueViewProps> = ({
                     </div>
                   </div>
 
-                  {/* Duration */}
-                  <div className="text-xs font-mono text-zinc-400 shrink-0 ml-3">
-                    {formatDuration(entry.durationSeconds)}
+                  {/* Right: Tier Badge & Duration */}
+                  <div className="flex items-center justify-between sm:justify-end gap-2.5 pt-1.5 sm:pt-0 border-t sm:border-t-0 border-zinc-800/50">
+                    {/* Priority Rank & Tier Badge */}
+                    {entry.isPriority ? (
+                      <span
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-bold rounded border ${getTierColorClass(
+                          entry.colorSlot,
+                          true,
+                        )}`}
+                      >
+                        <Sparkles className="h-3 w-3" />
+                        {entry.tierName || "Priority"}
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-semibold rounded bg-zinc-800 text-zinc-400 border border-zinc-700">
+                        Free Line
+                      </span>
+                    )}
+
+                    {/* Duration */}
+                    <div className="text-xs font-mono text-zinc-400 shrink-0 flex items-center gap-1">
+                      <Clock className="h-3 w-3 text-zinc-500 sm:hidden" />
+                      <span>{formatDuration(entry.durationSeconds)}</span>
+                    </div>
                   </div>
                 </div>
               );
