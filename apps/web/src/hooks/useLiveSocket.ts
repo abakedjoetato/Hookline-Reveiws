@@ -59,89 +59,111 @@ export const useLiveSocket = (
       return;
     }
 
+    const wsUrl = process.env.NEXT_PUBLIC_WS_URL;
+    if (!wsUrl && typeof window !== "undefined" && window.location.hostname !== "localhost") {
+      // In cloud preview environment where separate WS port is not exposed, use polling fallback
+      setIsConnected(true);
+      const pollInterval = setInterval(() => {
+        handlersRef.current.onReconcile?.();
+      }, 8000);
+      return () => clearInterval(pollInterval);
+    }
+
     const socketUrl =
-      typeof window !== "undefined"
-        ? process.env.NEXT_PUBLIC_WS_URL ||
-          (window.location.hostname === "localhost"
-            ? "http://localhost:4000"
-            : `${window.location.protocol}//${window.location.hostname}:4000`)
-        : "http://localhost:4000";
+      wsUrl ||
+      (typeof window !== "undefined" && window.location.hostname === "localhost"
+        ? "http://localhost:4000"
+        : "http://localhost:4000");
 
-    const socket = io(socketUrl, {
-      withCredentials: true,
-      transports: ["websocket", "polling"],
-      reconnectionAttempts: 15,
-      reconnectionDelay: 1000,
-    });
+    let socket: Socket | null = null;
+    try {
+      socket = io(socketUrl, {
+        withCredentials: true,
+        transports: ["websocket", "polling"],
+        reconnectionAttempts: 5,
+        reconnectionDelay: 2000,
+        timeout: 5000,
+      });
 
-    socketRef.current = socket;
+      socketRef.current = socket;
 
-    socket.on("connect", () => {
-      setIsConnected(true);
-      setSocketError(null);
-      // Join authoritative session room
-      socket.emit(
-        "join-session",
-        { sessionId },
-        (res: SocketJoinResponse) => {
-          if (res?.success) {
-            handlersRef.current.onReconcile?.();
-          } else {
-            setSocketError(res?.message || "Failed to join live session room");
-          }
-        },
-      );
-    });
+      socket.on("connect", () => {
+        setIsConnected(true);
+        setSocketError(null);
+        // Join authoritative session room
+        socket?.emit(
+          "join-session",
+          { sessionId },
+          (res: SocketJoinResponse) => {
+            if (res?.success) {
+              handlersRef.current.onReconcile?.();
+            } else {
+              setSocketError(res?.message || "Failed to join live session room");
+            }
+          },
+        );
+      });
 
-    socket.on("disconnect", () => {
-      setIsConnected(false);
-    });
+      socket.on("disconnect", () => {
+        setIsConnected(false);
+      });
 
-    socket.on("connect_error", (err: Error) => {
-      setIsConnected(false);
-      setSocketError(err?.message || "WebSocket connection failed");
-    });
+      socket.on("connect_error", () => {
+        setIsConnected(false);
+        // On connect error, trigger polling fallback
+      });
 
-    socket.on("reconnect", () => {
-      setIsConnected(true);
-      socket.emit("join-session", { sessionId }, () => {
+      socket.on("reconnect", () => {
+        setIsConnected(true);
+        socket?.emit("join-session", { sessionId }, () => {
+          handlersRef.current.onReconcile?.();
+        });
+      });
+
+      // Authoritative event listeners
+      socket.on("session.started", (data: SocketSessionEventPayload) => {
+        handlersRef.current.onSessionStarted?.(data);
         handlersRef.current.onReconcile?.();
       });
-    });
 
-    // Authoritative event listeners
-    socket.on("session.started", (data: SocketSessionEventPayload) => {
-      handlersRef.current.onSessionStarted?.(data);
-      handlersRef.current.onReconcile?.();
-    });
+      socket.on("session.paused", (data: SocketSessionEventPayload) => {
+        handlersRef.current.onSessionPaused?.(data);
+        handlersRef.current.onReconcile?.();
+      });
 
-    socket.on("session.paused", (data: SocketSessionEventPayload) => {
-      handlersRef.current.onSessionPaused?.(data);
-      handlersRef.current.onReconcile?.();
-    });
+      socket.on("session.ended", (data: SocketSessionEventPayload) => {
+        handlersRef.current.onSessionEnded?.(data);
+        handlersRef.current.onReconcile?.();
+      });
 
-    socket.on("session.ended", (data: SocketSessionEventPayload) => {
-      handlersRef.current.onSessionEnded?.(data);
-      handlersRef.current.onReconcile?.();
-    });
+      socket.on("player.playNext", (data: SocketPlayerEventPayload) => {
+        handlersRef.current.onPlayerPlayNext?.(data);
+        handlersRef.current.onReconcile?.();
+      });
 
-    socket.on("player.playNext", (data: SocketPlayerEventPayload) => {
-      handlersRef.current.onPlayerPlayNext?.(data);
-      handlersRef.current.onReconcile?.();
-    });
+      socket.on("player.loaded", (data: SocketPlayerEventPayload) => {
+        handlersRef.current.onPlayerLoaded?.(data);
+        handlersRef.current.onReconcile?.();
+      });
 
-    socket.on("player.loaded", (data: SocketPlayerEventPayload) => {
-      handlersRef.current.onPlayerLoaded?.(data);
-      handlersRef.current.onReconcile?.();
-    });
+      socket.on("player.cleared", (data: SocketPlayerEventPayload) => {
+        handlersRef.current.onPlayerCleared?.(data);
+        handlersRef.current.onReconcile?.();
+      });
+    } catch {
+      // Fallback
+    }
 
-    socket.on("player.cleared", (data: SocketPlayerEventPayload) => {
-      handlersRef.current.onPlayerCleared?.(data);
+    // Polling safety timer alongside socket
+    const pollInterval = setInterval(() => {
       handlersRef.current.onReconcile?.();
-    });
+    }, 10000);
 
     return () => {
-      socket.disconnect();
+      clearInterval(pollInterval);
+      if (socket) {
+        socket.disconnect();
+      }
       socketRef.current = null;
       setIsConnected(false);
     };

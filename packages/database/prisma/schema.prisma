@@ -2157,3 +2157,34 @@ model PaymentEmergencyControl {
 
   @@map("payment_emergency_controls")
 }
+
+// ============================================================================
+// SECTION 18: Global Site Customization & Branding Tokens
+// ============================================================================
+
+model SiteCustomization {
+  id                    String    @id @db.Uuid
+  siteName              String    @default("TheQueue")
+  primaryLogoUrl        String?   @db.Text
+  alternateLogoUrl      String?   @db.Text
+  faviconUrl            String?   @db.Text
+  primaryColor          String    @default("#8B5CF6")
+  primaryHoverColor     String    @default("#7C3AED")
+  secondaryColor        String    @default("#27272A")
+  accentColor           String    @default("#A78BFA")
+  backgroundColor       String    @default("#09090B")
+  surfaceColor          String    @default("#18181B")
+  textColor             String    @default("#FAFAFA")
+  mutedTextColor        String    @default("#A1A1AA")
+  borderColor           String    @default("#27272A")
+  liveColor             String    @default("#EF4444")
+  successColor          String    @default("#22C55E")
+  warningColor          String    @default("#F59E0B")
+  dangerColor           String    @default("#EF4444")
+  customCss             String?   @db.Text
+  updatedByUserId       String?   @db.Uuid
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@map("site_customizations")
+}

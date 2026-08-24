@@ -493,3 +493,118 @@ export interface UpgradeSubmissionResponse {
   clientSecret: string;
 }
 
+// ============================================================================
+// Theme & Global Site Customization Types
+// ============================================================================
+
+export interface ThemeTokens {
+  primaryColor: string;
+  primaryHoverColor: string;
+  secondaryColor: string;
+  accentColor: string;
+  backgroundColor: string;
+  surfaceColor: string;
+  textColor: string;
+  mutedTextColor: string;
+  borderColor: string;
+  liveColor: string;
+  successColor: string;
+  warningColor: string;
+  dangerColor: string;
+}
+
+export interface PublicThemeConfig {
+  siteName: string;
+  primaryLogoUrl: string | null;
+  alternateLogoUrl: string | null;
+  faviconUrl: string | null;
+  tokens: ThemeTokens;
+  updatedAt: string;
+}
+
+export interface AdminCustomizationConfig extends PublicThemeConfig {
+  id: string;
+  customCss: string | null;
+  updatedByUserId: string | null;
+}
+
+export interface UpdateCustomizationDto {
+  siteName?: string;
+  primaryLogoUrl?: string | null;
+  alternateLogoUrl?: string | null;
+  faviconUrl?: string | null;
+  tokens?: Partial<ThemeTokens>;
+  primaryColor?: string;
+  primaryHoverColor?: string;
+  secondaryColor?: string;
+  accentColor?: string;
+  backgroundColor?: string;
+  surfaceColor?: string;
+  textColor?: string;
+  mutedTextColor?: string;
+  borderColor?: string;
+  liveColor?: string;
+  successColor?: string;
+  warningColor?: string;
+  dangerColor?: string;
+  customCss?: string | null;
+}
+
+// ============================================================================
+// User Account, Profile & Session Types
+// ============================================================================
+
+export interface UserProfile {
+  id: string;
+  email: string;
+  username: string;
+  displayName: string;
+  bio?: string | null;
+  avatarUrl?: string | null;
+  country?: string | null;
+  websiteUrl?: string | null;
+  accountStatus: AccountStatus;
+  emailVerified: boolean;
+  roles: Role[];
+  permissions: string[];
+  createdAt: Date | string;
+  updatedAt: Date | string;
+}
+
+export interface UpdateUserProfileDto {
+  displayName?: string;
+  bio?: string;
+  avatarUrl?: string;
+  country?: string;
+  websiteUrl?: string;
+}
+
+export interface ChangePasswordDto {
+  currentPassword?: string;
+  newPassword: string;
+}
+
+export interface UserSessionInfo {
+  id: string;
+  createdAt: Date | string;
+  lastSeenAt: Date | string;
+  ipAddress?: string | null;
+  userAgent?: string | null;
+  isCurrent: boolean;
+}
+
+export interface SecurityEventLog {
+  id: string;
+  eventType: string;
+  createdAt: Date | string;
+  ipAddress?: string | null;
+  userAgent?: string | null;
+}
+
+export interface UserPreferencesDto {
+  emailNotifications: boolean;
+  marketingEmails: boolean;
+  soundEffects: boolean;
+  themeMode: "dark" | "system";
+}
+

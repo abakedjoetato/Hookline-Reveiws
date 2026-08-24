@@ -406,3 +406,60 @@ export const hostSlugSchema = z
       message: "This slug matches a reserved system route and cannot be used",
     },
   );
+
+// ============================================================================
+// M. User Profile & Account Settings Validation
+// ============================================================================
+
+export const updateUserProfileSchema = z.object({
+  displayName: z.string().min(2).max(50).optional(),
+  bio: z.string().max(500).optional().nullable(),
+  avatarUrl: z.string().url().optional().nullable().or(z.literal("")),
+  country: z.string().max(100).optional().nullable(),
+  websiteUrl: z.string().url().optional().nullable().or(z.literal("")),
+});
+
+export type UpdateUserProfileInput = z.infer<typeof updateUserProfileSchema>;
+
+export const changePasswordSchema = z.object({
+  currentPassword: z.string().optional(),
+  newPassword: signUpSchema.shape.password,
+});
+
+export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
+
+// ============================================================================
+// N. Global Site Customization & Branding Validation
+// ============================================================================
+
+const hexColorRegex = /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/;
+
+export const hexColorSchema = z
+  .string()
+  .regex(hexColorRegex, "Must be a valid hex color code (e.g. #8B5CF6)");
+
+export const updateCustomizationSchema = z.object({
+  siteName: z.string().min(1, "Site name is required").max(100).optional(),
+  primaryLogoUrl: z.string().url().optional().nullable().or(z.literal("")),
+  alternateLogoUrl: z.string().url().optional().nullable().or(z.literal("")),
+  faviconUrl: z.string().url().optional().nullable().or(z.literal("")),
+  tokens: z.record(z.string()).optional(),
+  primaryColor: hexColorSchema.optional(),
+  primaryHoverColor: hexColorSchema.optional(),
+  secondaryColor: hexColorSchema.optional(),
+  accentColor: hexColorSchema.optional(),
+  backgroundColor: hexColorSchema.optional(),
+  surfaceColor: hexColorSchema.optional(),
+  textColor: hexColorSchema.optional(),
+  mutedTextColor: hexColorSchema.optional(),
+  borderColor: hexColorSchema.optional(),
+  liveColor: hexColorSchema.optional(),
+  successColor: hexColorSchema.optional(),
+  warningColor: hexColorSchema.optional(),
+  dangerColor: hexColorSchema.optional(),
+  customCss: z.string().max(10000).optional().nullable(),
+});
+
+export type UpdateCustomizationInput = z.infer<
+  typeof updateCustomizationSchema
+>;

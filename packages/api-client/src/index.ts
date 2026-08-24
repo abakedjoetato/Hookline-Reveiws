@@ -113,6 +113,11 @@ export class ApiClient {
         "/live-sessions/public",
       ),
 
+    getPublicList: () =>
+      this.get<import("@platform/types").PublicLiveSessionSummary[]>(
+        "/live-sessions/public",
+      ),
+
     getPublicById: (id: string) =>
       this.get<import("@platform/types").PublicLiveSessionDetail>(
         `/live-sessions/${id}/public`,
@@ -261,12 +266,90 @@ export class ApiClient {
 
   // Auth API
   public auth = {
-    getMe: () => this.get<{ user: any }>("/auth/me"),
-    login: (data: { emailOrUsername: string; passwordPlain: string }) =>
-      this.post<{ success: boolean }>("/auth/login", data),
+    getMe: () => this.get<{ user: import("@platform/types").UserProfile | null }>("/auth/me"),
+    login: (data: { emailOrUsername?: string; email?: string; password?: string; passwordPlain?: string }) =>
+      this.post<{ success: boolean; user?: import("@platform/types").UserProfile }>("/auth/login", {
+        email: data.email || data.emailOrUsername,
+        password: data.password || data.passwordPlain,
+      }),
+    register: (data: {
+      email: string;
+      username: string;
+      displayName: string;
+      password: string;
+    }) =>
+      this.post<{ success: boolean; message?: string; user?: import("@platform/types").UserProfile }>(
+        "/auth/register",
+        data,
+      ),
     logout: () => this.post<{ success: boolean }>("/auth/logout"),
+    verifyEmail: (data: { token: string }) =>
+      this.post<{ success: boolean; message?: string }>("/auth/verify-email", data),
+    requestPasswordReset: (data: { email: string }) =>
+      this.post<{ success: boolean; message?: string }>("/auth/forgot-password", data),
+    confirmPasswordReset: (data: { token: string; password: string }) =>
+      this.post<{ success: boolean; message?: string }>("/auth/reset-password", data),
   };
 
+  // User Account & Settings API
+  public account = {
+    getProfile: () =>
+      this.get<import("@platform/types").UserProfile>("/account/profile"),
+    updateProfile: (data: import("@platform/types").UpdateUserProfileDto) =>
+      this.patch<import("@platform/types").UserProfile>("/account/profile", data),
+    changePassword: (data: import("@platform/types").ChangePasswordDto) =>
+      this.post<{ success: boolean; message?: string }>(
+        "/account/change-password",
+        data,
+      ),
+    getSessions: () =>
+      this.get<import("@platform/types").UserSessionInfo[]>("/account/sessions"),
+    revokeSession: (sessionId: string) =>
+      this.delete<{ success: boolean }>(`/account/sessions/${sessionId}`),
+    logoutAll: () =>
+      this.post<{ success: boolean }>("/account/logout-all"),
+    getSecurityLogs: () =>
+      this.get<import("@platform/types").SecurityEventLog[]>(
+        "/account/security-logs",
+      ),
+    getPreferences: () =>
+      this.get<import("@platform/types").UserPreferencesDto>(
+        "/account/preferences",
+      ),
+    updatePreferences: (data: Partial<import("@platform/types").UserPreferencesDto>) =>
+      this.put<import("@platform/types").UserPreferencesDto>(
+        "/account/preferences",
+        data,
+      ),
+  };
+
+  // Theme & Branding API
+  public theme = {
+    getPublic: () =>
+      this.get<import("@platform/types").PublicThemeConfig>("/theme/public"),
+  };
+
+  // Admin Customization & Management API
+  public admin = {
+    getCustomization: () =>
+      this.get<import("@platform/types").AdminCustomizationConfig>(
+        "/admin/customization",
+      ),
+    updateCustomization: (data: import("@platform/types").UpdateCustomizationDto) =>
+      this.put<import("@platform/types").AdminCustomizationConfig>(
+        "/admin/customization",
+        data,
+      ),
+    resetCustomization: () =>
+      this.post<import("@platform/types").AdminCustomizationConfig>(
+        "/admin/customization/reset",
+      ),
+    createAssetUploadUrl: (data: { assetType: "logo" | "favicon" | "artwork"; mimeType: string }) =>
+      this.post<{ uploadUrl: string; assetUrl: string }>(
+        "/admin/customization/assets/upload-url",
+        data,
+      ),
+  };
 }
 
 export const createApiClient = (options?: ApiClientOptions): ApiClient => {
