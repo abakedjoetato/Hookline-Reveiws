@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 export async function POST(request: NextRequest) {
   const cookieHeader = request.headers.get("cookie");
   if (cookieHeader) {
-    const match = cookieHeader.match(/session_token=([^;]+)/);
+    const match = cookieHeader.match(/(?:session_token|platform_session|__Host-platform_session)=([^;]+)/);
     if (match) {
       serverDb.sessionTokens.delete(match[1]);
     }

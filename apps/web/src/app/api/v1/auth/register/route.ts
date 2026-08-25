@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { serverDb, createSessionForUser, sanitizeUser, StoredUser } from "@/lib/server-state";
+import {
+  serverDb,
+  createSessionForUser,
+  sanitizeUser,
+  StoredUser,
+  recordLegalAcceptance,
+} from "@/lib/server-state";
 import { Role, AccountStatus } from "@platform/types";
+import { TERMS_METADATA } from "@platform/config";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +18,10 @@ export async function POST(request: NextRequest) {
     const username = (body.username || "").toLowerCase().trim();
     const displayName = (body.displayName || "").trim();
     const password = body.password || "";
+    const passwordConfirmation =
+      body.passwordConfirmation ?? body.confirmPassword ?? "";
+    const acceptTerms = body.acceptTerms;
+    const termsVersion = body.termsVersion || TERMS_METADATA.version;
 
     if (!email || !username || !displayName || !password) {
       return NextResponse.json(
@@ -19,9 +30,40 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (acceptTerms !== true) {
+      return NextResponse.json(
+        {
+          message:
+            "You must accept the Terms of Service and acknowledge the Privacy Policy to create an account",
+          code: "TERMS_NOT_ACCEPTED",
+        },
+        { status: 400 },
+      );
+    }
+
+    if (!passwordConfirmation) {
+      return NextResponse.json(
+        {
+          message: "Password confirmation is required",
+          code: "VALIDATION_ERROR",
+        },
+        { status: 400 },
+      );
+    }
+
+    if (password !== passwordConfirmation) {
+      return NextResponse.json(
+        { message: "Passwords do not match", code: "PASSWORD_MISMATCH" },
+        { status: 400 },
+      );
+    }
+
     if (password.length < 8) {
       return NextResponse.json(
-        { message: "Password must be at least 8 characters", code: "VALIDATION_ERROR" },
+        {
+          message: "Password must be at least 8 characters",
+          code: "VALIDATION_ERROR",
+        },
         { status: 400 },
       );
     }
@@ -69,8 +111,21 @@ export async function POST(request: NextRequest) {
       themeMode: "dark",
     });
 
-    const ip = request.headers.get("x-forwarded-for") || "127.0.0.1";
+    const forwarded = request.headers.get("x-forwarded-for");
+    const ip = forwarded
+      ? forwarded.split(",")[0].trim()
+      : request.headers.get("x-real-ip") || "127.0.0.1";
     const userAgent = request.headers.get("user-agent") || "Web Browser";
+
+    // Track Versioned Legal Terms Acceptance
+    recordLegalAcceptance({
+      userId: newUser.id,
+      documentSlug: "terms",
+      version: termsVersion,
+      acceptanceSource: "SIGNUP",
+      ipAddress: ip,
+      userAgent,
+    });
 
     const { cookie } = createSessionForUser(newUser.id, ip, userAgent);
 
@@ -98,3 +153,4 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+

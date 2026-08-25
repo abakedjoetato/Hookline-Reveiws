@@ -235,3 +235,188 @@ export function redactSecretsFromLog<T extends Record<string, any>>(obj: T): T {
   }
   return redacted;
 }
+
+// ============================================================================
+// SECTION 19: LEGAL ACCEPTANCE PERSISTENCE HELPERS
+// ============================================================================
+
+export interface EnsureLegalDocumentVersionParams {
+  slug: string;
+  title: string;
+  versionString: string;
+  content?: string;
+}
+
+export async function ensureLegalDocumentAndVersion(
+  params: EnsureLegalDocumentVersionParams,
+): Promise<{ documentId: string; versionId: string }> {
+  try {
+    // 1. Find or create the root legal document by unique slug
+    let doc = await prisma.legalDocument.findUnique({
+      where: { slug: params.slug },
+    });
+
+    if (!doc) {
+      const newDocId = generateUuidV7();
+      doc = await prisma.legalDocument.upsert({
+        where: { slug: params.slug },
+        create: {
+          id: newDocId,
+          slug: params.slug,
+          title: params.title,
+        },
+        update: {
+          title: params.title,
+        },
+      });
+    }
+
+    // 2. Find or create the version record for this document
+    let version = await prisma.legalDocumentVersion.findUnique({
+      where: {
+        documentId_versionString: {
+          documentId: doc.id,
+          versionString: params.versionString,
+        },
+      },
+    });
+
+    if (!version) {
+      const newVersionId = generateUuidV7();
+      version = await prisma.legalDocumentVersion.upsert({
+        where: {
+          documentId_versionString: {
+            documentId: doc.id,
+            versionString: params.versionString,
+          },
+        },
+        create: {
+          id: newVersionId,
+          documentId: doc.id,
+          versionString: params.versionString,
+          content:
+            params.content ||
+            `Official ${params.title} (v${params.versionString}) content.`,
+          publishedAt: new Date(),
+        },
+        update: {},
+      });
+    }
+
+    return { documentId: doc.id, versionId: version.id };
+  } catch (error) {
+    throw normalizeDatabaseError(error);
+  }
+}
+
+export interface PersistLegalAcceptanceInput {
+  userId: string;
+  documentSlug?: string;
+  documentTitle?: string;
+  versionString: string;
+  acceptanceSource: string;
+  ipAddress: string;
+  userAgent?: string;
+}
+
+export async function persistLegalAcceptanceToDb(
+  params: PersistLegalAcceptanceInput,
+) {
+  try {
+    const slug = params.documentSlug || "terms";
+    const title =
+      params.documentTitle ||
+      (slug === "terms" ? "Terms of Service" : "Privacy Policy");
+
+    const { versionId } = await ensureLegalDocumentAndVersion({
+      slug,
+      title,
+      versionString: params.versionString,
+    });
+
+    // Idempotency check on @@unique([userId, versionId])
+    const existing = await prisma.legalAcceptance.findUnique({
+      where: {
+        userId_versionId: {
+          userId: params.userId,
+          versionId,
+        },
+      },
+      include: {
+        version: {
+          include: {
+            document: true,
+          },
+        },
+      },
+    });
+
+    if (existing) {
+      return existing;
+    }
+
+    const id = generateUuidV7();
+    return await prisma.legalAcceptance.create({
+      data: {
+        id,
+        userId: params.userId,
+        versionId,
+        acceptanceSource: params.acceptanceSource,
+        ipAddress: params.ipAddress,
+        userAgent: params.userAgent || null,
+        acceptedAt: new Date(),
+      },
+      include: {
+        version: {
+          include: {
+            document: true,
+          },
+        },
+      },
+    });
+  } catch (error) {
+    throw normalizeDatabaseError(error);
+  }
+}
+
+export async function getDbLegalAcceptancesForUser(userId: string) {
+  try {
+    return await prisma.legalAcceptance.findMany({
+      where: { userId },
+      include: {
+        version: {
+          include: {
+            document: true,
+          },
+        },
+      },
+      orderBy: { acceptedAt: "asc" },
+    });
+  } catch (error) {
+    throw normalizeDatabaseError(error);
+  }
+}
+
+export async function hasUserAcceptedCurrentVersionInDb(
+  userId: string,
+  slug: string,
+  versionString: string,
+): Promise<boolean> {
+  try {
+    const count = await prisma.legalAcceptance.count({
+      where: {
+        userId,
+        version: {
+          versionString,
+          document: {
+            slug,
+          },
+        },
+      },
+    });
+    return count > 0;
+  } catch (error) {
+    throw normalizeDatabaseError(error);
+  }
+}
+

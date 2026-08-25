@@ -68,7 +68,13 @@ export async function POST(request: NextRequest) {
     let payout = serverDb.payoutAccounts.get(user.id);
 
     // Real Stripe Synchronization Path
-    if (stripeSecretKey && payout?.providerAccountId) {
+    if (
+      stripeSecretKey &&
+      !stripeSecretKey.includes("mock") &&
+      !stripeSecretKey.includes("placeholder") &&
+      payout?.providerAccountId &&
+      payout.providerAccountId.startsWith("acct_1")
+    ) {
       try {
         // Fetch authoritative account status directly from Stripe API
         const stripeRes = await fetch(

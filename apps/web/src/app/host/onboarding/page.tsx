@@ -29,6 +29,7 @@ import {
   Check,
   RefreshCw,
 } from "lucide-react";
+import { TERMS_METADATA } from "@platform/config";
 
 export default function HostOnboardingPage() {
   const router = useRouter();
@@ -53,6 +54,7 @@ export default function HostOnboardingPage() {
   const [biography, setBiography] = React.useState("");
   const [acceptedGenres, setAcceptedGenres] = React.useState("");
   const [exampleLinks, setExampleLinks] = React.useState("");
+  const [acceptHostTerms, setAcceptHostTerms] = React.useState(false);
 
   const loadStatus = async () => {
     setIsLoading(true);
@@ -107,6 +109,12 @@ export default function HostOnboardingPage() {
       setError("Channel / Profile URL is required");
       return;
     }
+    if (!acceptHostTerms) {
+      setError(
+        "You must agree to the Terms of Service and Broadcaster Responsibilities before applying.",
+      );
+      return;
+    }
 
     setIsSubmitting(true);
     setError(null);
@@ -119,6 +127,8 @@ export default function HostOnboardingPage() {
         biography: biography.trim() || undefined,
         acceptedGenres: acceptedGenres.trim() || undefined,
         exampleLivestreamLinks: exampleLinks.trim() || undefined,
+        acceptHostTerms: true,
+        termsVersion: TERMS_METADATA.version,
       });
 
       setSuccessMessage("Broadcaster application submitted successfully!");
@@ -472,12 +482,39 @@ export default function HostOnboardingPage() {
               </div>
 
               {!hasApp && (
-                <div className="pt-2">
+                <div className="pt-2 space-y-4">
+                  <div className="p-3 rounded-lg bg-zinc-900/80 border border-zinc-800">
+                    <label
+                      htmlFor="host-accept-terms"
+                      className="flex items-start gap-2.5 cursor-pointer text-xs text-zinc-400 select-none group"
+                    >
+                      <input
+                        type="checkbox"
+                        id="host-accept-terms"
+                        checked={acceptHostTerms}
+                        onChange={(e) => setAcceptHostTerms(e.target.checked)}
+                        className="mt-0.5 h-4 w-4 rounded border-zinc-700 bg-zinc-950 text-violet-600 focus:ring-violet-500 focus:ring-offset-zinc-900 transition-colors cursor-pointer"
+                        required
+                      />
+                      <span className="leading-relaxed">
+                        I agree to the{" "}
+                        <Link
+                          href="/terms#section-5"
+                          target="_blank"
+                          className="font-medium text-violet-400 hover:text-violet-300 underline"
+                        >
+                          Terms of Service & Broadcaster Responsibilities
+                        </Link>
+                        . I acknowledge that I am an independent host, responsible for complying with the policies of my streaming platform, managing my live queue fairly, and maintaining broadcaster conduct standards.
+                      </span>
+                    </label>
+                  </div>
+
                   <Button
                     type="submit"
                     variant="primary"
                     size="md"
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || !acceptHostTerms}
                     className="gap-2 min-h-[44px]"
                   >
                     {isSubmitting ? (

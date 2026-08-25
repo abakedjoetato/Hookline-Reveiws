@@ -7,6 +7,7 @@ const nextConfig = {
     "@platform/config",
     "@platform/validation",
     "@platform/api-client",
+    "@platform/database",
   ],
 };
 

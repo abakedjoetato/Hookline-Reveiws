@@ -174,7 +174,24 @@ export default function HomePage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
             {liveSessions.slice(0, 6).map((session) => (
-              <LiveStationCard key={session.id} session={session} />
+              <LiveStationCard
+                key={session.id}
+                station={{
+                  id: session.stationId || session.id,
+                  stationName: session.stationName,
+                  hostName: session.hostName,
+                  slug: session.stationSlug || session.id,
+                  primaryStreamingPlatform: session.primaryStreamingPlatform,
+                  streamUrl: session.streamUrl || null,
+                  description: null,
+                  isLive: true,
+                  liveSessionId: session.id,
+                  liveTitle: session.liveTitle || null,
+                  submissionsOpen: session.submissionsOpen,
+                  paidSubmissionsOpen: session.paidSubmissionsOpen,
+                  freeLineOpen: session.freeLineOpen,
+                }}
+              />
             ))}
           </div>
         )}

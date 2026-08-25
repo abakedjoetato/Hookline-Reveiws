@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import {
   Dialog,
   Button,
@@ -20,6 +21,7 @@ import {
   ShieldCheck,
   CreditCard,
   Loader2,
+  Info,
 } from "lucide-react";
 import { loadStripe } from "@stripe/stripe-js";
 import {
@@ -124,6 +126,19 @@ const StripeUpgradePaymentForm: React.FC<{
               }}
             />
           </div>
+        </div>
+
+        <div className="p-2.5 rounded-md bg-zinc-950/80 border border-zinc-800 text-[11px] text-zinc-400 space-y-1">
+          <div className="flex items-center gap-1.5 text-zinc-300 font-medium">
+            <Info className="h-3.5 w-3.5 text-violet-400 shrink-0" />
+            <span>Priority Queue Upgrade Notice</span>
+          </div>
+          <p className="leading-normal">
+            Priority does not guarantee airplay, review, acceptance, or a specific broadcast outcome. Hosts control their own broadcasts and may skip, decline, or remove submissions. Payments are non-refundable except where required by applicable law. See{" "}
+            <Link href="/terms#section-4" target="_blank" className="text-violet-400 hover:underline">
+              Terms of Service
+            </Link>.
+          </p>
         </div>
       </div>
 

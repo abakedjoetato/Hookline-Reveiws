@@ -574,6 +574,21 @@ export interface UserProfile {
   updatedAt: Date | string;
 }
 
+export interface RegisterDto {
+  email: string;
+  username: string;
+  displayName: string;
+  password: string;
+  passwordConfirmation?: string;
+  confirmPassword?: string;
+}
+
+export interface RegisterResponseDto {
+  success: boolean;
+  message: string;
+  user?: UserProfile;
+}
+
 export interface UpdateUserProfileDto {
   displayName?: string;
   bio?: string;
@@ -760,6 +775,8 @@ export interface CreateHostApplicationDto {
   biography?: string;
   acceptedGenres?: string;
   exampleLivestreamLinks?: string;
+  acceptHostTerms: boolean;
+  termsVersion?: string;
 }
 
 export interface StripeConnectLinkResponse {
@@ -795,4 +812,55 @@ export interface GoLiveDto {
   freeLineOpen?: boolean;
   paidSubmissionsOpen?: boolean;
 }
+
+// ============================================================================
+// Legal & Terms of Service Models
+// ============================================================================
+
+export type LegalAcceptanceSource =
+  | "SIGNUP"
+  | "HOST_APPLICATION"
+  | "HOST_GO_LIVE"
+  | "TERMS_UPDATE"
+  | "STATION_ACTIVATION";
+
+export interface LegalDocumentMetadata {
+  slug: string;
+  title: string;
+  version: string;
+  effectiveDate: string;
+  lastUpdated: string;
+  legalEntityName: string;
+  legalContactEmail: string;
+  copyrightContactEmail: string;
+  legalMailingAddress: string;
+  governingJurisdiction: string;
+  sectionsCount: number;
+}
+
+export interface LegalAcceptanceRecord {
+  id: string;
+  userId: string;
+  documentSlug: string;
+  version: string;
+  acceptanceSource: LegalAcceptanceSource;
+  acceptedAt: string;
+  ipAddress?: string;
+  userAgent?: string;
+}
+
+export interface RecordLegalAcceptanceDto {
+  documentSlug?: string;
+  version: string;
+  acceptanceSource: LegalAcceptanceSource;
+}
+
+export interface LegalAcceptanceStatusResponse {
+  currentVersion: string;
+  isAccepted: boolean;
+  lastAcceptedVersion?: string | null;
+  lastAcceptedAt?: string | null;
+  history: LegalAcceptanceRecord[];
+}
+
 

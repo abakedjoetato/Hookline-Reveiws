@@ -9,7 +9,16 @@ interface AuthContextType {
   isLoading: boolean;
   isAuthenticated: boolean;
   login: (credentials: { email?: string; emailOrUsername?: string; password?: string; passwordPlain?: string }) => Promise<{ success: boolean; message?: string }>;
-  register: (data: { email: string; username: string; displayName: string; password: string }) => Promise<{ success: boolean; message?: string }>;
+  register: (data: {
+    email: string;
+    username: string;
+    displayName: string;
+    password: string;
+    passwordConfirmation?: string;
+    confirmPassword?: string;
+    acceptTerms?: boolean;
+    termsVersion?: string;
+  }) => Promise<{ success: boolean; message?: string; user?: UserProfile }>;
   logout: () => Promise<void>;
   verifyEmail: (token: string) => Promise<{ success: boolean; message?: string }>;
   requestPasswordReset: (email: string) => Promise<{ success: boolean; message?: string }>;
@@ -97,6 +106,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     username: string;
     displayName: string;
     password: string;
+    passwordConfirmation?: string;
+    confirmPassword?: string;
   }) => {
     try {
       const res = await api.auth.register(data);
@@ -106,11 +117,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } else {
           await refreshUser();
         }
-        return { success: true, message: res.message };
+        return { success: true, message: res.message, user: res.user };
       }
-      return { success: false, message: "Registration failed" };
+      return { success: false, message: res?.message || "Registration failed" };
     } catch (err: any) {
-      const msg = err.response?.data?.message || err.message || "Failed to create account";
+      const msg =
+        err.response?.data?.message ||
+        err.message ||
+        "Failed to create account";
       return { success: false, message: msg };
     }
   };

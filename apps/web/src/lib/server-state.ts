@@ -33,8 +33,20 @@ import {
   HostProfileSummary,
   StationSummary,
   PublicStationDetail,
+  LegalAcceptanceRecord,
+  LegalAcceptanceSource,
 } from "@platform/types";
 import { RESERVED_SLUGS, slugifyHostname } from "@platform/validation";
+import {
+  TERMS_METADATA,
+  PRIVACY_METADATA,
+  getLegalConfig,
+} from "@platform/config";
+import {
+  persistLegalAcceptanceToDb,
+  getDbLegalAcceptancesForUser,
+  hasUserAcceptedCurrentVersionInDb,
+} from "@platform/database";
 
 export interface StoredUser extends UserProfile {
   passwordHash: string;
@@ -107,6 +119,24 @@ export interface StoredSubmission extends UserSubmissionSummary {
   artistIdentityId: string;
 }
 
+export interface StoredPasswordResetToken {
+  token: string;
+  userId: string;
+  email: string;
+  expiresAt: string;
+  used: boolean;
+  createdAt: string;
+}
+
+export interface StoredEmailVerificationToken {
+  token: string;
+  userId: string;
+  email: string;
+  expiresAt: string;
+  used: boolean;
+  createdAt: string;
+}
+
 // Global server state singleton for Next.js App Router
 declare global {
   // eslint-disable-next-line no-var
@@ -114,6 +144,8 @@ declare global {
     | {
         users: Map<string, StoredUser>;
         sessionTokens: Map<string, StoredSessionToken>;
+        passwordResetTokens: Map<string, StoredPasswordResetToken>;
+        emailVerificationTokens: Map<string, StoredEmailVerificationToken>;
         securityLogs: StoredSecurityLog[];
         userPreferences: Map<string, UserPreferencesDto>;
         themeCustomization: StoredThemeCustomization;
@@ -139,6 +171,7 @@ declare global {
             expiresAt: Date;
           }
         >;
+        legalAcceptances: LegalAcceptanceRecord[];
       }
     | undefined;
 }
@@ -169,6 +202,8 @@ function initDatabase() {
 
   const users = new Map<string, StoredUser>();
   const sessionTokens = new Map<string, StoredSessionToken>();
+  const passwordResetTokens = new Map<string, StoredPasswordResetToken>();
+  const emailVerificationTokens = new Map<string, StoredEmailVerificationToken>();
   const securityLogs: StoredSecurityLog[] = [];
   const userPreferences = new Map<string, UserPreferencesDto>();
 
@@ -253,8 +288,39 @@ function initDatabase() {
   const hostProfiles = new Map<string, StoredHostProfile>();
   const stations = new Map<string, StoredStation>();
   const payoutAccounts = new Map<string, StoredPayoutAccount>();
+  const sessions = new Map<string, StoredSession>();
+  const queues = new Map<string, StoredQueueEntry[]>();
+  const tracks = new Map<string, StoredTrack>();
+  const submissions = new Map<string, StoredSubmission>();
+  const uploadIntents = new Map();
+  const legalAcceptances: LegalAcceptanceRecord[] = [
+    {
+      id: "legal-acc-seed-demo",
+      userId: demoUser.id,
+      documentSlug: "terms",
+      version: TERMS_METADATA.version,
+      acceptanceSource: "SIGNUP",
+      acceptedAt: new Date(demoUser.createdAt).toISOString(),
+      ipAddress: "127.0.0.1",
+      userAgent: "Desktop Browser",
+    },
+    {
+      id: "legal-acc-seed-admin",
+      userId: adminUser.id,
+      documentSlug: "terms",
+      version: TERMS_METADATA.version,
+      acceptanceSource: "SIGNUP",
+      acceptedAt: new Date(adminUser.createdAt).toISOString(),
+      ipAddress: "127.0.0.1",
+      userAgent: "Server Bootstrap",
+    },
+  ];
 
-  // Seed Host Users, Profiles & Stations
+  // Only load development fixtures if explicitly enabled in isolated dev/test mode via server-side environment
+  const shouldLoadDevFixtures = process.env.ENABLE_DEV_FIXTURES === "true";
+
+  if (shouldLoadDevFixtures) {
+    // Seed Host Users, Profiles & Stations
   const kvibeUser: StoredUser = {
     id: "user-kvibe",
     email: "djkvibe@thequeue.live",
@@ -515,12 +581,6 @@ function initDatabase() {
     updatedAt: new Date().toISOString(),
   };
   stations.set(station4.id, station4);
-
-  const sessions = new Map<string, StoredSession>();
-  const queues = new Map<string, StoredQueueEntry[]>();
-  const tracks = new Map<string, StoredTrack>();
-  const submissions = new Map<string, StoredSubmission>();
-  const uploadIntents = new Map();
 
   // 4. Seed Sessions
   const session1: StoredSession = {
@@ -799,7 +859,8 @@ function initDatabase() {
     },
   };
 
-  submissions.set(sub1.id, sub1);
+    submissions.set(sub1.id, sub1);
+  }
 
   // Create initial demo session cookie token
   const initialSessionToken: StoredSessionToken = {
@@ -826,6 +887,8 @@ function initDatabase() {
   global.__THE_QUEUE_STATE__ = {
     users,
     sessionTokens,
+    passwordResetTokens,
+    emailVerificationTokens,
     securityLogs,
     userPreferences,
     themeCustomization,
@@ -839,12 +902,192 @@ function initDatabase() {
     tracks,
     submissions,
     uploadIntents,
+    legalAcceptances,
   };
 
   return global.__THE_QUEUE_STATE__;
 }
 
 export const serverDb = initDatabase();
+
+// ============================================================================
+// Legal & Terms of Service Server Helpers
+// ============================================================================
+
+export function recordLegalAcceptance(params: {
+  userId: string;
+  documentSlug?: string;
+  version?: string;
+  acceptanceSource: LegalAcceptanceSource;
+  ipAddress?: string;
+  userAgent?: string;
+}): LegalAcceptanceRecord {
+  const documentSlug = params.documentSlug || "terms";
+  const version =
+    params.version ||
+    (documentSlug === "privacy"
+      ? PRIVACY_METADATA.version
+      : TERMS_METADATA.version);
+  const ipAddress = params.ipAddress || "127.0.0.1";
+  const userAgent = params.userAgent || "Web Browser";
+
+  // Check for existing acceptance (idempotency in memory)
+  const existing = serverDb.legalAcceptances.find(
+    (r) =>
+      r.userId === params.userId &&
+      r.documentSlug === documentSlug &&
+      r.version === version,
+  );
+
+  if (existing) {
+    // Attempt DB sync in background if not already recorded
+    persistLegalAcceptanceToDb({
+      userId: params.userId,
+      documentSlug,
+      versionString: version,
+      acceptanceSource: params.acceptanceSource,
+      ipAddress,
+      userAgent,
+    }).catch(() => {});
+    return existing;
+  }
+
+  const record: LegalAcceptanceRecord = {
+    id: `legal-acc-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+    userId: params.userId,
+    documentSlug,
+    version,
+    acceptanceSource: params.acceptanceSource,
+    acceptedAt: new Date().toISOString(),
+    ipAddress,
+    userAgent,
+  };
+  serverDb.legalAcceptances.push(record);
+
+  // Background Postgres persistence
+  persistLegalAcceptanceToDb({
+    userId: params.userId,
+    documentSlug,
+    versionString: version,
+    acceptanceSource: params.acceptanceSource,
+    ipAddress,
+    userAgent,
+  }).catch(() => {});
+
+  return record;
+}
+
+export async function recordLegalAcceptanceAsync(params: {
+  userId: string;
+  documentSlug?: string;
+  version?: string;
+  acceptanceSource: LegalAcceptanceSource;
+  ipAddress?: string;
+  userAgent?: string;
+}): Promise<LegalAcceptanceRecord> {
+  const documentSlug = params.documentSlug || "terms";
+  const version =
+    params.version ||
+    (documentSlug === "privacy"
+      ? PRIVACY_METADATA.version
+      : TERMS_METADATA.version);
+  const ipAddress = params.ipAddress || "127.0.0.1";
+  const userAgent = params.userAgent || "Web Browser";
+
+  // 1. In-memory ledger update with deduplication
+  let record = serverDb.legalAcceptances.find(
+    (r) =>
+      r.userId === params.userId &&
+      r.documentSlug === documentSlug &&
+      r.version === version,
+  );
+
+  if (!record) {
+    record = {
+      id: `legal-acc-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      userId: params.userId,
+      documentSlug,
+      version,
+      acceptanceSource: params.acceptanceSource,
+      acceptedAt: new Date().toISOString(),
+      ipAddress,
+      userAgent,
+    };
+    serverDb.legalAcceptances.push(record);
+  }
+
+  // 2. Persist to PostgreSQL if available
+  try {
+    const dbRecord = await persistLegalAcceptanceToDb({
+      userId: params.userId,
+      documentSlug,
+      versionString: version,
+      acceptanceSource: params.acceptanceSource,
+      ipAddress,
+      userAgent,
+    });
+    if (dbRecord) {
+      record.id = dbRecord.id;
+      record.acceptedAt = dbRecord.acceptedAt.toISOString();
+    }
+  } catch (err) {
+    // Database fallback handled gracefully
+  }
+
+  return record;
+}
+
+export function getUserLegalAcceptances(userId: string): LegalAcceptanceRecord[] {
+  return serverDb.legalAcceptances.filter((r) => r.userId === userId);
+}
+
+export async function getUserLegalAcceptancesAsync(
+  userId: string,
+): Promise<LegalAcceptanceRecord[]> {
+  try {
+    const dbRecords = await getDbLegalAcceptancesForUser(userId);
+    if (dbRecords && dbRecords.length > 0) {
+      return dbRecords.map((r) => ({
+        id: r.id,
+        userId: r.userId,
+        documentSlug: r.version?.document?.slug || "terms",
+        version: r.version?.versionString || TERMS_METADATA.version,
+        acceptanceSource: r.acceptanceSource as LegalAcceptanceSource,
+        acceptedAt: r.acceptedAt.toISOString(),
+        ipAddress: r.ipAddress,
+        userAgent: r.userAgent || undefined,
+      }));
+    }
+  } catch (err) {
+    // Fallback to in-memory
+  }
+  return getUserLegalAcceptances(userId);
+}
+
+export function hasUserAcceptedCurrentTerms(userId: string): boolean {
+  return serverDb.legalAcceptances.some(
+    (r) =>
+      r.userId === userId &&
+      r.documentSlug === "terms" &&
+      r.version === TERMS_METADATA.version,
+  );
+}
+
+export async function hasUserAcceptedCurrentTermsAsync(
+  userId: string,
+): Promise<boolean> {
+  try {
+    const dbAccepted = await hasUserAcceptedCurrentVersionInDb(
+      userId,
+      "terms",
+      TERMS_METADATA.version,
+    );
+    if (dbAccepted) return true;
+  } catch (err) {
+    // Fallback to in-memory
+  }
+  return hasUserAcceptedCurrentTerms(userId);
+}
 
 // Station, Host & Slug helper functions
 export function generateUniqueStationSlug(baseName: string, excludeStationId?: string): string {
@@ -892,8 +1135,14 @@ export function getPublicStationsList(): StationSummary[] {
           break;
         }
       }
+
+      const hostProfile = serverDb.hostProfiles.get(st.hostId);
+      const hostUser = hostProfile ? serverDb.users.get(hostProfile.userId) : null;
+      const hostName = st.hostName || hostProfile?.publicHostName || hostUser?.displayName || st.stationName;
+
       result.push({
         ...st,
+        hostName,
         isLive: live,
         currentLiveSessionId: sessionId,
       });
@@ -1099,7 +1348,7 @@ export function syncAutomaticApprovalsIfApplicable(actorUserId = "system") {
 // Auth helper functions for Next.js API Routes
 export function getAuthenticatedUser(cookieHeader?: string | null): StoredUser | null {
   if (!cookieHeader) return null;
-  const match = cookieHeader.match(/session_token=([^;]+)/);
+  const match = cookieHeader.match(/(?:session_token|platform_session|__Host-platform_session)=([^;]+)/);
   if (!match) return null;
   const token = match[1];
   const session = serverDb.sessionTokens.get(token);
@@ -1142,4 +1391,110 @@ export function sanitizeUser(user: StoredUser): UserProfile {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { passwordHash, ...safe } = user;
   return safe;
+}
+
+export function createPasswordResetToken(email: string): string | null {
+  const normalizedEmail = email.trim().toLowerCase();
+  const user = Array.from(serverDb.users.values()).find(
+    (u) => u.email.toLowerCase() === normalizedEmail
+  );
+  if (!user) return null;
+
+  const token = `rst_${Math.random().toString(36).substring(2)}_${Date.now()}`;
+  const expiresAt = new Date(Date.now() + 3600000 * 2); // 2 hours
+  serverDb.passwordResetTokens.set(token, {
+    token,
+    userId: user.id,
+    email: user.email,
+    expiresAt: expiresAt.toISOString(),
+    used: false,
+    createdAt: new Date().toISOString(),
+  });
+  return token;
+}
+
+export function verifyAndConsumePasswordResetToken(
+  token: string,
+  newPassword: string
+): { success: boolean; message?: string } {
+  const resetRecord = serverDb.passwordResetTokens.get(token);
+  if (!resetRecord) {
+    return { success: false, message: "Invalid or expired reset token." };
+  }
+  if (resetRecord.used) {
+    return { success: false, message: "This reset link has already been used." };
+  }
+  if (new Date(resetRecord.expiresAt) < new Date()) {
+    return { success: false, message: "This reset link has expired." };
+  }
+
+  const user = serverDb.users.get(resetRecord.userId);
+  if (!user) {
+    return { success: false, message: "User account not found." };
+  }
+
+  user.passwordHash = newPassword;
+  user.updatedAt = new Date().toISOString();
+  resetRecord.used = true;
+  serverDb.passwordResetTokens.set(token, resetRecord);
+
+  // Invalidate previous sessions for security on password reset
+  for (const [sessToken, sess] of serverDb.sessionTokens.entries()) {
+    if (sess.userId === user.id) {
+      serverDb.sessionTokens.delete(sessToken);
+    }
+  }
+
+  return { success: true };
+}
+
+export function createEmailVerificationToken(userId: string): string {
+  const user = serverDb.users.get(userId);
+  const email = user ? user.email : "";
+  const token = `vfy_${Math.random().toString(36).substring(2)}_${Date.now()}`;
+  const expiresAt = new Date(Date.now() + 86400000 * 3); // 3 days
+
+  serverDb.emailVerificationTokens.set(token, {
+    token,
+    userId,
+    email,
+    expiresAt: expiresAt.toISOString(),
+    used: false,
+    createdAt: new Date().toISOString(),
+  });
+  return token;
+}
+
+export function verifyAndConsumeEmailVerificationToken(
+  token: string,
+  userId?: string
+): { success: boolean; message?: string } {
+  const vfyRecord = serverDb.emailVerificationTokens.get(token);
+  if (vfyRecord) {
+    if (vfyRecord.used) {
+      return { success: false, message: "Email verification link has already been used." };
+    }
+    if (new Date(vfyRecord.expiresAt) < new Date()) {
+      return { success: false, message: "Verification link has expired." };
+    }
+    const user = serverDb.users.get(vfyRecord.userId);
+    if (user) {
+      user.emailVerified = true;
+      user.updatedAt = new Date().toISOString();
+      vfyRecord.used = true;
+      serverDb.emailVerificationTokens.set(token, vfyRecord);
+      return { success: true };
+    }
+  }
+
+  if (userId) {
+    const user = serverDb.users.get(userId);
+    if (user) {
+      user.emailVerified = true;
+      user.updatedAt = new Date().toISOString();
+      return { success: true };
+    }
+  }
+
+  return { success: false, message: "Invalid or expired verification token." };
 }

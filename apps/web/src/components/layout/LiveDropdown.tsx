@@ -110,7 +110,7 @@ export function LiveDropdown() {
               sessions.map((session) => (
                 <Link
                   key={session.id}
-                  href={`/session/${session.id}`}
+                  href={session.stationSlug ? `/${session.stationSlug}` : `/session/${session.id}`}
                   onClick={() => setIsOpen(false)}
                   className="p-3 hover:bg-zinc-800/60 rounded-lg block transition-colors group"
                 >

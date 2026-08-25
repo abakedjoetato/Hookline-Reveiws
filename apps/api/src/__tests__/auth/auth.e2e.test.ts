@@ -145,6 +145,8 @@ describe("TheQueue Auth API Integration Flows", () => {
       username: "testuser",
       displayName: "Test User",
       password: "StrongPassword!123",
+      passwordConfirmation: "StrongPassword!123",
+      acceptTerms: true,
     };
 
     await request(app.getHttpServer())
@@ -212,6 +214,8 @@ describe("TheQueue Auth API Integration Flows", () => {
         username: "resetuser",
         displayName: "Reset User",
         password: "StrongPassword!123",
+        passwordConfirmation: "StrongPassword!123",
+        acceptTerms: true,
       })
       .expect(201);
 
@@ -266,6 +270,8 @@ describe("TheQueue Auth API Integration Flows", () => {
       username: "banneduser",
       displayName: "Banned User",
       password: "StrongPassword!123",
+      passwordConfirmation: "StrongPassword!123",
+      acceptTerms: true,
     });
 
     const vToken = mailService.sentEmails[0].token;

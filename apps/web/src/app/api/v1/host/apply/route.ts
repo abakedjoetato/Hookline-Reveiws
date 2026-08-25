@@ -4,9 +4,11 @@ import {
   getAuthenticatedUser,
   approveHostApplicationInternal,
   StoredHostApplication,
+  recordLegalAcceptance,
 } from "@/lib/server-state";
 import { createHostApplicationSchema } from "@platform/validation";
 import { HostApplicationStatus, StreamingPlatform } from "@platform/types";
+import { TERMS_METADATA } from "@platform/config";
 
 export const dynamic = "force-dynamic";
 
@@ -57,7 +59,35 @@ export async function POST(request: NextRequest) {
       biography,
       acceptedGenres,
       exampleLivestreamLinks,
+      acceptHostTerms,
+      termsVersion,
     } = validation.data;
+
+    if (acceptHostTerms !== true) {
+      return NextResponse.json(
+        {
+          message: "You must accept the Host Terms and Broadcast Responsibility rules to apply as a host",
+          code: "HOST_TERMS_NOT_ACCEPTED",
+        },
+        { status: 400 },
+      );
+    }
+
+    const forwarded = request.headers.get("x-forwarded-for");
+    const ip = forwarded
+      ? forwarded.split(",")[0].trim()
+      : request.headers.get("x-real-ip") || "127.0.0.1";
+    const userAgent = request.headers.get("user-agent") || "Web Browser";
+
+    // Track Versioned Host Terms Acceptance
+    recordLegalAcceptance({
+      userId: user.id,
+      documentSlug: "terms",
+      version: termsVersion || TERMS_METADATA.version,
+      acceptanceSource: "HOST_APPLICATION",
+      ipAddress: ip,
+      userAgent,
+    });
 
     // Check payout account state
     const payout = serverDb.payoutAccounts.get(user.id);
@@ -119,8 +149,8 @@ export async function POST(request: NextRequest) {
       id: `sec-${Date.now()}`,
       userId: user.id,
       eventType: "HOST_APPLICATION_SUBMITTED",
-      ipAddress: request.headers.get("x-forwarded-for") || "127.0.0.1",
-      userAgent: request.headers.get("user-agent") || "Web Browser",
+      ipAddress: ip,
+      userAgent,
       createdAt: new Date().toISOString(),
     });
 
@@ -134,3 +164,4 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+

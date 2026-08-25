@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { serverDb } from "@/lib/server-state";
+import { verifyAndConsumePasswordResetToken } from "@/lib/server-state";
 
 export const dynamic = "force-dynamic";
 
@@ -8,10 +8,18 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const token = body.token;
     const newPassword = body.password;
+    const confirmPassword = body.confirmPassword;
 
     if (!token || !newPassword) {
       return NextResponse.json(
         { message: "Token and password are required", code: "VALIDATION_ERROR" },
+        { status: 400 },
+      );
+    }
+
+    if (confirmPassword && newPassword !== confirmPassword) {
+      return NextResponse.json(
+        { message: "Passwords do not match.", code: "PASSWORD_MISMATCH" },
         { status: 400 },
       );
     }
@@ -23,12 +31,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Update demo or target user
-    const demo = serverDb.users.get("user-demo");
-    if (demo) {
-      demo.passwordHash = newPassword;
-      demo.updatedAt = new Date().toISOString();
-      serverDb.users.set(demo.id, demo);
+    const result = verifyAndConsumePasswordResetToken(token, newPassword);
+    if (!result.success) {
+      return NextResponse.json(
+        { message: result.message || "Invalid or expired reset token.", code: "INVALID_TOKEN" },
+        { status: 400 },
+      );
     }
 
     return NextResponse.json({

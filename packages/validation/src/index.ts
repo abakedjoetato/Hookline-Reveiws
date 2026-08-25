@@ -153,31 +153,67 @@ export function validateFrontendEnv(
 // 3. User & Auth Payloads Input Schemas
 // ============================================================================
 
-export const signUpSchema = z.object({
+export const passwordSchema = z
+  .string()
+  .min(8, "Password must be at least 8 characters")
+  .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
+  .regex(/[a-z]/, "Password must contain at least one lowercase letter")
+  .regex(/[0-9]/, "Password must contain at least one number")
+  .regex(
+    /[^A-Za-z0-9]/,
+    "Password must contain at least one special character",
+  );
+
+export const usernameSchema = z
+  .string()
+  .min(3, "Username must be at least 3 characters")
+  .max(30, "Username cannot exceed 30 characters")
+  .regex(
+    /^[a-zA-Z0-9_-]+$/,
+    "Username can only contain alphanumeric characters, underscores, and hyphens",
+  );
+
+export const displayNameSchema = z
+  .string()
+  .min(2, "Display name must be at least 2 characters")
+  .max(50, "Display name cannot exceed 50 characters");
+
+export const baseSignUpSchema = z.object({
   email: z.string().email("Invalid email address"),
-  username: z
-    .string()
-    .min(3, "Username must be at least 3 characters")
-    .max(30, "Username cannot exceed 30 characters")
-    .regex(
-      /^[a-zA-Z0-9_-]+$/,
-      "Username can only contain alphanumeric characters, underscores, and hyphens",
-    ),
-  displayName: z
-    .string()
-    .min(2, "Display name must be at least 2 characters")
-    .max(50, "Display name cannot exceed 50 characters"),
-  password: z
-    .string()
-    .min(8, "Password must be at least 8 characters")
-    .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
-    .regex(/[a-z]/, "Password must contain at least one lowercase letter")
-    .regex(/[0-9]/, "Password must contain at least one number")
-    .regex(
-      /[^A-Za-z0-9]/,
-      "Password must contain at least one special character",
-    ),
+  username: usernameSchema,
+  displayName: displayNameSchema,
+  password: passwordSchema,
+  passwordConfirmation: z.string().min(1, "Password confirmation is required"),
+  acceptTerms: z
+    .boolean({
+      required_error: "You must accept the Terms of Service to create an account",
+      invalid_type_error: "Terms acceptance must be a boolean",
+    })
+    .refine((val) => val === true, {
+      message: "You must accept the Terms of Service and acknowledge the Privacy Policy to create an account",
+    }),
+  termsVersion: z.string().optional(),
 });
+
+export const signUpSchema = baseSignUpSchema.refine(
+  (data) => data.password === data.passwordConfirmation,
+  {
+    message: "Passwords do not match",
+    path: ["passwordConfirmation"],
+  },
+);
+
+export function validatePasswordConfirmation(
+  password: string,
+  confirmation: string,
+): boolean {
+  return (
+    typeof password === "string" &&
+    typeof confirmation === "string" &&
+    password.length > 0 &&
+    password === confirmation
+  );
+}
 
 export type SignUpInput = z.infer<typeof signUpSchema>;
 
@@ -196,10 +232,24 @@ export type PasswordResetRequestInput = z.infer<
   typeof passwordResetRequestSchema
 >;
 
-export const passwordResetConfirmSchema = z.object({
-  token: z.string().min(1, "Reset token is required"),
-  password: signUpSchema.shape.password,
-});
+export const passwordResetConfirmSchema = z
+  .object({
+    token: z.string().min(1, "Reset token is required"),
+    password: passwordSchema,
+    passwordConfirmation: z
+      .string()
+      .min(1, "Password confirmation is required")
+      .optional(),
+  })
+  .refine(
+    (data) =>
+      !data.passwordConfirmation ||
+      data.password === data.passwordConfirmation,
+    {
+      message: "Passwords do not match",
+      path: ["passwordConfirmation"],
+    },
+  );
 
 export type PasswordResetConfirmInput = z.infer<
   typeof passwordResetConfirmSchema
@@ -215,13 +265,10 @@ export type EmailVerificationConfirmInput = z.infer<
 
 export const adminInvitationAcceptSchema = z.object({
   token: z.string().min(1, "Invitation token is required"),
-  // Include standard registration fields since new users might accept invites.
-  // Existing users accepting an invite might not need these, but we can make them optional or handle via logic.
-  // For safety, we can define a base token schema and extend it.
   email: z.string().email("Invalid email address").optional(),
-  username: signUpSchema.shape.username.optional(),
-  displayName: signUpSchema.shape.displayName.optional(),
-  password: signUpSchema.shape.password.optional(),
+  username: usernameSchema.optional(),
+  displayName: displayNameSchema.optional(),
+  password: passwordSchema.optional(),
 });
 
 export type AdminInvitationAcceptInput = z.infer<
@@ -448,7 +495,7 @@ export type UpdateUserProfileInput = z.infer<typeof updateUserProfileSchema>;
 
 export const changePasswordSchema = z.object({
   currentPassword: z.string().optional(),
-  newPassword: signUpSchema.shape.password,
+  newPassword: passwordSchema,
 });
 
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
@@ -512,11 +559,41 @@ export const createHostApplicationSchema = z.object({
   biography: z.string().max(1000).optional(),
   acceptedGenres: z.string().max(300).optional(),
   exampleLivestreamLinks: z.string().max(500).optional(),
+  acceptHostTerms: z
+    .boolean({
+      required_error: "You must accept the Host Terms and Broadcast Responsibility rules",
+      invalid_type_error: "Host Terms acceptance must be a boolean",
+    })
+    .refine((val) => val === true, {
+      message: "You must accept the Host Terms and Broadcast Responsibility rules",
+    }),
+  termsVersion: z.string().optional(),
 });
 
 export type CreateHostApplicationInput = z.infer<
   typeof createHostApplicationSchema
 >;
+
+// ============================================================================
+// P. Legal Acceptance Validation
+// ============================================================================
+
+export const recordLegalAcceptanceSchema = z.object({
+  documentSlug: z.string().min(1).default("terms"),
+  version: z.string().min(1, "Terms version string is required"),
+  acceptanceSource: z.enum([
+    "SIGNUP",
+    "HOST_APPLICATION",
+    "HOST_GO_LIVE",
+    "TERMS_UPDATE",
+    "STATION_ACTIVATION",
+  ]),
+});
+
+export type RecordLegalAcceptanceInput = z.infer<
+  typeof recordLegalAcceptanceSchema
+>;
+
 
 export const updateStationSchema = z.object({
   description: z.string().max(1000).optional().nullable(),

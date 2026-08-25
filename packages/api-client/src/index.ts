@@ -312,11 +312,25 @@ export class ApiClient {
       username: string;
       displayName: string;
       password: string;
+      passwordConfirmation?: string;
+      confirmPassword?: string;
+      acceptTerms?: boolean;
+      termsVersion?: string;
     }) =>
-      this.post<{ success: boolean; message?: string; user?: import("@platform/types").UserProfile }>(
-        "/auth/register",
-        data,
-      ),
+      this.post<{
+        success: boolean;
+        message?: string;
+        user?: import("@platform/types").UserProfile;
+      }>("/auth/register", {
+        email: data.email,
+        username: data.username,
+        displayName: data.displayName,
+        password: data.password,
+        passwordConfirmation:
+          data.passwordConfirmation || data.confirmPassword || "",
+        acceptTerms: data.acceptTerms ?? true,
+        termsVersion: data.termsVersion,
+      }),
     logout: () => this.post<{ success: boolean }>("/auth/logout"),
     verifyEmail: (data: { token: string }) =>
       this.post<{ success: boolean; message?: string }>("/auth/verify-email", data),
@@ -450,6 +464,21 @@ export class ApiClient {
         "/admin/platform-settings",
         data,
       ),
+  };
+
+  // Legal & Terms of Service API
+  public legal = {
+    getStatus: () =>
+      this.get<import("@platform/types").LegalAcceptanceStatusResponse>(
+        "/legal/status",
+      ),
+    recordAcceptance: (data: import("@platform/types").RecordLegalAcceptanceDto) =>
+      this.post<{
+        success: boolean;
+        record: import("@platform/types").LegalAcceptanceRecord;
+        currentVersion: string;
+        isAccepted: boolean;
+      }>("/legal/accept", data),
   };
 }
 
