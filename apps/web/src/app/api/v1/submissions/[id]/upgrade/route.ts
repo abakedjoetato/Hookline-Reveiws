@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { serverDb } from "@/lib/server-state";
+import { serverDb, getAuthenticatedUser } from "@/lib/server-state";
 import {
   UpgradeSubmissionDto,
   UpgradeSubmissionResponse,
+  QueueStatus,
+  LiveSessionStatus,
 } from "@platform/types";
 
 export const dynamic = "force-dynamic";
@@ -11,6 +13,9 @@ export async function POST(
   req: NextRequest,
   { params }: { params: { id: string } },
 ) {
+  const cookieHeader = req.headers.get("cookie");
+  const user = getAuthenticatedUser(cookieHeader) || serverDb.users.get("user-demo");
+
   const submission = serverDb.submissions.get(params.id);
   if (!submission) {
     return NextResponse.json(
@@ -19,8 +24,39 @@ export async function POST(
     );
   }
 
-  const body: UpgradeSubmissionDto = await req.json();
+  // Authorization check
+  if (user && submission.submittingUserId !== user.id) {
+    return NextResponse.json(
+      { message: "Forbidden: You do not own this submission", code: "FORBIDDEN" },
+      { status: 403 },
+    );
+  }
+
+  // Only non-priority submissions can be upgraded
+  if (submission.isPriority) {
+    return NextResponse.json(
+      { message: "Submission is already a priority submission", code: "ALREADY_PRIORITY" },
+      { status: 409 },
+    );
+  }
+
+  // Only QUEUED submissions can be upgraded (not playing, completed, or skipped)
+  if (submission.currentQueueStatus !== QueueStatus.QUEUED) {
+    return NextResponse.json(
+      { message: "Only queued submissions can be upgraded to Priority", code: "INVALID_STATUS" },
+      { status: 409 },
+    );
+  }
+
   const session = serverDb.sessions.get(submission.liveSessionId);
+  if (!session || session.status !== LiveSessionStatus.LIVE) {
+    return NextResponse.json(
+      { message: "Live session is not currently active", code: "SESSION_NOT_LIVE" },
+      { status: 409 },
+    );
+  }
+
+  const body: UpgradeSubmissionDto = await req.json();
 
   const selectedTier = session?.tiers?.find(
     (t) => t.tierSnapshotId === body.tierSnapshotId,

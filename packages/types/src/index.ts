@@ -331,6 +331,8 @@ export interface PublicLiveSessionDetail {
     submitterName?: string;
     audioUrl?: string;
     artworkUrl?: string | null;
+    spotifyUrl?: string | null;
+    artistIdentityId?: string | null;
   } | null;
 }
 
@@ -347,6 +349,9 @@ export interface PublicQueueEntry {
   artistName: string;
   durationSeconds: number;
   submittedAt: Date | string;
+  spotifyUrl?: string | null;
+  artistIdentityId?: string | null;
+  submitterName?: string;
 }
 
 export interface UserSubmissionSummary {
@@ -363,6 +368,8 @@ export interface UserSubmissionSummary {
   tierColorSlot: string | null;
   currentQueueStatus: QueueStatus;
   submittedAt: Date | string;
+  spotifyUrl?: string | null;
+  artistIdentityId?: string | null;
   queueEntry: {
     id: string;
     status: QueueStatus;
@@ -402,10 +409,59 @@ export interface SubmissionEligibilityResponse {
   priorityTiers: TierEligibilityInfo[];
 }
 
+// ============================================================================
+// Artist Identity Types
+// ============================================================================
+
+export interface ArtistIdentity {
+  id: string;
+  userId: string;
+  artistName: string;
+  normalizedArtistName?: string;
+  spotifyUrl?: string | null;
+  biography?: string | null;
+  profileImageKey?: string | null;
+  isDefault?: boolean;
+  isPublic?: boolean;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+  deletedAt?: Date | string | null;
+}
+
+export interface ArtistIdentitySummary {
+  id: string;
+  userId: string;
+  artistName: string;
+  spotifyUrl?: string | null;
+  biography?: string | null;
+  profileImageKey?: string | null;
+  isDefault: boolean;
+  trackCount?: number;
+  submissionCount?: number;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+}
+
+export interface CreateArtistIdentityDto {
+  artistName: string;
+  spotifyUrl?: string | null;
+  biography?: string | null;
+  profileImageKey?: string | null;
+  isDefault?: boolean;
+}
+
+export interface UpdateArtistIdentityDto {
+  artistName?: string;
+  spotifyUrl?: string | null;
+  biography?: string | null;
+  profileImageKey?: string | null;
+  isDefault?: boolean;
+}
+
 export interface TrackSummary {
   id: string;
   userId: string;
-  artistIdentityId: string;
+  artistIdentityId?: string | null;
   songName: string;
   albumName?: string | null;
   explicitContent: boolean;
@@ -416,7 +472,8 @@ export interface TrackSummary {
   artistIdentity?: {
     id: string;
     artistName: string;
-  };
+    spotifyUrl?: string | null;
+  } | null;
   createdAt: Date | string;
   updatedAt: Date | string;
 }
@@ -424,6 +481,8 @@ export interface TrackSummary {
 export interface CreateTrackUploadUrlDto {
   artistName: string;
   songName: string;
+  artistIdentityId?: string | null;
+  spotifyUrl?: string | null;
   albumName?: string;
   explicitContent?: boolean;
   bpm?: number;
@@ -442,7 +501,7 @@ export interface CreateUploadUrlResponse {
 
 export interface CreateSubmissionDto {
   sourceTrackId: string;
-  artistIdentityId: string;
+  artistIdentityId?: string | null;
   tierSnapshotId?: string;
 }
 
@@ -451,7 +510,7 @@ export interface CreateSubmissionResponse {
     id: string;
     submittingUserId: string;
     sourceTrackId: string;
-    artistIdentityId: string;
+    artistIdentityId?: string | null;
     liveSessionId: string;
     isPriority: boolean;
     priorityTierSnapshotId?: string | null;
@@ -478,7 +537,7 @@ export interface UpgradeSubmissionResponse {
     id: string;
     submittingUserId: string;
     sourceTrackId: string;
-    artistIdentityId: string;
+    artistIdentityId?: string | null;
     liveSessionId: string;
     isPriority: boolean;
     priorityTierSnapshotId?: string | null;
@@ -566,6 +625,7 @@ export interface UserProfile {
   avatarUrl?: string | null;
   country?: string | null;
   websiteUrl?: string | null;
+  spotifyProfileUrl?: string | null;
   accountStatus: AccountStatus;
   emailVerified: boolean;
   roles: Role[];
@@ -595,6 +655,7 @@ export interface UpdateUserProfileDto {
   avatarUrl?: string;
   country?: string;
   websiteUrl?: string;
+  spotifyProfileUrl?: string;
 }
 
 export interface ChangePasswordDto {
@@ -813,6 +874,46 @@ export interface GoLiveDto {
   paidSubmissionsOpen?: boolean;
 }
 
+export interface StationPriorityTier {
+  id: string;
+  stationId: string;
+  name: string;
+  description?: string | null;
+  priceCents: number;
+  priorityRank: number;
+  colorSlot: string;
+  isActive: boolean;
+  isUpgradeEnabled: boolean;
+  sortOrder: number;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+}
+
+export interface CreateStationPriorityTierDto {
+  name: string;
+  description?: string | null;
+  priceCents: number;
+  priorityRank: number;
+  colorSlot: string;
+  isActive?: boolean;
+  isUpgradeEnabled?: boolean;
+}
+
+export interface UpdateStationPriorityTierDto {
+  name?: string;
+  description?: string | null;
+  priceCents?: number;
+  priorityRank?: number;
+  colorSlot?: string;
+  isActive?: boolean;
+  isUpgradeEnabled?: boolean;
+  sortOrder?: number;
+}
+
+export interface ReorderStationPriorityTiersDto {
+  tierIds: string[];
+}
+
 // ============================================================================
 // Legal & Terms of Service Models
 // ============================================================================
@@ -862,5 +963,500 @@ export interface LegalAcceptanceStatusResponse {
   lastAcceptedAt?: string | null;
   history: LegalAcceptanceRecord[];
 }
+
+// ============================================================================
+// Weekly Top 3 & Playback Analytics Models
+// ============================================================================
+
+export interface WeeklyTop3Period {
+  start: string; // ISO UTC string corresponding to Saturday 00:00 America/New_York
+  end: string;   // ISO UTC string corresponding to next Saturday 00:00 America/New_York
+  timeZone: "America/New_York";
+  formattedRange: string; // e.g. "Aug 29, 2026 – Sep 5, 2026"
+  periodKey: string;     // e.g. "2026-08-29"
+}
+
+export interface WeeklyTop3Item {
+  rank: number; // 1, 2, or 3
+  trackId: string;
+  songName: string;
+  artistName: string;
+  qualifyingPlayCount: number;
+  lastQualifyingPlayAt?: string; // ISO string
+  spotifyUrl?: string | null;
+  artistIdentityId?: string | null;
+}
+
+export interface WeeklyTop3Response {
+  stationId: string;
+  stationName: string;
+  hostName: string;
+  period: WeeklyTop3Period;
+  items: WeeklyTop3Item[];
+}
+
+// ============================================================================
+// Operational Admin Layer Types & Contracts
+// ============================================================================
+
+export interface AdminOperationalAlert {
+  id: string;
+  severity: "CRITICAL" | "WARNING" | "INFO";
+  title: string;
+  description: string;
+  entityType?: string;
+  entityId?: string;
+  createdAt: string;
+  suggestedAction?: string;
+}
+
+export interface AdminRecentQueueActivity {
+  id: string;
+  queueEntryId: string;
+  liveSessionId: string;
+  actingUserId: string;
+  actorName: string;
+  eventType: string;
+  songName: string;
+  artistName: string;
+  previousState?: string | null;
+  newState?: string | null;
+  createdAt: string;
+}
+
+export interface AdminDashboardMetrics {
+  totalUsers: number;
+  activeHosts: number;
+  pendingHostApplications: number;
+  approvedHosts: number;
+  suspendedHosts: number;
+  liveStations: number;
+  activeLiveSessions: number;
+  submissionsToday: number;
+  submissionsThisWeek: number;
+  paidSubmissions: number;
+  freeLineSubmissions: number;
+  grossPriorityRevenueCents: number;
+  platformRevenueCents: number;
+  hostAllocationsCents: number;
+  failedPaymentsCount: number;
+  pendingPaymentsCount: number;
+  alerts: AdminOperationalAlert[];
+  recentQueueActivity: AdminRecentQueueActivity[];
+}
+
+export interface AdminSubmissionFilterDto {
+  search?: string;
+  submissionId?: string;
+  username?: string;
+  artistName?: string;
+  songName?: string;
+  stationId?: string;
+  hostId?: string;
+  liveSessionId?: string;
+  paymentStatus?: string;
+  queueStatus?: string;
+  isPriority?: boolean;
+  dateFrom?: string;
+  dateTo?: string;
+  page?: number;
+  limit?: number;
+}
+
+export interface AdminSubmissionSummary {
+  id: string;
+  submittingUserId: string;
+  submittingUsername: string;
+  submittingEmail: string;
+  artistIdentityId?: string | null;
+  artistName: string;
+  songName: string;
+  durationSeconds: number;
+  explicitContent: boolean;
+  stationId: string;
+  stationName: string;
+  hostId: string;
+  hostUsername: string;
+  liveSessionId: string;
+  isPriority: boolean;
+  tierName?: string | null;
+  priorityRank: number;
+  queueStatus: string;
+  paymentStatus?: string | null;
+  grossAmountCents?: number | null;
+  hostAllocationCents?: number | null;
+  platformAllocationCents?: number | null;
+  submittedAt: string;
+}
+
+export interface AdminSubmissionDetail extends AdminSubmissionSummary {
+  trackSnapshot: {
+    albumName?: string | null;
+    sourceType: string;
+    playbackCapability: string;
+    mediaVersionId?: string | null;
+    artworkS3Key?: string | null;
+    audioFileUrl?: string | null;
+  };
+  paymentDetails?: {
+    id: string;
+    providerPaymentId?: string | null;
+    currency: string;
+    status: string;
+    settledAt?: string | null;
+    allocations?: {
+      hostAmountCents: number;
+      platformGrossAmountCents: number;
+      stripeFeeAmountCents?: number | null;
+      platformNetAmountCents?: number | null;
+      stripeConnectedAccountDest: string;
+    }[];
+  } | null;
+  queueEntry?: {
+    id: string;
+    sortOrder: number;
+    status: string;
+  } | null;
+  lifecycleHistory: {
+    id: string;
+    eventType: string;
+    actingUserId: string;
+    actorName?: string;
+    previousState?: string | null;
+    newState?: string | null;
+    metadata?: any;
+    createdAt: string;
+  }[];
+  auditLogs: AdminAuditLogRecord[];
+}
+
+export interface AdminSubmissionActionDto {
+  action: "REMOVE" | "RESTRICT" | "INVESTIGATE_FLAG";
+  reason: string;
+  adminNotes?: string;
+}
+
+export interface AdminUserFilterDto {
+  search?: string;
+  role?: string;
+  accountStatus?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  page?: number;
+  limit?: number;
+}
+
+export interface AdminUserSummary {
+  id: string;
+  email: string;
+  username: string;
+  displayName: string;
+  roles: Role[];
+  accountStatus: AccountStatus;
+  emailVerified: boolean;
+  isHost: boolean;
+  isAdmin: boolean;
+  submissionCount: number;
+  artistIdentityCount: number;
+  createdAt: string;
+  lastLoginAt?: string | null;
+}
+
+export interface AdminUserDetail extends AdminUserSummary {
+  bio?: string | null;
+  country?: string | null;
+  artistIdentities: {
+    id: string;
+    artistName: string;
+    spotifyUrl?: string | null;
+    isDefault: boolean;
+    createdAt: string;
+  }[];
+  recentSubmissions: {
+    id: string;
+    songName: string;
+    artistName: string;
+    stationName: string;
+    status: string;
+    isPriority: boolean;
+    submittedAt: string;
+  }[];
+  activeSessions: {
+    id: string;
+    ipAddress?: string;
+    userAgent?: string;
+    createdAt: string;
+    lastSeenAt?: string;
+  }[];
+  securityLogs: {
+    id: string;
+    eventType: string;
+    ipAddress?: string;
+    createdAt: string;
+  }[];
+}
+
+export interface AdminUserActionDto {
+  action: "SUSPEND" | "UNSUSPEND" | "REVOKE_SESSIONS";
+  reason: string;
+}
+
+export interface AdminHostFilterDto {
+  search?: string;
+  status?: string;
+  stripeReadiness?: "READY" | "INCOMPLETE";
+  page?: number;
+  limit?: number;
+}
+
+export interface AdminHostSummary {
+  id: string;
+  userId: string;
+  username: string;
+  displayName: string;
+  email: string;
+  stationId?: string | null;
+  stationName?: string | null;
+  stationHostname?: string | null;
+  applicationStatus: string;
+  isSuspended: boolean;
+  isLive: boolean;
+  stripeConnect: {
+    chargesEnabled: boolean;
+    payoutsEnabled: boolean;
+    detailsSubmitted: boolean;
+    providerAccountId?: string | null;
+  };
+  totalEarningsCents: number;
+  createdAt: string;
+}
+
+export interface AdminStationSummary {
+  id: string;
+  stationName: string;
+  hostname: string;
+  hostId: string;
+  hostUsername: string;
+  hostDisplayName: string;
+  status: string;
+  isLive: boolean;
+  currentLiveSessionId?: string | null;
+  activeQueueSize: number;
+  priorityQueueSize: number;
+  freeQueueSize: number;
+  submissionsEnabled: boolean;
+  publicUrl: string;
+  createdAt: string;
+}
+
+export interface AdminLiveSessionSummary {
+  id: string;
+  stationId: string;
+  stationName: string;
+  hostname: string;
+  hostId: string;
+  hostUsername: string;
+  status: string;
+  startedAt: string;
+  endedAt?: string | null;
+  queueRevision: number;
+  totalSubmissions: number;
+  activeQueueCount: number;
+  currentPlayingTrack?: string | null;
+  currentPlayingArtist?: string | null;
+  lastPlaybackActivityAt?: string | null;
+}
+
+export interface AdminLedgerSummary {
+  grossVolumeCents: number;
+  platformGrossCents: number;
+  platformNetCents: number;
+  hostAllocationsCents: number;
+  stripeFeesCents: number;
+  refundedVolumeCents: number;
+  settledPaymentsCount: number;
+  failedPaymentsCount: number;
+  pendingPaymentsCount: number;
+}
+
+export interface AdminLedgerEntryDetail {
+  id: string;
+  transactionId?: string;
+  paymentId?: string;
+  submissionId?: string;
+  songName?: string;
+  artistName?: string;
+  stationName?: string;
+  hostUsername?: string;
+  systemSource: string;
+  description: string;
+  grossAmountCents: number;
+  hostAmountCents: number;
+  platformAmountCents: number;
+  stripeFeeAmountCents?: number | null;
+  currency: string;
+  isPosted: boolean;
+  effectiveAt: string;
+}
+
+export interface AdminCompensatingEntryDto {
+  paymentId?: string;
+  submissionId?: string;
+  description: string;
+  hostAmountCents: number;
+  platformAmountCents: number;
+  reason: string;
+}
+
+export interface AdminPaymentFilterDto {
+  search?: string;
+  submissionId?: string;
+  status?: string;
+  payingUserId?: string;
+  hostId?: string;
+  stationId?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  page?: number;
+  limit?: number;
+}
+
+export interface AdminPaymentSummary {
+  id: string;
+  submissionId?: string | null;
+  providerPaymentId?: string | null;
+  payingUserId: string;
+  payingUsername: string;
+  stationName?: string | null;
+  hostUsername?: string | null;
+  songName?: string | null;
+  grossAmountCents: number;
+  hostAllocationCents: number;
+  platformAllocationCents: number;
+  currency: string;
+  status: string;
+  isPriority: boolean;
+  tierName?: string | null;
+  settledAt?: string | null;
+  createdAt: string;
+}
+
+export interface AdminDiscrepancyItem {
+  id: string;
+  type:
+    | "PAYMENT_SETTLED_NO_ALLOCATION"
+    | "PAYMENT_SETTLED_NO_QUEUE_ENTRY"
+    | "QUEUE_PRIORITY_NO_PAYMENT"
+    | "EXPIRED_ACTIVE_RESERVATION"
+    | "STUCK_PENDING_PAYMENT"
+    | "DUPLICATE_PAYMENT_SUBMISSION";
+  severity: "CRITICAL" | "WARNING" | "INFO";
+  title: string;
+  details: string;
+  paymentId?: string;
+  submissionId?: string;
+  reservationId?: string;
+  detectedAt: string;
+  repairable: boolean;
+}
+
+export interface AdminReconciliationReport {
+  scannedAt: string;
+  totalChecked: number;
+  discrepanciesCount: number;
+  criticalCount: number;
+  discrepancies: AdminDiscrepancyItem[];
+}
+
+export interface AdminRepairDto {
+  discrepancyType: string;
+  targetId: string;
+  reason: string;
+}
+
+export interface AdminRepairResult {
+  success: boolean;
+  message: string;
+  targetId: string;
+  repairedAt: string;
+}
+
+export interface AdminAuditLogFilterDto {
+  search?: string;
+  actingAdminUserId?: string;
+  actionType?: string;
+  targetEntityType?: string;
+  targetEntityId?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  page?: number;
+  limit?: number;
+}
+
+export interface AdminAuditLogRecord {
+  id: string;
+  actingAdminUserId: string;
+  actingAdminUsername: string;
+  actingAdminRole: string;
+  actionType: string;
+  targetEntityType: string;
+  targetEntityId: string;
+  beforeState?: any;
+  afterState?: any;
+  reason: string;
+  ipAddress?: string | null;
+  userAgent?: string | null;
+  createdAt: string;
+}
+
+export interface AdminMediaFilterDto {
+  search?: string;
+  ownerUserId?: string;
+  storageStatus?: string;
+  isPlayed?: boolean;
+  dateFrom?: string;
+  dateTo?: string;
+  page?: number;
+  limit?: number;
+}
+
+export interface AdminMediaSummary {
+  id: string;
+  trackId: string;
+  songName: string;
+  artistName: string;
+  ownerUserId: string;
+  ownerUsername: string;
+  storageStatus: string;
+  playbackCapability: string;
+  durationSeconds: number;
+  fileSizeBytes?: number | null;
+  activeQueueCount: number;
+  submissionCount: number;
+  lastPlayedAt?: string | null;
+  createdAt: string;
+}
+
+export interface AdminStorageCleanupCandidate {
+  trackId: string;
+  songName: string;
+  ownerUsername: string;
+  storageStatus: string;
+  reason: string;
+  canSafelyDelete: boolean;
+  activeQueueCount: number;
+}
+
+export interface AdminStorageCleanupReport {
+  generatedAt: string;
+  totalCandidateTracks: number;
+  eligibleForPurgeCount: number;
+  blockedByActiveQueueCount: number;
+  candidates: AdminStorageCleanupCandidate[];
+}
+
+export type AdminExportType = "submissions" | "payments" | "ledger" | "hosts" | "stations";
+
+
 
 

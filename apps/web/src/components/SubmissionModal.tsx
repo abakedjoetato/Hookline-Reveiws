@@ -13,6 +13,7 @@ import {
   TierEligibilityInfo,
   TrackSummary,
   CreateSubmissionResponse,
+  ArtistIdentitySummary,
 } from "@platform/types";
 import Link from "next/link";
 import {
@@ -25,6 +26,9 @@ import {
   CreditCard,
   Loader2,
   Info,
+  User,
+  Plus,
+  ExternalLink,
 } from "lucide-react";
 import { loadStripe, Stripe } from "@stripe/stripe-js";
 import {
@@ -36,6 +40,18 @@ import {
 import { api } from "../lib/api";
 import { TrackItem } from "./TrackItem";
 import { TrackUploader } from "./TrackUploader";
+import { validateSpotifyUrl } from "@platform/validation";
+
+const SpotifyIcon = ({ className = "h-3.5 w-3.5" }: { className?: string }) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="currentColor"
+    className={className}
+    aria-hidden="true"
+  >
+    <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.503 17.308c-.215.353-.676.467-1.029.252-2.824-1.725-6.379-2.115-10.567-1.158-.403.092-.808-.16-.9-.562-.093-.404.159-.808.562-.901 4.585-1.048 8.52-.607 11.682 1.34.353.216.467.676.252 1.029zm1.47-3.262c-.27.44-.848.58-1.288.31-3.232-1.986-8.159-2.56-11.982-1.398-.497.151-1.03-.131-1.181-.628-.152-.497.131-1.03.628-1.181 4.372-1.327 9.803-.687 13.513 1.609.44.27.58.848.31 1.288zm.126-3.41c-3.876-2.302-10.27-2.514-13.985-1.386-.594.18-1.226-.154-1.407-.748-.18-.593.154-1.226.748-1.407 4.273-1.298 11.332-1.05 15.794 1.598.534.317.708 1.01.391 1.544-.318.533-1.011.708-1.541.399z" />
+  </svg>
+);
 
 const stripePromise = loadStripe(
   process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ||
@@ -75,6 +91,15 @@ const StripePaymentForm: React.FC<{
     }
 
     try {
+      if (clientSecret.startsWith("pi_mock_")) {
+        // Preview/Development simulated payment intent
+        setTimeout(() => {
+          setIsProcessing(false);
+          onSuccess();
+        }, 600);
+        return;
+      }
+
       const { error, paymentIntent } = await stripe.confirmCardPayment(
         clientSecret,
         {
@@ -195,12 +220,21 @@ export const SubmissionModal: React.FC<SubmissionModalProps> = ({
   const [isFreeSubmission, setIsFreeSubmission] = React.useState(true);
   const [clientSecret, setClientSecret] = React.useState<string | null>(null);
 
+  // Artist Identity State
+  const [identities, setIdentities] = React.useState<ArtistIdentitySummary[]>([]);
+  const [selectedArtistId, setSelectedArtistId] = React.useState<string>("none");
+  const [showAddArtist, setShowAddArtist] = React.useState(false);
+  const [newArtistName, setNewArtistName] = React.useState("");
+  const [newSpotifyUrl, setNewSpotifyUrl] = React.useState("");
+  const [isCreatingArtist, setIsCreatingArtist] = React.useState(false);
+  const [artistError, setArtistError] = React.useState<string | null>(null);
+
   const [isLoading, setIsLoading] = React.useState(true);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [showUploader, setShowUploader] = React.useState(false);
 
-  // Fetch eligibility and tracks on open
+  // Fetch eligibility, tracks, and user artist identities on open
   React.useEffect(() => {
     if (!isOpen) {
       // Reset modal state
@@ -211,6 +245,10 @@ export const SubmissionModal: React.FC<SubmissionModalProps> = ({
       setClientSecret(null);
       setError(null);
       setShowUploader(false);
+      setShowAddArtist(false);
+      setNewArtistName("");
+      setNewSpotifyUrl("");
+      setArtistError(null);
       return;
     }
 
@@ -218,12 +256,14 @@ export const SubmissionModal: React.FC<SubmissionModalProps> = ({
       setIsLoading(true);
       setError(null);
       try {
-        const [eligibilityData, trackList] = await Promise.all([
+        const [eligibilityData, trackList, artistList] = await Promise.all([
           api.liveSessions.getSubmissionEligibility(sessionId),
           api.tracks.list(),
+          api.artists.list().catch(() => [] as ArtistIdentitySummary[]),
         ]);
         setEligibility(eligibilityData);
         setTracks(trackList.filter((t) => t.processingState === "READY"));
+        setIdentities(artistList || []);
 
         // Default selection
         if (eligibilityData.free?.available) {
@@ -251,16 +291,66 @@ export const SubmissionModal: React.FC<SubmissionModalProps> = ({
     fetchData();
   }, [isOpen, sessionId]);
 
+  const handleTrackSelect = (track: TrackSummary) => {
+    setSelectedTrack(track);
+    if (track.artistIdentityId && identities.some((i) => i.id === track.artistIdentityId)) {
+      setSelectedArtistId(track.artistIdentityId);
+    } else {
+      const defaultId = identities.find((i) => i.isDefault)?.id;
+      setSelectedArtistId(defaultId || (identities.length > 0 ? identities[0].id : "none"));
+    }
+  };
+
   const handleTrackUploadSuccess = async () => {
     setShowUploader(false);
     try {
-      const trackList = await api.tracks.list();
+      const [trackList, artistList] = await Promise.all([
+        api.tracks.list(),
+        api.artists.list().catch(() => [] as ArtistIdentitySummary[]),
+      ]);
       setTracks(trackList.filter((t) => t.processingState === "READY"));
+      setIdentities(artistList || []);
       if (trackList.length > 0) {
-        setSelectedTrack(trackList[0]);
+        handleTrackSelect(trackList[0]);
       }
     } catch (err) {
       console.error("Failed to refresh tracks", err);
+    }
+  };
+
+  const handleCreateNewArtistInline = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newArtistName.trim()) {
+      setArtistError("Artist name is required.");
+      return;
+    }
+    if (newSpotifyUrl.trim()) {
+      const check = validateSpotifyUrl(newSpotifyUrl);
+      if (!check.valid) {
+        setArtistError(check.error || "Invalid Spotify URL.");
+        return;
+      }
+    }
+
+    setIsCreatingArtist(true);
+    setArtistError(null);
+    try {
+      const created = await api.artists.create({
+        artistName: newArtistName.trim(),
+        spotifyUrl: newSpotifyUrl.trim() || undefined,
+        isDefault: identities.length === 0,
+      });
+
+      const updatedIdentities = await api.artists.list();
+      setIdentities(updatedIdentities);
+      setSelectedArtistId(created.id);
+      setShowAddArtist(false);
+      setNewArtistName("");
+      setNewSpotifyUrl("");
+    } catch (err: any) {
+      setArtistError(err?.message || "Failed to create artist identity.");
+    } finally {
+      setIsCreatingArtist(false);
     }
   };
 
@@ -288,6 +378,9 @@ export const SubmissionModal: React.FC<SubmissionModalProps> = ({
         ? crypto.randomUUID()
         : `sub_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 
+    const effectiveArtistIdentityId =
+      selectedArtistId === "none" ? null : selectedArtistId;
+
     try {
       if (isFreeSubmission) {
         // Free Line Submission
@@ -295,7 +388,7 @@ export const SubmissionModal: React.FC<SubmissionModalProps> = ({
           sessionId,
           {
             sourceTrackId: selectedTrack.id,
-            artistIdentityId: selectedTrack.artistIdentityId,
+            artistIdentityId: effectiveArtistIdentityId,
           },
           idempotencyKey,
         );
@@ -311,7 +404,7 @@ export const SubmissionModal: React.FC<SubmissionModalProps> = ({
           sessionId,
           {
             sourceTrackId: selectedTrack.id,
-            artistIdentityId: selectedTrack.artistIdentityId,
+            artistIdentityId: effectiveArtistIdentityId,
             tierSnapshotId: selectedTier.tierSnapshotId,
           },
           idempotencyKey,
@@ -336,6 +429,11 @@ export const SubmissionModal: React.FC<SubmissionModalProps> = ({
   };
 
   const formatCents = (cents: number) => `$${(cents / 100).toFixed(2)}`;
+
+  const currentSelectedArtist =
+    selectedArtistId === "none"
+      ? null
+      : identities.find((i) => i.id === selectedArtistId);
 
   return (
     <Dialog
@@ -405,7 +503,7 @@ export const SubmissionModal: React.FC<SubmissionModalProps> = ({
                   {selectedTrack?.songName}
                 </span>
                 <span className="text-zinc-400">
-                  • {selectedTrack?.artistIdentity?.artistName}
+                  • {selectedTrack?.artistIdentity?.artistName || "Track"}
                 </span>
               </div>
               <button
@@ -413,8 +511,177 @@ export const SubmissionModal: React.FC<SubmissionModalProps> = ({
                 onClick={() => setStep("SELECT_TRACK")}
                 className="text-xs text-violet-400 hover:text-violet-300"
               >
-                Change
+                Change Track
               </button>
+            </div>
+
+            {/* Artist Identity Attribution Selector */}
+            <div className="space-y-3 p-4 rounded-xl border border-zinc-800 bg-zinc-900/60">
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-semibold text-zinc-300 uppercase tracking-wider">
+                  Artist Attribution & Spotify Link
+                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAddArtist(!showAddArtist);
+                    setArtistError(null);
+                  }}
+                  className="text-xs font-semibold text-violet-400 hover:text-violet-300 flex items-center gap-1"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  {showAddArtist ? "Cancel" : "Add New Artist"}
+                </button>
+              </div>
+
+              {/* Inline Create New Artist Form */}
+              {showAddArtist && (
+                <form
+                  onSubmit={handleCreateNewArtistInline}
+                  className="p-3.5 rounded-lg border border-violet-500/40 bg-violet-950/20 space-y-3"
+                >
+                  <div className="text-xs font-bold text-zinc-100 flex items-center gap-1.5">
+                    <Sparkles className="h-3.5 w-3.5 text-violet-400" />
+                    <span>Create New Artist Identity</span>
+                  </div>
+
+                  {artistError && (
+                    <div className="p-2 rounded bg-red-950/50 border border-red-800 text-[11px] text-red-300 flex items-center gap-1.5">
+                      <AlertCircle className="h-3 w-3 shrink-0" />
+                      <span>{artistError}</span>
+                    </div>
+                  )}
+
+                  <div className="space-y-2">
+                    <div>
+                      <input
+                        type="text"
+                        placeholder="Artist Name (e.g. Solar Echo)"
+                        value={newArtistName}
+                        onChange={(e) => setNewArtistName(e.target.value)}
+                        className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-violet-500"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <input
+                        type="url"
+                        placeholder="Spotify Artist URL (e.g. https://open.spotify.com/artist/...)"
+                        value={newSpotifyUrl}
+                        onChange={(e) => setNewSpotifyUrl(e.target.value)}
+                        className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-[#1DB954]"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2 pt-1">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowAddArtist(false)}
+                      disabled={isCreatingArtist}
+                      className="text-xs"
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="submit"
+                      variant="primary"
+                      size="sm"
+                      isLoading={isCreatingArtist}
+                      disabled={!newArtistName.trim() || isCreatingArtist}
+                      className="text-xs"
+                    >
+                      Save & Select Artist
+                    </Button>
+                  </div>
+                </form>
+              )}
+
+              {/* Artist Choices */}
+              <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                {/* Option 1: No Artist */}
+                <div
+                  onClick={() => setSelectedArtistId("none")}
+                  className={`p-3 rounded-lg border transition-all cursor-pointer flex items-center justify-between ${
+                    selectedArtistId === "none"
+                      ? "border-violet-500 bg-violet-950/20"
+                      : "border-zinc-800 bg-zinc-950/50 hover:border-zinc-700"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="radio"
+                      name="artistAttribution"
+                      checked={selectedArtistId === "none"}
+                      onChange={() => setSelectedArtistId("none")}
+                      className="h-4 w-4 text-violet-600 focus:ring-violet-500"
+                    />
+                    <div>
+                      <span className="text-xs font-bold text-zinc-200">
+                        No Artist
+                      </span>
+                      <p className="text-[11px] text-zinc-500">
+                        Track will be submitted under song name with no artist persona attached
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Option 2: Owned Artist Identities */}
+                {identities.map((identity) => {
+                  const isSelected = selectedArtistId === identity.id;
+                  return (
+                    <div
+                      key={identity.id}
+                      onClick={() => setSelectedArtistId(identity.id)}
+                      className={`p-3 rounded-lg border transition-all cursor-pointer flex items-center justify-between ${
+                        isSelected
+                          ? "border-violet-500 bg-violet-950/20"
+                          : "border-zinc-800 bg-zinc-950/50 hover:border-zinc-700"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <input
+                          type="radio"
+                          name="artistAttribution"
+                          checked={isSelected}
+                          onChange={() => setSelectedArtistId(identity.id)}
+                          className="h-4 w-4 text-violet-600 focus:ring-violet-500 shrink-0"
+                        />
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-xs font-bold text-zinc-100 truncate">
+                              {identity.artistName}
+                            </span>
+                            {identity.isDefault && (
+                              <span className="text-[10px] px-1.5 py-0.2 rounded bg-violet-500/20 text-violet-300 font-semibold border border-violet-500/30">
+                                Default
+                              </span>
+                            )}
+                          </div>
+                          {identity.biography && (
+                            <p className="text-[11px] text-zinc-400 truncate max-w-xs">
+                              {identity.biography}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      {identity.spotifyUrl && (
+                        <div
+                          className="flex items-center gap-1 text-[11px] text-[#1DB954] bg-[#1DB954]/10 border border-[#1DB954]/20 px-2 py-0.5 rounded shrink-0 ml-2"
+                          title={identity.spotifyUrl}
+                        >
+                          <SpotifyIcon className="h-3 w-3 text-[#1DB954]" />
+                          <span className="hidden sm:inline">Spotify Linked</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
 
             <div className="space-y-3">

@@ -163,6 +163,11 @@ export class ApiClient {
         `/live-sessions/${id}/queue/public`,
       ),
 
+    getWeeklyTop3: (id: string, date?: string) =>
+      this.get<import("@platform/types").WeeklyTop3Response>(
+        `/live-sessions/${id}/weekly-top3${date ? `?date=${encodeURIComponent(date)}` : ""}`,
+      ),
+
     getSubmissionEligibility: (id: string) =>
       this.get<import("@platform/types").SubmissionEligibilityResponse>(
         `/live-sessions/${id}/submission-eligibility`,
@@ -192,21 +197,21 @@ export class ApiClient {
 
     get: (id: string) => this.get<any>(`/live-sessions/${id}`),
 
-    start: (id: string, expectedQueueRevision: number) =>
+    start: (id: string, expectedQueueRevision?: number) =>
       this.post<any>(`/live-sessions/${id}/start`, { expectedQueueRevision }),
 
-    pause: (id: string, expectedQueueRevision: number) =>
+    pause: (id: string, expectedQueueRevision?: number) =>
       this.post<any>(`/live-sessions/${id}/pause`, { expectedQueueRevision }),
 
-    resume: (id: string, expectedQueueRevision: number) =>
+    resume: (id: string, expectedQueueRevision?: number) =>
       this.post<any>(`/live-sessions/${id}/resume`, { expectedQueueRevision }),
 
-    end: (id: string, expectedQueueRevision: number) =>
+    end: (id: string, expectedQueueRevision?: number) =>
       this.post<any>(`/live-sessions/${id}/end`, { expectedQueueRevision }),
 
     getQueue: (id: string) => this.get<any[]>(`/live-sessions/${id}/queue`),
 
-    playNext: (id: string, expectedQueueRevision: number) =>
+    playNext: (id: string, expectedQueueRevision?: number) =>
       this.post<{ success: boolean }>(`/live-sessions/${id}/queue/play-next`, {
         expectedQueueRevision,
       }),
@@ -214,23 +219,56 @@ export class ApiClient {
     loadQueueEntry: (
       id: string,
       entryId: string,
-      expectedQueueRevision: number,
+      expectedQueueRevision?: number,
     ) =>
       this.post<{ success: boolean }>(
         `/live-sessions/${id}/queue/entries/${entryId}/load`,
         { expectedQueueRevision },
       ),
 
-    clearPlayer: (id: string, expectedQueueRevision: number) =>
+    clearPlayer: (id: string, expectedQueueRevision?: number) =>
       this.post<{ success: boolean }>(
         `/live-sessions/${id}/queue/player/clear`,
         { expectedQueueRevision },
       ),
 
-    moveToNext: (id: string, entryId: string, expectedQueueRevision: number) =>
+    moveToNext: (id: string, entryId: string, expectedQueueRevision?: number) =>
       this.post<{ success: boolean }>(
         `/live-sessions/${id}/queue/entries/${entryId}/move-to-next`,
         { expectedQueueRevision },
+      ),
+
+    skipQueueEntry: (
+      id: string,
+      entryId: string,
+      expectedQueueRevision?: number,
+    ) =>
+      this.post<{ success: boolean }>(
+        `/live-sessions/${id}/queue/entries/${entryId}`,
+        { expectedQueueRevision, action: "SKIP" },
+      ),
+
+    completeQueueEntry: (
+      id: string,
+      entryId: string,
+      expectedQueueRevision?: number,
+    ) =>
+      this.post<{ success: boolean }>(
+        `/live-sessions/${id}/queue/entries/${entryId}`,
+        { expectedQueueRevision, action: "COMPLETE" },
+      ),
+
+    removeQueueEntry: (
+      id: string,
+      entryId: string,
+      expectedQueueRevision?: number,
+    ) =>
+      this.delete<{ success: boolean }>(
+        `/live-sessions/${id}/queue/entries/${entryId}${
+          expectedQueueRevision !== undefined
+            ? `?expectedQueueRevision=${expectedQueueRevision}`
+            : ""
+        }`,
       ),
 
     changeEntryTier: (
@@ -370,6 +408,30 @@ export class ApiClient {
         "/account/preferences",
         data,
       ),
+    getArtists: () =>
+      this.get<import("@platform/types").ArtistIdentitySummary[]>("/account/artists"),
+    createArtist: (data: import("@platform/types").CreateArtistIdentityDto) =>
+      this.post<import("@platform/types").ArtistIdentity>("/account/artists", data),
+    getArtist: (id: string) =>
+      this.get<import("@platform/types").ArtistIdentity>(`/account/artists/${id}`),
+    updateArtist: (id: string, data: import("@platform/types").UpdateArtistIdentityDto) =>
+      this.patch<import("@platform/types").ArtistIdentity>(`/account/artists/${id}`, data),
+    deleteArtist: (id: string) =>
+      this.delete<{ success: boolean; message?: string }>(`/account/artists/${id}`),
+  };
+
+  // Artist Identities Top-Level API
+  public artists = {
+    list: () =>
+      this.get<import("@platform/types").ArtistIdentitySummary[]>("/account/artists"),
+    get: (id: string) =>
+      this.get<import("@platform/types").ArtistIdentity>(`/account/artists/${id}`),
+    create: (data: import("@platform/types").CreateArtistIdentityDto) =>
+      this.post<import("@platform/types").ArtistIdentity>("/account/artists", data),
+    update: (id: string, data: import("@platform/types").UpdateArtistIdentityDto) =>
+      this.patch<import("@platform/types").ArtistIdentity>(`/account/artists/${id}`, data),
+    delete: (id: string) =>
+      this.delete<{ success: boolean; message?: string }>(`/account/artists/${id}`),
   };
 
   // Theme & Branding API
@@ -385,10 +447,20 @@ export class ApiClient {
 
     getByHostname: (hostname: string) =>
       this.get<import("@platform/types").PublicStationDetail>(`/stations/${hostname}`),
+
+    getWeeklyTop3: (hostname: string, date?: string) =>
+      this.get<import("@platform/types").WeeklyTop3Response>(
+        `/stations/${hostname}/weekly-top3${date ? `?date=${encodeURIComponent(date)}` : ""}`,
+      ),
   };
 
   // Host Studio & Station Management API
   public host = {
+    getWeeklyTop3: (date?: string) =>
+      this.get<import("@platform/types").WeeklyTop3Response>(
+        `/host/station/weekly-top3${date ? `?date=${encodeURIComponent(date)}` : ""}`,
+      ),
+
     getOnboardingStatus: () =>
       this.get<import("@platform/types").HostOnboardingStatus>("/host/onboarding-status"),
 
@@ -415,6 +487,21 @@ export class ApiClient {
 
     goOffline: () =>
       this.post<{ success: boolean; message: string }>("/host/go-offline"),
+
+    getPriorityTiers: () =>
+      this.get<import("@platform/types").StationPriorityTier[]>("/host/station/tiers"),
+
+    createPriorityTier: (data: import("@platform/types").CreateStationPriorityTierDto) =>
+      this.post<import("@platform/types").StationPriorityTier>("/host/station/tiers", data),
+
+    updatePriorityTier: (tierId: string, data: import("@platform/types").UpdateStationPriorityTierDto) =>
+      this.patch<import("@platform/types").StationPriorityTier>(`/host/station/tiers/${tierId}`, data),
+
+    deletePriorityTier: (tierId: string) =>
+      this.delete<{ success: boolean; message: string }>(`/host/station/tiers/${tierId}`),
+
+    reorderPriorityTiers: (data: import("@platform/types").ReorderStationPriorityTiersDto) =>
+      this.post<import("@platform/types").StationPriorityTier[]>("/host/station/tiers/reorder", data),
   };
 
   // Admin Customization & Management API
@@ -464,6 +551,202 @@ export class ApiClient {
         "/admin/platform-settings",
         data,
       ),
+
+    // Dashboard & Metrics
+    getDashboard: () =>
+      this.get<import("@platform/types").AdminDashboardMetrics>("/admin/dashboard"),
+
+    // Submissions
+    getSubmissions: (query?: import("@platform/types").AdminSubmissionFilterDto) => {
+      const params = new URLSearchParams();
+      if (query) {
+        Object.entries(query).forEach(([key, val]) => {
+          if (val !== undefined && val !== null && val !== "") {
+            params.append(key, String(val));
+          }
+        });
+      }
+      const qs = params.toString();
+      return this.get<{ items: import("@platform/types").AdminSubmissionSummary[]; total: number; page: number; limit: number }>(
+        `/admin/submissions${qs ? `?${qs}` : ""}`,
+      );
+    },
+    getSubmission: (id: string) =>
+      this.get<import("@platform/types").AdminSubmissionDetail>(`/admin/submissions/${id}`),
+    moderateSubmission: (id: string, data: import("@platform/types").AdminSubmissionActionDto) =>
+      this.post<{ success: boolean; message: string; submissionId: string }>(
+        `/admin/submissions/${id}/action`,
+        data,
+      ),
+
+    // Users
+    getUsers: (query?: import("@platform/types").AdminUserFilterDto) => {
+      const params = new URLSearchParams();
+      if (query) {
+        Object.entries(query).forEach(([key, val]) => {
+          if (val !== undefined && val !== null && val !== "") {
+            params.append(key, String(val));
+          }
+        });
+      }
+      const qs = params.toString();
+      return this.get<{ items: import("@platform/types").AdminUserSummary[]; total: number; page: number; limit: number }>(
+        `/admin/users${qs ? `?${qs}` : ""}`,
+      );
+    },
+    getUser: (id: string) =>
+      this.get<import("@platform/types").AdminUserDetail>(`/admin/users/${id}`),
+    moderateUser: (id: string, data: import("@platform/types").AdminUserActionDto) =>
+      this.post<{ success: boolean; message: string; userId: string }>(
+        `/admin/users/${id}/action`,
+        data,
+      ),
+
+    // Hosts & Stations
+    getHosts: (query?: import("@platform/types").AdminHostFilterDto) => {
+      const params = new URLSearchParams();
+      if (query) {
+        Object.entries(query).forEach(([key, val]) => {
+          if (val !== undefined && val !== null && val !== "") {
+            params.append(key, String(val));
+          }
+        });
+      }
+      const qs = params.toString();
+      return this.get<{ items: import("@platform/types").AdminHostSummary[]; total: number }>(
+        `/admin/hosts${qs ? `?${qs}` : ""}`,
+      );
+    },
+    getStations: (query?: { search?: string }) => {
+      const qs = query?.search ? `?search=${encodeURIComponent(query.search)}` : "";
+      return this.get<{ items: import("@platform/types").AdminStationSummary[]; total: number }>(
+        `/admin/stations${qs}`,
+      );
+    },
+    updateStation: (id: string, data: { submissionsEnabled?: boolean; name?: string }) =>
+      this.patch<{ success: boolean; message: string; station: import("@platform/types").AdminStationSummary }>(
+        `/admin/stations/${id}`,
+        data,
+      ),
+
+    // Live Sessions
+    getLiveSessions: (query?: { status?: string; hostId?: string }) => {
+      const params = new URLSearchParams();
+      if (query) {
+        Object.entries(query).forEach(([key, val]) => {
+          if (val !== undefined && val !== null && val !== "") {
+            params.append(key, String(val));
+          }
+        });
+      }
+      const qs = params.toString();
+      return this.get<{ items: import("@platform/types").AdminLiveSessionSummary[]; total: number }>(
+        `/admin/live-sessions${qs ? `?${qs}` : ""}`,
+      );
+    },
+    getLiveSession: (id: string) =>
+      this.get<import("@platform/types").AdminLiveSessionSummary & { queue: any[] }>(
+        `/admin/live-sessions/${id}`,
+      ),
+
+    // Financial Ledger
+    getLedger: (query?: { page?: number; limit?: number }) => {
+      const params = new URLSearchParams();
+      if (query) {
+        Object.entries(query).forEach(([key, val]) => {
+          if (val !== undefined && val !== null) {
+            params.append(key, String(val));
+          }
+        });
+      }
+      const qs = params.toString();
+      return this.get<{ summary: import("@platform/types").AdminLedgerSummary; entries: import("@platform/types").AdminLedgerEntryDetail[]; total: number }>(
+        `/admin/ledger${qs ? `?${qs}` : ""}`,
+      );
+    },
+    createCompensatingLedgerEntry: (data: import("@platform/types").AdminCompensatingEntryDto) =>
+      this.post<{ success: boolean; message: string; transactionId: string }>(
+        "/admin/ledger/compensating",
+        data,
+      ),
+
+    // Payments
+    getPayments: (query?: import("@platform/types").AdminPaymentFilterDto) => {
+      const params = new URLSearchParams();
+      if (query) {
+        Object.entries(query).forEach(([key, val]) => {
+          if (val !== undefined && val !== null && val !== "") {
+            params.append(key, String(val));
+          }
+        });
+      }
+      const qs = params.toString();
+      return this.get<{ items: import("@platform/types").AdminPaymentSummary[]; total: number; page: number; limit: number }>(
+        `/admin/payments${qs ? `?${qs}` : ""}`,
+      );
+    },
+    getPayment: (id: string) =>
+      this.get<import("@platform/types").AdminPaymentSummary & { allocations: any[]; ledgerEntries: any[] }>(
+        `/admin/payments/${id}`,
+      ),
+
+    // Reconciliation
+    getReconciliationReport: () =>
+      this.get<import("@platform/types").AdminReconciliationReport>("/admin/reconciliation"),
+    repairDiscrepancy: (data: import("@platform/types").AdminRepairDto) =>
+      this.post<import("@platform/types").AdminRepairResult>("/admin/reconciliation/repair", data),
+
+    // Reservations
+    cleanupReservations: () =>
+      this.post<{ success: boolean; expiredCount: number; message: string }>(
+        "/admin/reservations/cleanup",
+        {},
+      ),
+
+    // Audit Logs
+    getAuditLogs: (query?: import("@platform/types").AdminAuditLogFilterDto) => {
+      const params = new URLSearchParams();
+      if (query) {
+        Object.entries(query).forEach(([key, val]) => {
+          if (val !== undefined && val !== null && val !== "") {
+            params.append(key, String(val));
+          }
+        });
+      }
+      const qs = params.toString();
+      return this.get<{ items: import("@platform/types").AdminAuditLogRecord[]; total: number; page: number; limit: number }>(
+        `/admin/audit-logs${qs ? `?${qs}` : ""}`,
+      );
+    },
+
+    // Media & Storage
+    getMedia: (query?: import("@platform/types").AdminMediaFilterDto) => {
+      const params = new URLSearchParams();
+      if (query) {
+        Object.entries(query).forEach(([key, val]) => {
+          if (val !== undefined && val !== null && val !== "") {
+            params.append(key, String(val));
+          }
+        });
+      }
+      const qs = params.toString();
+      return this.get<{ items: import("@platform/types").AdminMediaSummary[]; total: number; page: number; limit: number }>(
+        `/admin/media${qs ? `?${qs}` : ""}`,
+      );
+    },
+    deleteMedia: (id: string, options?: { purgeS3?: boolean; reason?: string }) =>
+      this.delete<{ success: boolean; message: string; trackId: string }>(
+        `/admin/media/${id}`,
+        { data: options },
+      ),
+    getStorageCleanupReport: () =>
+      this.get<import("@platform/types").AdminStorageCleanupReport>("/admin/media/cleanup"),
+    purgeStorageCandidates: (options?: { confirmed?: boolean }) =>
+      this.post<{ success: boolean; purgedCount: number; message: string }>(
+        "/admin/media/cleanup",
+        options || {},
+      ),
+
   };
 
   // Legal & Terms of Service API

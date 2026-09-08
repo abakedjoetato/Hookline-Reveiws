@@ -9,13 +9,14 @@ import {
   Headers,
   BadRequestException,
 } from "@nestjs/common";
+import { Throttle, ThrottlerGuard } from "@nestjs/throttler";
 import { SubmissionsService } from "./submissions.service";
 import { SessionGuard } from "../auth/guards/session.guard";
 import { RequestWithUser } from "../auth/interfaces/request-with-user.interface";
 import { UpgradeSubmissionDto } from "./dto/upgrade-submission.dto";
 
 @Controller("submissions")
-@UseGuards(SessionGuard)
+@UseGuards(SessionGuard, ThrottlerGuard)
 export class UserSubmissionsController {
   constructor(private readonly submissionsService: SubmissionsService) {}
 
@@ -25,6 +26,7 @@ export class UserSubmissionsController {
   }
 
   @Post(":submissionId/upgrade")
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   async upgradeSubmission(
     @Req() req: RequestWithUser,
     @Param("submissionId") submissionId: string,

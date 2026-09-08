@@ -9,6 +9,7 @@ import {
   Headers,
   BadRequestException,
 } from "@nestjs/common";
+import { Throttle, ThrottlerGuard } from "@nestjs/throttler";
 import { SubmissionsService } from "./submissions.service";
 import { SubmissionEligibilityService } from "./submission-eligibility.service";
 import { SessionGuard } from "../auth/guards/session.guard";
@@ -20,8 +21,9 @@ export class CreateSubmissionDto {
   @IsUUID()
   sourceTrackId: string;
 
+  @IsOptional()
   @IsUUID()
-  artistIdentityId: string;
+  artistIdentityId?: string;
 
   @IsOptional()
   @IsUUID()
@@ -29,7 +31,7 @@ export class CreateSubmissionDto {
 }
 
 @Controller("live-sessions")
-@UseGuards(SessionGuard)
+@UseGuards(SessionGuard, ThrottlerGuard)
 export class SubmissionsController {
   constructor(
     private readonly submissionsService: SubmissionsService,
@@ -41,13 +43,8 @@ export class SubmissionsController {
     return this.eligibilityService.getEligibility(req.user.id, id);
   }
 
-  @Get("submissions/mine")
-  async getMySubmissions(@Req() req: RequestWithUser) {
-    return this.submissionsService.getMySubmissions(req.user.id);
-  }
-
   @Post(":id/submissions")
-
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   async createSubmission(
     @Req() req: RequestWithUser,
     @Param("id") id: string,
@@ -60,24 +57,6 @@ export class SubmissionsController {
     return this.submissionsService.createSubmission(
       req.user.id,
       id,
-      dto,
-      idempotencyKey,
-    );
-  }
-
-  @Post("submissions/:submissionId/upgrade")
-  async upgradeSubmission(
-    @Req() req: RequestWithUser,
-    @Param("submissionId") submissionId: string,
-    @Body() dto: UpgradeSubmissionDto,
-    @Headers("idempotency-key") idempotencyKey?: string,
-  ) {
-    if (!idempotencyKey) {
-      throw new BadRequestException("Idempotency-Key header is required");
-    }
-    return this.submissionsService.upgradeSubmission(
-      req.user.id,
-      submissionId,
       dto,
       idempotencyKey,
     );

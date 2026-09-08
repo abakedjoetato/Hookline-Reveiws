@@ -6,6 +6,7 @@ import { Button, Badge, Card } from "@platform/ui";
 import {
   PublicLiveSessionDetail,
   PublicQueueEntry,
+  WeeklyTop3Response,
 } from "@platform/types";
 import {
   Radio,
@@ -28,6 +29,7 @@ import { api } from "../../../lib/api";
 import { useLiveSocket } from "../../../hooks/useLiveSocket";
 import { PublicQueueView } from "../../../components/PublicQueueView";
 import { SubmissionModal } from "../../../components/SubmissionModal";
+import { WeeklyTop3Card } from "../../../components/WeeklyTop3Card";
 
 export default function PublicSessionPage() {
   const params = useParams();
@@ -36,6 +38,7 @@ export default function PublicSessionPage() {
 
   const [session, setSession] = React.useState<PublicLiveSessionDetail | null>(null);
   const [queueEntries, setQueueEntries] = React.useState<PublicQueueEntry[]>([]);
+  const [weeklyTop3, setWeeklyTop3] = React.useState<WeeklyTop3Response | null>(null);
   const [isLoading, setIsLoading] = React.useState(true);
   const [isRefreshing, setIsRefreshing] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -55,6 +58,13 @@ export default function PublicSessionPage() {
       ]);
       setSession(sessionData);
       setQueueEntries(queueData);
+
+      try {
+        const top3Data = await api.liveSessions.getWeeklyTop3(sessionId);
+        setWeeklyTop3(top3Data);
+      } catch {
+        // Non-blocking
+      }
     } catch (err: any) {
       setError(err?.message || "Failed to load live session details");
     } finally {
@@ -273,6 +283,13 @@ export default function PublicSessionPage() {
           </div>
         </div>
       </Card>
+
+      {/* Authoritative Weekly Top 3 Ranking */}
+      <WeeklyTop3Card
+        data={weeklyTop3}
+        isLoading={isRefreshing}
+        onRefresh={() => fetchSessionData(true)}
+      />
 
       {/* Live Queue & Now Playing Section */}
       <PublicQueueView

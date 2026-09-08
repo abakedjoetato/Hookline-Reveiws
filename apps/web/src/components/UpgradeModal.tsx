@@ -68,6 +68,14 @@ const StripeUpgradePaymentForm: React.FC<{
     }
 
     try {
+      if (clientSecret.startsWith("pi_mock_")) {
+        setTimeout(() => {
+          setIsProcessing(false);
+          onSuccess();
+        }, 600);
+        return;
+      }
+
       const { error, paymentIntent } = await stripe.confirmCardPayment(
         clientSecret,
         {

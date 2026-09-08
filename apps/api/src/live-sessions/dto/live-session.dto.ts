@@ -64,6 +64,16 @@ export class LoadQueueEntryDto extends ExpectedQueueRevisionDto {}
 export class ClearPlayerDto extends ExpectedQueueRevisionDto {}
 export class PlayNextDto extends ExpectedQueueRevisionDto {}
 
+export class QueueEntryActionDto {
+  @IsOptional()
+  @IsNumber()
+  expectedQueueRevision?: number;
+
+  @IsOptional()
+  @IsString()
+  action?: "SKIP" | "COMPLETE";
+}
+
 export enum ReorderIntent {
   BEFORE = "BEFORE",
   AFTER = "AFTER",

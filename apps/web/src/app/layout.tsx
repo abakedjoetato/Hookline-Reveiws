@@ -7,8 +7,12 @@ import { AuthProvider } from "@/providers/AuthProvider";
 import { Navbar } from "@/components/layout/Navbar";
 
 export const metadata: Metadata = {
-  title: "TheQueue - Live Stream Music Submissions & Feedback",
-  description: "Submit your music to approved host live stream channels and get heard live on air",
+  title: "Hookline Reviews - Live Stream Music Submissions & Feedback",
+  description: "Music submission and review platform for live stream hosts, artists, and administrators.",
+  openGraph: {
+    title: "Hookline Reviews - Live Stream Music Submissions & Feedback",
+    description: "Music submission and review platform for live stream hosts, artists, and administrators.",
+  },
 };
 
 export default function RootLayout({

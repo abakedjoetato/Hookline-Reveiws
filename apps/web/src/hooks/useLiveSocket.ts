@@ -32,6 +32,7 @@ export interface SocketEventHandlers {
   onPlayerPlayNext?: (payload: SocketPlayerEventPayload) => void;
   onPlayerLoaded?: (payload: SocketPlayerEventPayload) => void;
   onPlayerCleared?: (payload: SocketPlayerEventPayload) => void;
+  onQueueUpdated?: (payload: any) => void;
   onReconcile?: () => void;
 }
 
@@ -43,11 +44,61 @@ export const useLiveSocket = (
   const [socketError, setSocketError] = React.useState<string | null>(null);
   const socketRef = React.useRef<Socket | null>(null);
 
+  // Resilience tracking: track last known revision & processed event IDs
+  const lastKnownRevisionRef = React.useRef<number>(0);
+  const processedEventIdsRef = React.useRef<Set<string>>(new Set());
+
   // Keep handlers fresh in ref
   const handlersRef = React.useRef(handlers);
   React.useEffect(() => {
     handlersRef.current = handlers;
   }, [handlers]);
+
+  const handleAuthoritativeEvent = React.useCallback(
+    (
+      payload: { queueRevision?: number; eventId?: string },
+      action?: () => void,
+    ) => {
+      // 1. Deduplicate by eventId if present
+      if (payload.eventId) {
+        if (processedEventIdsRef.current.has(payload.eventId)) {
+          return;
+        }
+        processedEventIdsRef.current.add(payload.eventId);
+        if (processedEventIdsRef.current.size > 200) {
+          const firstKey = processedEventIdsRef.current.keys().next().value;
+          if (firstKey) processedEventIdsRef.current.delete(firstKey);
+        }
+      }
+
+      // 2. Revision comparison
+      if (typeof payload.queueRevision === "number") {
+        // Out-of-order or duplicate event: discard if revision <= last known
+        if (
+          lastKnownRevisionRef.current > 0 &&
+          payload.queueRevision <= lastKnownRevisionRef.current
+        ) {
+          return;
+        }
+
+        // Missing event gap detected: fetch full snapshot reconciliation
+        if (
+          lastKnownRevisionRef.current > 0 &&
+          payload.queueRevision > lastKnownRevisionRef.current + 1
+        ) {
+          lastKnownRevisionRef.current = payload.queueRevision;
+          handlersRef.current.onReconcile?.();
+          return;
+        }
+
+        lastKnownRevisionRef.current = payload.queueRevision;
+      }
+
+      action?.();
+      handlersRef.current.onReconcile?.();
+    },
+    [],
+  );
 
   React.useEffect(() => {
     if (!sessionId) {
@@ -56,6 +107,8 @@ export const useLiveSocket = (
         socketRef.current = null;
       }
       setIsConnected(false);
+      lastKnownRevisionRef.current = 0;
+      processedEventIdsRef.current.clear();
       return;
     }
 
@@ -106,7 +159,6 @@ export const useLiveSocket = (
 
       socket.on("connect_error", () => {
         setIsConnected(false);
-        // On connect error, trigger polling fallback
       });
 
       socket.on("reconnect", () => {
@@ -116,35 +168,53 @@ export const useLiveSocket = (
         });
       });
 
-      // Authoritative event listeners
+      // Authoritative event listeners with resilience filtering
       socket.on("session.started", (data: SocketSessionEventPayload) => {
-        handlersRef.current.onSessionStarted?.(data);
-        handlersRef.current.onReconcile?.();
+        handleAuthoritativeEvent(data, () => handlersRef.current.onSessionStarted?.(data));
       });
 
       socket.on("session.paused", (data: SocketSessionEventPayload) => {
-        handlersRef.current.onSessionPaused?.(data);
-        handlersRef.current.onReconcile?.();
+        handleAuthoritativeEvent(data, () => handlersRef.current.onSessionPaused?.(data));
       });
 
       socket.on("session.ended", (data: SocketSessionEventPayload) => {
-        handlersRef.current.onSessionEnded?.(data);
-        handlersRef.current.onReconcile?.();
+        handleAuthoritativeEvent(data, () => handlersRef.current.onSessionEnded?.(data));
       });
 
       socket.on("player.playNext", (data: SocketPlayerEventPayload) => {
-        handlersRef.current.onPlayerPlayNext?.(data);
-        handlersRef.current.onReconcile?.();
+        handleAuthoritativeEvent(data, () => handlersRef.current.onPlayerPlayNext?.(data));
       });
 
       socket.on("player.loaded", (data: SocketPlayerEventPayload) => {
-        handlersRef.current.onPlayerLoaded?.(data);
-        handlersRef.current.onReconcile?.();
+        handleAuthoritativeEvent(data, () => handlersRef.current.onPlayerLoaded?.(data));
       });
 
       socket.on("player.cleared", (data: SocketPlayerEventPayload) => {
-        handlersRef.current.onPlayerCleared?.(data);
-        handlersRef.current.onReconcile?.();
+        handleAuthoritativeEvent(data, () => handlersRef.current.onPlayerCleared?.(data));
+      });
+
+      socket.on("queue.entryAdded", (data: any) => {
+        handleAuthoritativeEvent(data, () => handlersRef.current.onQueueUpdated?.(data));
+      });
+
+      socket.on("queue.entryMoved", (data: any) => {
+        handleAuthoritativeEvent(data, () => handlersRef.current.onQueueUpdated?.(data));
+      });
+
+      socket.on("queue.entrySkipped", (data: any) => {
+        handleAuthoritativeEvent(data, () => handlersRef.current.onQueueUpdated?.(data));
+      });
+
+      socket.on("queue.entryCompleted", (data: any) => {
+        handleAuthoritativeEvent(data, () => handlersRef.current.onQueueUpdated?.(data));
+      });
+
+      socket.on("queue.entryRemoved", (data: any) => {
+        handleAuthoritativeEvent(data, () => handlersRef.current.onQueueUpdated?.(data));
+      });
+
+      socket.on("queue.reordered", (data: any) => {
+        handleAuthoritativeEvent(data, () => handlersRef.current.onQueueUpdated?.(data));
       });
     } catch {
       // Fallback
@@ -158,15 +228,17 @@ export const useLiveSocket = (
     return () => {
       clearInterval(pollInterval);
       if (socket) {
+        socket.removeAllListeners();
         socket.disconnect();
       }
       socketRef.current = null;
       setIsConnected(false);
     };
-  }, [sessionId]);
+  }, [sessionId, handleAuthoritativeEvent]);
 
   return {
     isConnected,
     socketError,
+    reconcile: () => handlersRef.current.onReconcile?.(),
   };
 };

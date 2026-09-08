@@ -2,6 +2,7 @@ import {
   Injectable,
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   NotFoundException,
 } from "@nestjs/common";
 import { PrismaClient, generateUuidV7 } from "@platform/database";
@@ -29,7 +30,7 @@ export class SubmissionsService {
     liveSessionId: string,
     dto: {
       sourceTrackId: string;
-      artistIdentityId: string;
+      artistIdentityId?: string | null;
       tierSnapshotId?: string;
     },
     idempotencyKey: string,
@@ -51,20 +52,84 @@ export class SubmissionsService {
     }
 
     try {
+      // 1. Validate Track Ownership, Readiness, and Storage Availability (Requirement 2)
+      const track = await this.prisma.track.findUnique({
+        where: { id: dto.sourceTrackId },
+        include: {
+          artistIdentity: true,
+          artworks: { take: 1 },
+          mediaVersions: { where: { isCurrent: true }, take: 1 },
+        },
+      });
+
+      if (!track || track.deletedAt) {
+        throw new NotFoundException("Track not found or has been deleted");
+      }
+
+      if (track.userId !== userId) {
+        throw new ForbiddenException(
+          "Forbidden: You can only submit tracks from your own library",
+        );
+      }
+
+      if (track.processingState !== "READY") {
+        throw new BadRequestException("Track is not ready for playback");
+      }
+
+      const currentMedia = track.mediaVersions?.[0];
+      if (currentMedia && currentMedia.storageStatus !== "AVAILABLE") {
+        throw new BadRequestException("Track media is not available");
+      }
+
+      const artworkKey =
+        track.artworks?.[0]?.masterObjectKey ||
+        track.artworks?.[0]?.originalObjectKey ||
+        null;
+      const mediaVerId = currentMedia?.id || null;
+
+      // 2. Validate Artist Identity Ownership if provided (Requirement 1)
+      let resolvedArtistName =
+        track.artistIdentity?.artistName || track.songName || "Independent Artist";
+      let validatedArtistIdentityId: string | null = null;
+
+      if (dto.artistIdentityId && dto.artistIdentityId !== "none") {
+        const identity = await this.prisma.artistIdentity.findUnique({
+          where: { id: dto.artistIdentityId },
+        });
+        if (!identity || identity.deletedAt) {
+          throw new NotFoundException("Artist identity not found or removed");
+        }
+        if (identity.userId !== userId) {
+          throw new ForbiddenException(
+            "Forbidden: You cannot submit under an Artist Identity you do not own",
+          );
+        }
+        validatedArtistIdentityId = identity.id;
+        resolvedArtistName = identity.artistName;
+      } else if (dto.artistIdentityId === null || dto.artistIdentityId === "none") {
+        validatedArtistIdentityId = null;
+        resolvedArtistName = track.songName || "Independent Artist";
+      } else if (track.artistIdentityId) {
+        validatedArtistIdentityId = track.artistIdentityId;
+        if (track.artistIdentity && !track.artistIdentity.deletedAt) {
+          resolvedArtistName = track.artistIdentity.artistName;
+        }
+      }
+
       const eligibility = await this.eligibilityService.getEligibility(
         userId,
         liveSessionId,
       );
 
       if (!dto.tierSnapshotId) {
-        const responseData = await this.prisma.$transaction(async (tx) => {
-          // FREE Submission
-          if (!eligibility.free.available) {
-            throw new ConflictException(
-              `Free submission not available: ${eligibility.free.reason}`,
-            );
-          }
+        // FREE Submission (Requirement 3 & 4)
+        if (!eligibility.free.available) {
+          throw new ConflictException(
+            `Free submission not available: ${eligibility.free.reason}`,
+          );
+        }
 
+        const responseData = await this.prisma.$transaction(async (tx) => {
           // Increment user's free usage
           await tx.userLiveSubmissionUsage.upsert({
             where: { userId_liveSessionId: { userId, liveSessionId } },
@@ -85,10 +150,29 @@ export class SubmissionsService {
               id: submissionId,
               submittingUserId: userId,
               sourceTrackId: dto.sourceTrackId,
-              artistIdentityId: dto.artistIdentityId,
+              artistIdentityId: validatedArtistIdentityId,
               liveSessionId,
               isPriority: false,
               currentQueueStatus: QueueStatus.QUEUED,
+            },
+          });
+
+          // Create Immutable Track Snapshot (Requirement 15)
+          await tx.submissionTrackSnapshot.create({
+            data: {
+              id: generateUuidV7(),
+              submissionId,
+              artistName: resolvedArtistName,
+              songName: track.songName,
+              albumName: track.albumName,
+              genre: null,
+              explicitContent: track.explicitContent,
+              releaseDate: track.releaseDate,
+              artworkS3Key: artworkKey,
+              sourceType: track.sourceType,
+              playbackCapability: track.playbackCapability,
+              mediaVersionId: mediaVerId,
+              durationSeconds: track.durationSeconds,
             },
           });
 
@@ -97,7 +181,7 @@ export class SubmissionsService {
             where: {
               liveSessionId,
               priorityRank: 0,
-              status: { in: ["QUEUED", "NEXT"] },
+              status: { in: [QueueStatus.QUEUED, QueueStatus.NEXT] },
             },
             orderBy: { sortOrder: "asc" },
           });
@@ -121,6 +205,24 @@ export class SubmissionsService {
             },
           });
 
+          // Queue Audit Event
+          await tx.queueEvent.create({
+            data: {
+              id: generateUuidV7(),
+              queueEntryId,
+              liveSessionId,
+              actingUserId: userId,
+              eventType: "SUBMIT",
+              newState: QueueStatus.QUEUED,
+            },
+          });
+
+          // Increment session queueRevision
+          await tx.liveSession.update({
+            where: { id: liveSessionId },
+            data: { queueRevision: { increment: 1 } },
+          });
+
           return { submission, queueEntry };
         });
 
@@ -131,7 +233,7 @@ export class SubmissionsService {
         );
         return responseData;
       } else {
-        // PRIORITY TIER Submission
+        // PRIORITY TIER Submission (Requirement 5, 6, 7 & 8)
         const tier = eligibility.priorityTiers.find(
           (t) => t.tierSnapshotId === dto.tierSnapshotId,
         );
@@ -194,20 +296,40 @@ export class SubmissionsService {
         const connectedAccountId =
           liveSession.station.host.payoutAccounts[0].providerAccountId;
 
+        const snapshotRecord =
+          await this.prisma.livePriorityTierSnapshot.findUnique({
+            where: { id: dto.tierSnapshotId },
+          });
+        if (!snapshotRecord) {
+          throw new NotFoundException("Priority tier snapshot not found");
+        }
+
+        const submissionId = generateUuidV7();
+        const paymentId = generateUuidV7();
+        const reservationId = generateUuidV7();
+
+        // Create PaymentIntent with authoritative reconciliation metadata (Requirement 8)
         const paymentIntent = await this.stripeService.createPaymentIntent(
           tier.priceCents,
           connectedAccountId,
-          { liveSessionId, tierSnapshotId: dto.tierSnapshotId, userId },
+          {
+            submissionId,
+            liveSessionId,
+            stationId: liveSession.stationId,
+            tierSnapshotId: dto.tierSnapshotId,
+            userId,
+            idempotencyKey,
+            tierPriceCents: String(tier.priceCents),
+          },
         );
 
         const responseData = await this.prisma.$transaction(async (tx) => {
-          const submissionId = generateUuidV7();
           const submission = await tx.submission.create({
             data: {
               id: submissionId,
               submittingUserId: userId,
               sourceTrackId: dto.sourceTrackId,
-              artistIdentityId: dto.artistIdentityId,
+              artistIdentityId: validatedArtistIdentityId,
               liveSessionId,
               isPriority: true,
               priorityTierSnapshotId: dto.tierSnapshotId,
@@ -215,6 +337,39 @@ export class SubmissionsService {
             },
           });
 
+          // Create Immutable Track Snapshot (Requirement 15)
+          await tx.submissionTrackSnapshot.create({
+            data: {
+              id: generateUuidV7(),
+              submissionId,
+              artistName: resolvedArtistName,
+              songName: track.songName,
+              albumName: track.albumName,
+              genre: null,
+              explicitContent: track.explicitContent,
+              releaseDate: track.releaseDate,
+              artworkS3Key: artworkKey,
+              sourceType: track.sourceType,
+              playbackCapability: track.playbackCapability,
+              mediaVersionId: mediaVerId,
+              durationSeconds: track.durationSeconds,
+            },
+          });
+
+          // Create Priority Tier Reservation (Requirement 7)
+          await tx.priorityTierReservation.create({
+            data: {
+              id: reservationId,
+              tierSnapshotId: dto.tierSnapshotId!,
+              priorityTierId: snapshotRecord.priorityTierId,
+              userId,
+              trackId: dto.sourceTrackId,
+              status: "ACTIVE",
+              expiresAt: new Date(Date.now() + 15 * 60 * 1000), // 15 min TTL
+            },
+          });
+
+          // Create initial QueueEntry in AWAITING_PAYMENT status
           const queueEntryId = generateUuidV7();
           const queueEntry = await tx.queueEntry.create({
             data: {
@@ -223,11 +378,10 @@ export class SubmissionsService {
               submissionId,
               status: QueueStatus.AWAITING_PAYMENT,
               priorityRank: tier.priorityRank,
-              sortOrder: 0, // Will be calculated upon successful payment
+              sortOrder: 0, // Assigned upon payment settlement
             },
           });
 
-          const paymentId = generateUuidV7();
           await tx.payment.create({
             data: {
               id: paymentId,
@@ -316,13 +470,29 @@ export class SubmissionsService {
       }
 
       if (submission.submittingUserId !== userId) {
-        throw new ConflictException("You do not own this submission");
+        throw new ForbiddenException(
+          "Forbidden: You do not own this submission",
+        );
       }
 
       if (submission.isPriority) {
         throw new ConflictException(
           "Submission is already a priority submission",
         );
+      }
+
+      // Must be in QUEUED status to upgrade (Requirement 9)
+      if (
+        submission.currentQueueStatus !== QueueStatus.QUEUED ||
+        submission.queueEntry?.status !== QueueStatus.QUEUED
+      ) {
+        throw new ConflictException(
+          "Only queued submissions can be upgraded to Priority",
+        );
+      }
+
+      if (submission.liveSession.status !== LiveSessionStatus.LIVE) {
+        throw new ConflictException("Live session is no longer active");
       }
 
       const liveSessionId = submission.liveSessionId;
@@ -374,19 +544,43 @@ export class SubmissionsService {
       const connectedAccountId =
         submission.liveSession.station.host.payoutAccounts[0].providerAccountId;
 
+      const snapshotRecord =
+        await this.prisma.livePriorityTierSnapshot.findUnique({
+          where: { id: dto.tierSnapshotId },
+        });
+      if (!snapshotRecord) {
+        throw new NotFoundException("Priority tier snapshot not found");
+      }
+
       const paymentIntent = await this.stripeService.createPaymentIntent(
         tier.priceCents,
         connectedAccountId,
         {
+          submissionId,
           liveSessionId,
+          stationId: submission.liveSession.stationId,
           tierSnapshotId: dto.tierSnapshotId,
           userId,
           upgradeSubmissionId: submission.id,
+          idempotencyKey,
+          tierPriceCents: String(tier.priceCents),
         },
       );
 
       const responseData = await this.prisma.$transaction(async (tx) => {
-        // Do NOT update the queue entry or submission state yet. Wait for webhook.
+        // Reserve tier allocation for 15 minutes during checkout
+        await tx.priorityTierReservation.create({
+          data: {
+            id: generateUuidV7(),
+            tierSnapshotId: dto.tierSnapshotId,
+            priorityTierId: snapshotRecord.priorityTierId,
+            userId,
+            trackId: submission.sourceTrackId,
+            status: "ACTIVE",
+            expiresAt: new Date(Date.now() + 15 * 60 * 1000),
+          },
+        });
+
         const paymentId = generateUuidV7();
         const payment = await tx.payment.create({
           data: {

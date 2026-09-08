@@ -2,8 +2,9 @@
 
 import * as React from "react";
 import { Button, Input, Checkbox, Card, Badge } from "@platform/ui";
-import { UploadCloud, Music, CheckCircle2, AlertCircle, Loader2, X } from "lucide-react";
+import { UploadCloud, Music, CheckCircle2, AlertCircle, Loader2, X, Sparkles } from "lucide-react";
 import { api } from "../lib/api";
+import { ArtistIdentitySummary } from "@platform/types";
 
 interface TrackUploaderProps {
   onSuccess: () => void;
@@ -21,6 +22,8 @@ export const TrackUploader: React.FC<TrackUploaderProps> = ({
   const [bpm, setBpm] = React.useState<string>("");
   const [musicalKey, setMusicalKey] = React.useState("");
   const [explicitContent, setExplicitContent] = React.useState(false);
+  const [artistIdentities, setArtistIdentities] = React.useState<ArtistIdentitySummary[]>([]);
+  const [selectedIdentityId, setSelectedIdentityId] = React.useState<string>("");
 
   const [isDragging, setIsDragging] = React.useState(false);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
@@ -28,6 +31,29 @@ export const TrackUploader: React.FC<TrackUploaderProps> = ({
   const [error, setError] = React.useState<string | null>(null);
 
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  React.useEffect(() => {
+    api.artists.list().then((list) => {
+      setArtistIdentities(list || []);
+      if (list && list.length > 0) {
+        const def = list.find((i) => i.isDefault) || list[0];
+        setSelectedIdentityId(def.id);
+        setArtistName(def.artistName);
+      }
+    }).catch(() => {});
+  }, []);
+
+  const handleIdentityChange = (id: string) => {
+    setSelectedIdentityId(id);
+    if (id === "custom") {
+      setArtistName("");
+    } else {
+      const found = artistIdentities.find((i) => i.id === id);
+      if (found) {
+        setArtistName(found.artistName);
+      }
+    }
+  };
 
   const handleFileSelected = (selectedFile: File) => {
     // Validate audio file
@@ -206,12 +232,31 @@ export const TrackUploader: React.FC<TrackUploaderProps> = ({
         </div>
 
         <div>
-          <label className="block text-xs font-semibold text-zinc-300 uppercase tracking-wider mb-1.5">
-            Artist / Stage Name *
-          </label>
+          <div className="flex items-center justify-between mb-1.5">
+            <label className="block text-xs font-semibold text-zinc-300 uppercase tracking-wider">
+              Artist / Identity *
+            </label>
+            {artistIdentities.length > 0 && (
+              <select
+                value={selectedIdentityId}
+                onChange={(e) => handleIdentityChange(e.target.value)}
+                className="text-[11px] bg-zinc-800 text-zinc-300 border border-zinc-700 rounded px-1.5 py-0.5 focus:outline-none focus:border-violet-500"
+              >
+                {artistIdentities.map((id) => (
+                  <option key={id.id} value={id.id}>
+                    {id.artistName} {id.isDefault ? "(Default)" : ""}
+                  </option>
+                ))}
+                <option value="custom">+ Other / Custom Name</option>
+              </select>
+            )}
+          </div>
           <Input
             value={artistName}
-            onChange={(e) => setArtistName(e.target.value)}
+            onChange={(e) => {
+              setArtistName(e.target.value);
+              setSelectedIdentityId("custom");
+            }}
             placeholder="e.g. Solar Echo"
             required
             disabled={isSubmitting}

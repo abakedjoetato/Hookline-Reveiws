@@ -55,6 +55,12 @@ export class WebhooksService {
       if (event.type === "payment_intent.succeeded") {
         const paymentIntent = event.data.object as Stripe.PaymentIntent;
         await this.handlePaymentIntentSucceeded(paymentIntent);
+      } else if (
+        event.type === "payment_intent.payment_failed" ||
+        event.type === "payment_intent.canceled"
+      ) {
+        const paymentIntent = event.data.object as Stripe.PaymentIntent;
+        await this.handlePaymentIntentFailed(paymentIntent);
       }
 
       // Mark as completed
@@ -249,6 +255,18 @@ export class WebhooksService {
               upgradedByUserId: payment.payingUserId,
             },
           });
+
+          // Queue Audit Event for Upgrade
+          await tx.queueEvent.create({
+            data: {
+              id: generateUuidV7(),
+              queueEntryId: submission.queueEntry.id,
+              liveSessionId,
+              actingUserId: payment.payingUserId,
+              eventType: "TIER_UPGRADE",
+              newState: QueueStatus.QUEUED,
+            },
+          });
         } else {
           // New Submission
           const submission = payment.submission;
@@ -259,7 +277,7 @@ export class WebhooksService {
             where: {
               liveSessionId,
               priorityRank,
-              status: { in: ["QUEUED", "NEXT"] },
+              status: { in: [QueueStatus.QUEUED, QueueStatus.NEXT] },
             },
             orderBy: { sortOrder: "asc" },
           });
@@ -302,13 +320,101 @@ export class WebhooksService {
               },
             });
           }
+
+          // Queue Audit Event for Submission
+          await tx.queueEvent.create({
+            data: {
+              id: generateUuidV7(),
+              queueEntryId: submission.queueEntry.id,
+              liveSessionId,
+              actingUserId: payment.payingUserId,
+              eventType: "SUBMIT",
+              newState: QueueStatus.QUEUED,
+            },
+          });
         }
+
+        // Consume active reservation
+        await tx.priorityTierReservation.updateMany({
+          where: {
+            userId: payment.payingUserId,
+            trackId: payment.submission.sourceTrackId,
+            status: "ACTIVE",
+          },
+          data: {
+            status: "CONSUMED",
+            consumedAt: new Date(),
+          },
+        });
 
         // Increment queueRevision to notify clients of the change
         await tx.liveSession.update({
           where: { id: payment.submission.liveSessionId },
           data: { queueRevision: { increment: 1 } },
         });
+      }
+    });
+  }
+
+  private async handlePaymentIntentFailed(paymentIntent: Stripe.PaymentIntent) {
+    await this.prisma.$transaction(async (tx) => {
+      const payment = await tx.payment.findUnique({
+        where: { providerPaymentId: paymentIntent.id },
+        include: {
+          submission: {
+            include: { queueEntry: true },
+          },
+        },
+      });
+
+      if (!payment || payment.status === PaymentStatus.SETTLED) {
+        return;
+      }
+
+      await tx.payment.update({
+        where: { id: payment.id },
+        data: {
+          status: PaymentStatus.FAILED,
+          failedAt: new Date(),
+        },
+      });
+
+      if (payment.submission) {
+        // Release active reservation
+        await tx.priorityTierReservation.updateMany({
+          where: {
+            userId: payment.payingUserId,
+            trackId: payment.submission.sourceTrackId,
+            status: "ACTIVE",
+          },
+          data: {
+            status: "RELEASED",
+            releasedAt: new Date(),
+          },
+        });
+
+        const isUpgrade = paymentIntent.metadata?.upgradeSubmissionId;
+        if (
+          !isUpgrade &&
+          payment.submission.currentQueueStatus === QueueStatus.AWAITING_PAYMENT
+        ) {
+          // Never convert to free line; reject failed paid submission
+          await tx.submission.update({
+            where: { id: payment.submission.id },
+            data: {
+              currentQueueStatus: QueueStatus.REJECTED,
+            },
+          });
+
+          if (payment.submission.queueEntry) {
+            await tx.queueEntry.update({
+              where: { id: payment.submission.queueEntry.id },
+              data: {
+                status: QueueStatus.REMOVED,
+              },
+            });
+          }
+        }
       }
     });
   }

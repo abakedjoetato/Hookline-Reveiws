@@ -139,24 +139,45 @@ export default function AccountOverviewPage() {
       </div>
 
       {/* Account Navigation Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+        {/* Artist Identities Card */}
+        <Link
+          href="/account/artists"
+          className="rounded-2xl border border-zinc-800 bg-zinc-900/60 hover:bg-zinc-900 hover:border-violet-500/50 p-5 space-y-3 transition-all group"
+        >
+          <div className="h-10 w-10 rounded-xl bg-violet-600/20 text-violet-400 flex items-center justify-center group-hover:scale-105 transition-transform">
+            <Music className="h-5 w-5" />
+          </div>
+          <div>
+            <h3 className="font-bold text-sm text-zinc-100 group-hover:text-violet-400 transition-colors">
+              Artist Identities
+            </h3>
+            <p className="text-xs text-zinc-400 mt-1">
+              Create unlimited artist personas, side projects, and connect verified Spotify URLs.
+            </p>
+          </div>
+          <div className="text-[11px] font-semibold text-violet-400 flex items-center gap-1 pt-1">
+            Manage artists →
+          </div>
+        </Link>
+
         {/* Profile Card */}
         <Link
           href="/account/profile"
           className="rounded-2xl border border-zinc-800 bg-zinc-900/60 hover:bg-zinc-900 hover:border-zinc-700/80 p-5 space-y-3 transition-all group"
         >
-          <div className="h-10 w-10 rounded-xl bg-violet-600/20 text-violet-400 flex items-center justify-center group-hover:scale-105 transition-transform">
+          <div className="h-10 w-10 rounded-xl bg-indigo-600/20 text-indigo-400 flex items-center justify-center group-hover:scale-105 transition-transform">
             <User className="h-5 w-5" />
           </div>
           <div>
-            <h3 className="font-bold text-sm text-zinc-100 group-hover:text-violet-400 transition-colors">
-              Artist Profile
+            <h3 className="font-bold text-sm text-zinc-100 group-hover:text-indigo-400 transition-colors">
+              Account Profile
             </h3>
             <p className="text-xs text-zinc-400 mt-1">
-              Customize stage name, artist bio, profile avatar, country, and website links.
+              Customize your account display name, bio, profile avatar, and user information.
             </p>
           </div>
-          <div className="text-[11px] font-semibold text-violet-400 flex items-center gap-1 pt-1">
+          <div className="text-[11px] font-semibold text-indigo-400 flex items-center gap-1 pt-1">
             Manage profile →
           </div>
         </Link>
@@ -171,10 +192,10 @@ export default function AccountOverviewPage() {
           </div>
           <div>
             <h3 className="font-bold text-sm text-zinc-100 group-hover:text-amber-400 transition-colors">
-              Security & Active Sessions
+              Security & Sessions
             </h3>
             <p className="text-xs text-zinc-400 mt-1">
-              Change password, monitor active browser sessions, revoke devices, and inspect security logs.
+              Change password, monitor active browser sessions, and inspect security logs.
             </p>
           </div>
           <div className="text-[11px] font-semibold text-amber-400 flex items-center gap-1 pt-1">
@@ -187,18 +208,18 @@ export default function AccountOverviewPage() {
           href="/account/settings"
           className="rounded-2xl border border-zinc-800 bg-zinc-900/60 hover:bg-zinc-900 hover:border-zinc-700/80 p-5 space-y-3 transition-all group"
         >
-          <div className="h-10 w-10 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center group-hover:scale-105 transition-transform">
+          <div className="h-10 w-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center group-hover:scale-105 transition-transform">
             <Settings className="h-5 w-5" />
           </div>
           <div>
-            <h3 className="font-bold text-sm text-zinc-100 group-hover:text-indigo-400 transition-colors">
+            <h3 className="font-bold text-sm text-zinc-100 group-hover:text-emerald-400 transition-colors">
               Preferences & Audio
             </h3>
             <p className="text-xs text-zinc-400 mt-1">
-              Configure submission alerts, email digests, interface audio cues, and display preferences.
+              Configure submission alerts, email digests, interface audio cues, and display.
             </p>
           </div>
-          <div className="text-[11px] font-semibold text-indigo-400 flex items-center gap-1 pt-1">
+          <div className="text-[11px] font-semibold text-emerald-400 flex items-center gap-1 pt-1">
             Configure preferences →
           </div>
         </Link>

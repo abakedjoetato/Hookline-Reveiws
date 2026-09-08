@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { serverDb, getAuthenticatedUser, sanitizeUser } from "@/lib/server-state";
+import { updateUserProfileSchema } from "@platform/validation";
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +30,21 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    const body = await request.json();
+    const rawBody = await request.json();
+    const validationResult = updateUserProfileSchema.safeParse(rawBody);
+
+    if (!validationResult.success) {
+      return NextResponse.json(
+        {
+          message: "Validation failed",
+          errors: validationResult.error.flatten().fieldErrors,
+          code: "VALIDATION_FAILED",
+        },
+        { status: 400 },
+      );
+    }
+
+    const body = validationResult.data;
 
     if (body.displayName !== undefined) {
       user.displayName = body.displayName.trim();
@@ -45,6 +60,11 @@ export async function PATCH(request: NextRequest) {
     }
     if (body.websiteUrl !== undefined) {
       user.websiteUrl = body.websiteUrl ? body.websiteUrl.trim() : null;
+    }
+    if (body.spotifyProfileUrl !== undefined) {
+      user.spotifyProfileUrl = body.spotifyProfileUrl
+        ? body.spotifyProfileUrl.trim()
+        : null;
     }
 
     user.updatedAt = new Date().toISOString();

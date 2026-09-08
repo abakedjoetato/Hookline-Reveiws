@@ -17,12 +17,49 @@ describe("SubmissionsService", () => {
       return cb(mockPrisma);
     }),
     userLiveSubmissionUsage: { upsert: vi.fn() },
+    track: {
+      findUnique: vi.fn().mockResolvedValue({
+        id: "tr_1",
+        userId: "user_1",
+        songName: "Test Song",
+        albumName: "Test Album",
+        genre: "Electronic",
+        explicitContent: false,
+        releaseDate: new Date(),
+        artworkS3Key: "artwork.jpg",
+        sourceType: "DIRECT_UPLOAD",
+        playbackCapability: "STEREO",
+        currentMediaVersionId: "mv_1",
+        durationSeconds: 180,
+        processingState: "READY",
+        storageStatus: "AVAILABLE",
+        deletedAt: null,
+      }),
+    },
+    artistIdentity: {
+      findUnique: vi.fn().mockResolvedValue({
+        id: "art_1",
+        userId: "user_1",
+        artistName: "Test Artist",
+        deletedAt: null,
+      }),
+    },
+    submissionTrackSnapshot: { create: vi.fn() },
+    priorityTierReservation: { create: vi.fn() },
+    queueEvent: { create: vi.fn() },
+    livePriorityTierSnapshot: {
+      findUnique: vi.fn().mockResolvedValue({
+        id: "ts_1",
+        priorityTierId: "pt_1",
+      }),
+    },
     submission: {
       create: vi.fn().mockResolvedValue({
         id: "sub_1",
         liveSessionId: "ls_1",
         queueEntry: { id: "qe_1" },
       }),
+      findUnique: vi.fn(),
     },
     queueEntry: {
       create: vi.fn().mockResolvedValue({ id: "qe_1" }),
@@ -38,6 +75,7 @@ describe("SubmissionsService", () => {
           },
         },
       }),
+      update: vi.fn().mockResolvedValue({ id: "ls_1" }),
     },
     stripePlatformConfiguration: {
       findFirst: vi.fn().mockResolvedValue({ isPaymentsEnabled: true }),
@@ -175,5 +213,79 @@ describe("SubmissionsService", () => {
     expect(mockPrisma.payment.create).toHaveBeenCalled();
     expect(result.clientSecret).toBe("secret_123");
     expect(result.submission.id).toBe("sub_1");
+  });
+
+  it("should reject submission if user does not own track", async () => {
+    mockPrisma.track.findUnique.mockResolvedValueOnce({
+      id: "tr_other",
+      userId: "different_user",
+      processingState: "READY",
+      storageStatus: "AVAILABLE",
+      deletedAt: null,
+    });
+
+    await expect(
+      service.createSubmission(
+        "user_1",
+        "ls_1",
+        { sourceTrackId: "tr_other", artistIdentityId: "art_1" },
+        "key4",
+      ),
+    ).rejects.toThrow("Forbidden: You can only submit tracks from your own library");
+  });
+
+  it("should reject submission if track is not ready for playback", async () => {
+    mockPrisma.track.findUnique.mockResolvedValueOnce({
+      id: "tr_processing",
+      userId: "user_1",
+      processingState: "PROCESSING",
+      storageStatus: "AVAILABLE",
+      deletedAt: null,
+    });
+
+    await expect(
+      service.createSubmission(
+        "user_1",
+        "ls_1",
+        { sourceTrackId: "tr_processing", artistIdentityId: "art_1" },
+        "key5",
+      ),
+    ).rejects.toThrow("Track is not ready for playback");
+  });
+
+  it("should reject submission if user does not own artist identity", async () => {
+    mockPrisma.artistIdentity.findUnique.mockResolvedValueOnce({
+      id: "art_other",
+      userId: "different_user",
+      artistName: "Impostor",
+      deletedAt: null,
+    });
+
+    await expect(
+      service.createSubmission(
+        "user_1",
+        "ls_1",
+        { sourceTrackId: "tr_1", artistIdentityId: "art_other" },
+        "key6",
+      ),
+    ).rejects.toThrow("Forbidden: You cannot submit under an Artist Identity you do not own");
+  });
+
+  it("should reject upgrade if submission is not QUEUED", async () => {
+    mockPrisma.submission.findUnique = vi.fn().mockResolvedValueOnce({
+      id: "sub_1",
+      submittingUserId: "user_1",
+      isPriority: false,
+      currentQueueStatus: "PLAYING",
+      queueEntry: { status: "PLAYING" },
+      liveSession: {
+        status: "LIVE",
+        station: { host: { payoutAccounts: [{ providerAccountId: "acct_1" }] } },
+      },
+    });
+
+    await expect(
+      service.upgradeSubmission("user_1", "sub_1", { tierSnapshotId: "ts_1" }, "upg_1"),
+    ).rejects.toThrow("Only queued submissions can be upgraded to Priority");
   });
 });

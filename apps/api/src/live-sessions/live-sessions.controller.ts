@@ -5,6 +5,8 @@ import {
   Controller,
   Post,
   Get,
+  Delete,
+  Query,
   Body,
   Param,
   UseGuards,
@@ -19,6 +21,7 @@ import {
   MoveToNextDto,
   LoadQueueEntryDto,
   ClearPlayerDto,
+  QueueEntryActionDto,
 } from "./dto/live-session.dto";
 import { SessionGuard } from "../auth/guards/session.guard";
 import { RequestWithUser } from "../auth/interfaces/request-with-user.interface";
@@ -202,5 +205,56 @@ export class LiveSessionsController {
       entryId,
       dto,
     );
+  }
+
+  @Post(":id/queue/entries/:entryId")
+  async handleQueueEntryAction(
+    @Req() req: RequestWithUser,
+    @Param("id") id: string,
+    @Param("entryId") entryId: string,
+    @Body() dto: QueueEntryActionDto,
+  ) {
+    if (dto.action === "COMPLETE") {
+      return this.liveSessionsService.completeQueueEntry(
+        req.user.id,
+        id,
+        entryId,
+        dto.expectedQueueRevision,
+      );
+    }
+    return this.liveSessionsService.skipQueueEntry(
+      req.user.id,
+      id,
+      entryId,
+      dto.expectedQueueRevision,
+    );
+  }
+
+  @Delete(":id/queue/entries/:entryId")
+  async removeQueueEntry(
+    @Req() req: RequestWithUser,
+    @Param("id") id: string,
+    @Param("entryId") entryId: string,
+    @Query("expectedQueueRevision") expectedQueueRevisionStr?: string,
+  ) {
+    const expectedQueueRevision = expectedQueueRevisionStr
+      ? parseInt(expectedQueueRevisionStr, 10)
+      : undefined;
+    return this.liveSessionsService.removeQueueEntry(
+      req.user.id,
+      id,
+      entryId,
+      expectedQueueRevision,
+    );
+  }
+
+  @PublicRoute()
+  @Get(":id/weekly-top3")
+  async getWeeklyTop3(
+    @Param("id") id: string,
+    @Query("date") dateParam?: string,
+  ) {
+    const refDate = dateParam ? new Date(dateParam) : new Date();
+    return this.liveSessionsService.getWeeklyTop3(id, refDate);
   }
 }

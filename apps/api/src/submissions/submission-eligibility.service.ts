@@ -18,6 +18,11 @@ export class SubmissionEligibilityService {
     const liveSession = await this.prisma.liveSession.findUnique({
       where: { id: liveSessionId },
       include: {
+        station: {
+          include: {
+            settings: true,
+          },
+        },
         freeLineConfigurations: true,
         priorityTierSnapshots: {
           orderBy: { displayOrder: "asc" },
@@ -35,8 +40,6 @@ export class SubmissionEligibilityService {
 
     const freeUsedCount = userUsage?.freeUsedCount || 0;
 
-    let totalActiveFree = 0;
-
     const activeFreeEntries = await this.prisma.queueEntry.findMany({
       where: {
         liveSessionId,
@@ -52,7 +55,7 @@ export class SubmissionEligibilityService {
       },
     });
 
-    totalActiveFree = activeFreeEntries.length;
+    const totalActiveFree = activeFreeEntries.length;
     const userActiveFree = activeFreeEntries.filter(
       (e) => e.submission.submittingUserId === userId,
     ).length;
@@ -127,6 +130,22 @@ export class SubmissionEligibilityService {
       },
     });
 
+    // Check station-level per-user paid simultaneous cap (Requirement 13)
+    const paidCapSetting = liveSession.station?.settings?.find(
+      (s) =>
+        s.key === "maxSimultaneousPaidEntriesPerUser" ||
+        s.key === "maxPaidActiveEntriesPerUser",
+    );
+    const stationPaidCap = paidCapSetting
+      ? parseInt(paidCapSetting.value, 10)
+      : null;
+    const userActivePaidCount = userActivePriorityEntries.filter(
+      (e) =>
+        e.status === QueueStatus.QUEUED ||
+        e.status === QueueStatus.NEXT ||
+        e.status === QueueStatus.PLAYING,
+    ).length;
+
     const userUpgrades = await this.prisma.submissionUpgrade.findMany({
       where: {
         upgradedByUserId: userId,
@@ -138,6 +157,16 @@ export class SubmissionEligibilityService {
       where: { submittingUserId: userId, liveSessionId, isPriority: true },
     });
 
+    // Also include active unexpired reservations
+    const activeReservations =
+      await this.prisma.priorityTierReservation.findMany({
+        where: {
+          tierSnapshot: { liveSessionId },
+          status: "ACTIVE",
+          expiresAt: { gt: new Date() },
+        },
+      });
+
     for (const tier of liveSession.priorityTierSnapshots || []) {
       let tierAvailable = true;
       let tierReason = SubmissionEligibilityReason.AVAILABLE;
@@ -148,13 +177,26 @@ export class SubmissionEligibilityService {
       } else if (!tier.isActive) {
         tierAvailable = false;
         tierReason = SubmissionEligibilityReason.TIER_DISABLED;
+      } else if (
+        stationPaidCap !== null &&
+        !isNaN(stationPaidCap) &&
+        stationPaidCap > 0 &&
+        userActivePaidCount >= stationPaidCap
+      ) {
+        tierAvailable = false;
+        tierReason = SubmissionEligibilityReason.USER_TIER_LIMIT_REACHED;
       } else {
         const userActiveInTier = userActivePriorityEntries.filter(
           (e) => e.submission.priorityTierSnapshotId === tier.id,
         ).length;
+        const userReservationsInTier = activeReservations.filter(
+          (r) => r.tierSnapshotId === tier.id && r.userId === userId,
+        ).length;
+
         if (
           tier.maxSimultaneousActiveEntries &&
-          userActiveInTier >= tier.maxSimultaneousActiveEntries
+          userActiveInTier + userReservationsInTier >=
+            tier.maxSimultaneousActiveEntries
         ) {
           tierAvailable = false;
           tierReason = SubmissionEligibilityReason.USER_TIER_LIMIT_REACHED;
@@ -181,8 +223,14 @@ export class SubmissionEligibilityService {
             (await this.prisma.submissionUpgrade.count({
               where: { newTierSnapshotId: tier.id },
             }));
+          const totalReservationsInTier = activeReservations.filter(
+            (r) => r.tierSnapshotId === tier.id,
+          ).length;
 
-          if (globalPurchases >= tier.maxPurchasesPerLive) {
+          if (
+            globalPurchases + totalReservationsInTier >=
+            tier.maxPurchasesPerLive
+          ) {
             tierAvailable = false;
             tierReason =
               SubmissionEligibilityReason.TOTAL_TIER_CAPACITY_REACHED;

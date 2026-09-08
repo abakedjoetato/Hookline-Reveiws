@@ -365,6 +365,7 @@ model ArtistIdentity {
   userId              String    @db.Uuid
   artistName          String
   normalizedArtistName String
+  spotifyUrl          String?
   biography           String?   @db.Text
   profileImageKey     String?
   isDefault           Boolean   @default(false)
@@ -374,8 +375,9 @@ model ArtistIdentity {
   deletedAt           DateTime?
 
   // Relations
-  user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user                User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   tracks              Track[]
+  submissions         Submission[]
 
   @@map("artist_identities")
   @@index([userId])
@@ -453,7 +455,7 @@ model UploadIntent {
 model Track {
   id                    String              @id @db.Uuid
   userId                String              @db.Uuid
-  artistIdentityId      String              @db.Uuid
+  artistIdentityId      String?             @db.Uuid
   songName              String
   normalizedSongName    String
   albumName             String?
@@ -474,7 +476,7 @@ model Track {
 
   // Relations
   user                  User                @relation(fields: [userId], references: [id], onDelete: Cascade)
-  artistIdentity        ArtistIdentity      @relation(fields: [artistIdentityId], references: [id], onDelete: Restrict)
+  artistIdentity        ArtistIdentity?     @relation(fields: [artistIdentityId], references: [id], onDelete: SetNull)
   mediaVersions         TrackMediaVersion[]
   artworks              TrackArtwork[]
   externalSources       TrackExternalSource[]
@@ -1214,7 +1216,7 @@ model Submission {
   id                    String                    @id @db.Uuid
   submittingUserId      String                    @db.Uuid
   sourceTrackId         String                    @db.Uuid
-  artistIdentityId      String                    @db.Uuid
+  artistIdentityId      String?                   @db.Uuid
   liveSessionId         String                    @db.Uuid
   isPriority            Boolean                   @default(false)
   priorityTierSnapshotId String?                  @db.Uuid
@@ -1224,6 +1226,7 @@ model Submission {
   // Relations
   submittingUser        User                      @relation(fields: [submittingUserId], references: [id], onDelete: Restrict)
   sourceTrack           Track                     @relation(fields: [sourceTrackId], references: [id], onDelete: Restrict)
+  artistIdentity        ArtistIdentity?           @relation(fields: [artistIdentityId], references: [id], onDelete: SetNull)
   liveSession           LiveSession               @relation(fields: [liveSessionId], references: [id], onDelete: Restrict)
   priorityTierSnapshot  LivePriorityTierSnapshot? @relation(fields: [priorityTierSnapshotId], references: [id], onDelete: Restrict)
   trackSnapshot         SubmissionTrackSnapshot?
@@ -1235,6 +1238,7 @@ model Submission {
   @@map("submissions")
   @@index([submittingUserId])
   @@index([sourceTrackId])
+  @@index([artistIdentityId])
   @@index([liveSessionId])
 }
 
@@ -1313,6 +1317,8 @@ model QueueEntry {
   @@index([liveSessionId, status])
   @@index([priorityRank, manualSortOrder, queueSequence])
   @@index([sortOrder])
+  @@index([wasPlayed, completedAt])
+  @@index([liveSessionId, wasPlayed, completedAt])
 }
 
 model QueueEvent {
@@ -1456,6 +1462,9 @@ model PlaybackEvent {
   liveSession     LiveSession @relation(fields: [liveSessionId], references: [id], onDelete: Restrict)
   queueEntry      QueueEntry  @relation(fields: [queueEntryId], references: [id], onDelete: Restrict)
 
+  @@index([liveSessionId, eventType, timestamp])
+  @@index([queueEntryId])
+  @@index([timestamp])
   @@map("playback_events")
 }
 

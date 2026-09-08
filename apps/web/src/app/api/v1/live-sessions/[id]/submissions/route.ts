@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { serverDb, StoredQueueEntry, StoredSubmission } from "@/lib/server-state";
+import {
+  serverDb,
+  getAuthenticatedUser,
+  StoredQueueEntry,
+  StoredSubmission,
+} from "@/lib/server-state";
 import {
   CreateSubmissionDto,
   CreateSubmissionResponse,
@@ -21,6 +26,9 @@ export async function POST(
     );
   }
 
+  const cookieHeader = req.headers.get("cookie");
+  const user = getAuthenticatedUser(cookieHeader) || serverDb.users.get("user-demo");
+
   const body: CreateSubmissionDto = await req.json();
   const track = serverDb.tracks.get(body.sourceTrackId);
 
@@ -29,6 +37,50 @@ export async function POST(
       { message: "Track not found in user library", code: "TRACK_NOT_FOUND" },
       { status: 400 },
     );
+  }
+
+  // Resolve Artist Identity:
+  // 1. Explicit body override: if provided (string or null)
+  // 2. Fall back to track's artistIdentityId
+  let resolvedArtistIdentityId: string | null = null;
+  let resolvedArtistName: string = track.artistIdentity?.artistName || track.songName;
+  let resolvedSpotifyUrl: string | null = null;
+
+  if (body.artistIdentityId !== undefined) {
+    if (body.artistIdentityId && body.artistIdentityId !== "none") {
+      const identity = serverDb.artistIdentities.get(body.artistIdentityId);
+      if (!identity || identity.deletedAt) {
+        return NextResponse.json(
+          { message: "Selected Artist Identity not found", code: "ARTIST_NOT_FOUND" },
+          { status: 404 },
+        );
+      }
+      // Authorization check: Submitting user must own the Artist Identity
+      if (user && identity.userId !== user.id) {
+        return NextResponse.json(
+          { message: "Forbidden: You cannot submit under an Artist Identity you do not own.", code: "FORBIDDEN" },
+          { status: 403 },
+        );
+      }
+      resolvedArtistIdentityId = identity.id;
+      resolvedArtistName = identity.artistName;
+      resolvedSpotifyUrl = identity.spotifyUrl || null;
+    } else {
+      // Explicit "No Artist"
+      resolvedArtistIdentityId = null;
+      resolvedArtistName = track.songName;
+      resolvedSpotifyUrl = null;
+    }
+  } else if (track.artistIdentityId) {
+    const identity = serverDb.artistIdentities.get(track.artistIdentityId);
+    if (identity && !identity.deletedAt) {
+      resolvedArtistIdentityId = identity.id;
+      resolvedArtistName = identity.artistName;
+      resolvedSpotifyUrl = identity.spotifyUrl || null;
+    } else if (track.artistIdentity?.artistName) {
+      resolvedArtistName = track.artistIdentity.artistName;
+      resolvedSpotifyUrl = track.artistIdentity.spotifyUrl || null;
+    }
   }
 
   const isPriority = Boolean(body.tierSnapshotId);
@@ -47,8 +99,10 @@ export async function POST(
     id: queueEntryId,
     liveSessionId: sessionId,
     submissionId,
-    submittingUserId: "current-user",
+    submittingUserId: user ? user.id : "current-user",
     sourceTrackId: track.id,
+    artistIdentityId: resolvedArtistIdentityId,
+    spotifyUrl: resolvedSpotifyUrl,
     status: QueueStatus.QUEUED,
     sortOrder: nextSortOrder,
     priorityRank,
@@ -56,7 +110,7 @@ export async function POST(
     tierName: selectedTier ? selectedTier.name : null,
     colorSlot: selectedTier ? selectedTier.colorSlot : "FREE_LINE",
     songName: track.songName,
-    artistName: track.artistIdentity?.artistName || "Artist",
+    artistName: resolvedArtistName,
     durationSeconds: track.durationSeconds,
     submittedAt: new Date().toISOString(),
   };
@@ -82,15 +136,16 @@ export async function POST(
 
   const newSubmission: StoredSubmission = {
     id: submissionId,
-    submittingUserId: "current-user",
+    submittingUserId: user ? user.id : "current-user",
     sourceTrackId: track.id,
-    artistIdentityId: track.artistIdentityId,
+    artistIdentityId: resolvedArtistIdentityId,
+    spotifyUrl: resolvedSpotifyUrl,
     liveSessionId: sessionId,
     sessionTitle: session.liveTitle,
     sessionStatus: session.status,
     stationName: session.stationName,
     songName: track.songName,
-    artistName: track.artistIdentity?.artistName || "Artist",
+    artistName: resolvedArtistName,
     durationSeconds: track.durationSeconds,
     isPriority,
     tierName: selectedTier ? selectedTier.name : null,
@@ -110,9 +165,9 @@ export async function POST(
   const response: CreateSubmissionResponse = {
     submission: {
       id: submissionId,
-      submittingUserId: "current-user",
+      submittingUserId: user ? user.id : "current-user",
       sourceTrackId: track.id,
-      artistIdentityId: track.artistIdentityId,
+      artistIdentityId: resolvedArtistIdentityId,
       liveSessionId: sessionId,
       isPriority,
       priorityTierSnapshotId: body.tierSnapshotId || null,
@@ -132,3 +187,4 @@ export async function POST(
 
   return NextResponse.json(response);
 }
+

@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { serverDb, getAuthenticatedUser, StoredSession } from "@/lib/server-state";
+import {
+  serverDb,
+  getAuthenticatedUser,
+  StoredSession,
+  getStationPriorityTiers,
+} from "@/lib/server-state";
 import { Role, LiveSessionStatus, StreamingPlatform } from "@platform/types";
 import { goLiveSchema } from "@platform/validation";
 
@@ -78,6 +83,37 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Snapshot persistent Station Priority Tiers for this LiveSession
+    const stationTiers = getStationPriorityTiers(station.id, false);
+    const snapshotTiers =
+      stationTiers.length > 0
+        ? stationTiers.map((tier) => ({
+            tierSnapshotId: `snap-${Date.now()}-${tier.id}`,
+            name: tier.name,
+            priceCents: tier.priceCents,
+            priorityRank: tier.priorityRank,
+            colorSlot: tier.colorSlot,
+            available: tier.isActive,
+          }))
+        : [
+            {
+              tierSnapshotId: `tier-${Date.now()}-1`,
+              name: "Priority Jump",
+              priceCents: 500,
+              priorityRank: 1,
+              colorSlot: "TIER_COLOR_1",
+              available: true,
+            },
+            {
+              tierSnapshotId: `tier-${Date.now()}-2`,
+              name: "VIP Instant Review",
+              priceCents: 1500,
+              priorityRank: 2,
+              colorSlot: "TIER_COLOR_2",
+              available: true,
+            },
+          ];
+
     const sessionId = `session-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
     const newSession: StoredSession = {
       id: sessionId,
@@ -97,24 +133,7 @@ export async function POST(request: NextRequest) {
       paidSubmissionsOpen: paidSubmissionsOpen ?? true,
       currentQueueEntryId: null,
       currentTrack: null,
-      tiers: [
-        {
-          tierSnapshotId: `tier-${sessionId}-1`,
-          name: "Priority Jump",
-          priceCents: 500,
-          priorityRank: 1,
-          colorSlot: "TIER_COLOR_1",
-          available: true,
-        },
-        {
-          tierSnapshotId: `tier-${sessionId}-2`,
-          name: "VIP Instant Review",
-          priceCents: 1500,
-          priorityRank: 2,
-          colorSlot: "TIER_COLOR_2",
-          available: true,
-        },
-      ],
+      tiers: snapshotTiers,
     };
 
     serverDb.sessions.set(newSession.id, newSession);

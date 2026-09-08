@@ -35,6 +35,12 @@ describe("WebhooksService", () => {
     liveSession: {
       update: vi.fn(),
     },
+    queueEvent: {
+      create: vi.fn(),
+    },
+    priorityTierReservation: {
+      updateMany: vi.fn(),
+    },
     livePriorityTierSnapshot: {
       findUnique: vi.fn(),
     },

@@ -10,6 +10,7 @@ import {
   StreamingPlatform,
   Role,
   PublicQueueEntry,
+  WeeklyTop3Response,
 } from "@platform/types";
 import { Button, Card, Badge, Input } from "@platform/ui";
 import {
@@ -31,6 +32,8 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { HostQueueManager } from "@/components/HostQueueManager";
+import { HostPriorityTierManager } from "@/components/HostPriorityTierManager";
+import { WeeklyTop3Card } from "@/components/WeeklyTop3Card";
 
 export default function HostStudioPage() {
   const router = useRouter();
@@ -44,6 +47,8 @@ export default function HostStudioPage() {
   const [error, setError] = React.useState<string | null>(null);
   const [successMessage, setSuccessMessage] = React.useState<string | null>(null);
   const [copiedUrl, setCopiedUrl] = React.useState(false);
+  const [weeklyTop3, setWeeklyTop3] = React.useState<WeeklyTop3Response | null>(null);
+  const [isTop3Loading, setIsTop3Loading] = React.useState(false);
 
   // Station Configuration Form
   const [description, setDescription] = React.useState("");
@@ -92,6 +97,18 @@ export default function HostStudioPage() {
     }
   };
 
+  const loadTop3 = async () => {
+    setIsTop3Loading(true);
+    try {
+      const top3Data = await api.host.getWeeklyTop3();
+      setWeeklyTop3(top3Data);
+    } catch {
+      // Non-blocking
+    } finally {
+      setIsTop3Loading(false);
+    }
+  };
+
   React.useEffect(() => {
     if (!authLoading && !isAuthenticated) {
       router.push("/login?redirect=/host/studio");
@@ -100,6 +117,7 @@ export default function HostStudioPage() {
 
     if (isAuthenticated) {
       loadStation();
+      loadTop3();
     }
   }, [isAuthenticated, authLoading]);
 
@@ -317,10 +335,24 @@ export default function HostStudioPage() {
 
           <HostQueueManager
             sessionId={station.currentLiveSessionId}
-            onSessionUpdated={() => loadStation()}
+            onSessionUpdated={() => {
+              loadStation();
+              loadTop3();
+            }}
           />
         </div>
       )}
+
+      {/* Authoritative Weekly Top 3 Playback Ranking */}
+      <WeeklyTop3Card
+        data={weeklyTop3}
+        isLoading={isTop3Loading}
+        onRefresh={loadTop3}
+        titlePrefix="Station"
+      />
+
+      {/* Priority Tiers Management Panel */}
+      <HostPriorityTierManager />
 
       {/* Station Configuration Panel */}
       <Card className="border-zinc-800 p-6 sm:p-8 space-y-6">

@@ -35,12 +35,26 @@ import {
   PublicStationDetail,
   LegalAcceptanceRecord,
   LegalAcceptanceSource,
+  ArtistIdentity,
+  ArtistIdentitySummary,
+  CreateArtistIdentityDto,
+  UpdateArtistIdentityDto,
+  StationPriorityTier,
+  CreateStationPriorityTierDto,
+  UpdateStationPriorityTierDto,
+  ReorderStationPriorityTiersDto,
+  WeeklyTop3Response,
+  WeeklyTop3Item,
+  WeeklyTop3Period,
 } from "@platform/types";
 import { RESERVED_SLUGS, slugifyHostname } from "@platform/validation";
 import {
   TERMS_METADATA,
   PRIVACY_METADATA,
   getLegalConfig,
+  getCurrentWeeklyPeriod,
+  NORMAL_PLAY_RATE_LIMIT_MS,
+  QUALIFICATION_CONTINUOUS_PLAYBACK_MS,
 } from "@platform/config";
 import {
   persistLegalAcceptanceToDb,
@@ -91,6 +105,8 @@ export interface StoredPayoutAccount {
 }
 
 export interface StoredSession extends PublicLiveSessionDetail {
+  endedAt?: string;
+  lastPlaybackActivityAt?: string;
   tiers: {
     tierSnapshotId: string;
     name: string;
@@ -105,18 +121,42 @@ export interface StoredTrack extends TrackSummary {
   audioDataUrl?: string;
   originalFilename?: string;
   mimeType?: string;
+  lastPlayedAt?: string;
+}
+
+export interface StoredArtistIdentity extends ArtistIdentity {
+  id: string;
+  userId: string;
+  artistName: string;
+  normalizedArtistName: string;
+  spotifyUrl: string | null;
+  biography: string | null;
+  profileImageKey: string | null;
+  isDefault: boolean;
+  isPublic: boolean;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt: string | null;
 }
 
 export interface StoredQueueEntry extends PublicQueueEntry {
   submissionId: string;
   submittingUserId: string;
   sourceTrackId: string;
+  loadedIntoPlayerAt?: string | null;
+  originPriorityRank?: number;
+  originSortOrder?: number;
+  completedAt?: string | null;
+  skippedAt?: string | null;
+  removedAt?: string | null;
+  wasPlayed?: boolean;
+  playbackCompleted?: boolean;
 }
 
 export interface StoredSubmission extends UserSubmissionSummary {
   submittingUserId: string;
   sourceTrackId: string;
-  artistIdentityId: string;
+  artistIdentityId?: string | null;
 }
 
 export interface StoredPasswordResetToken {
@@ -137,12 +177,29 @@ export interface StoredEmailVerificationToken {
   createdAt: string;
 }
 
+export interface StoredPlaybackEvent {
+  id: string;
+  liveSessionId: string;
+  stationId: string;
+  queueEntryId: string;
+  submissionId: string;
+  trackId: string;
+  songName: string;
+  artistName: string;
+  isPriority: boolean;
+  artistIdentityId?: string | null;
+  spotifyUrl?: string | null;
+  eventType: "QUALIFIED_PLAY" | "COMPLETE" | "PLAY" | "PAUSE" | "SEEK" | "STOP";
+  timestamp: string;
+}
+
 // Global server state singleton for Next.js App Router
 declare global {
   // eslint-disable-next-line no-var
   var __THE_QUEUE_STATE__:
     | {
         users: Map<string, StoredUser>;
+        artistIdentities: Map<string, StoredArtistIdentity>;
         sessionTokens: Map<string, StoredSessionToken>;
         passwordResetTokens: Map<string, StoredPasswordResetToken>;
         emailVerificationTokens: Map<string, StoredEmailVerificationToken>;
@@ -172,6 +229,8 @@ declare global {
           }
         >;
         legalAcceptances: LegalAcceptanceRecord[];
+        stationPriorityTiers: Map<string, StationPriorityTier>;
+        playbackEvents: StoredPlaybackEvent[];
       }
     | undefined;
 }
@@ -201,6 +260,7 @@ function initDatabase() {
   }
 
   const users = new Map<string, StoredUser>();
+  const artistIdentities = new Map<string, StoredArtistIdentity>();
   const sessionTokens = new Map<string, StoredSessionToken>();
   const passwordResetTokens = new Map<string, StoredPasswordResetToken>();
   const emailVerificationTokens = new Map<string, StoredEmailVerificationToken>();
@@ -226,6 +286,72 @@ function initDatabase() {
     updatedAt: new Date().toISOString(),
   };
   users.set(demoUser.id, demoUser);
+
+  // 1b. Seed Artist Identities
+  const demoArtist1: StoredArtistIdentity = {
+    id: "artist-identity-1",
+    userId: demoUser.id,
+    artistName: "Demo Artist",
+    normalizedArtistName: "demo artist",
+    spotifyUrl: "https://open.spotify.com/artist/4Z8W4fKeB5YxbusRsdQVPb",
+    biography: "Electronic and ambient producer creating cinematic soundscapes.",
+    profileImageKey: null,
+    isDefault: true,
+    isPublic: true,
+    createdAt: new Date(Date.now() - 86400000 * 30).toISOString(),
+    updatedAt: new Date(Date.now() - 86400000 * 30).toISOString(),
+    deletedAt: null,
+  };
+
+  const demoArtist2: StoredArtistIdentity = {
+    id: "artist-identity-2",
+    userId: demoUser.id,
+    artistName: "Neon Echo",
+    normalizedArtistName: "neon echo",
+    spotifyUrl: "https://open.spotify.com/artist/3TVXtAsR1Inumwj472S9r4",
+    biography: "Synthwave and cyberpunk alias exploring retro-futuristic beats.",
+    profileImageKey: null,
+    isDefault: false,
+    isPublic: true,
+    createdAt: new Date(Date.now() - 86400000 * 10).toISOString(),
+    updatedAt: new Date(Date.now() - 86400000 * 10).toISOString(),
+    deletedAt: null,
+  };
+
+  const artistOther1: StoredArtistIdentity = {
+    id: "artist-identity-other-1",
+    userId: "other-user-1",
+    artistName: "Astral Motion",
+    normalizedArtistName: "astral motion",
+    spotifyUrl: "https://open.spotify.com/artist/6eUKZXaKkcviH0Ku9w2n3V",
+    biography: "Space bass and psychedelic sounds.",
+    profileImageKey: null,
+    isDefault: true,
+    isPublic: true,
+    createdAt: new Date(Date.now() - 86400000 * 15).toISOString(),
+    updatedAt: new Date(Date.now() - 86400000 * 15).toISOString(),
+    deletedAt: null,
+  };
+
+  const artistOther2: StoredArtistIdentity = {
+    id: "artist-identity-other-2",
+    userId: "other-user-2",
+    artistName: "Vapor Knight",
+    normalizedArtistName: "vapor knight",
+    spotifyUrl: "https://open.spotify.com/artist/06HL4z0CvFAxyc27GXpf02",
+    biography: "Chillwave & Lo-Fi vibes.",
+    profileImageKey: null,
+    isDefault: true,
+    isPublic: true,
+    createdAt: new Date(Date.now() - 86400000 * 12).toISOString(),
+    updatedAt: new Date(Date.now() - 86400000 * 12).toISOString(),
+    deletedAt: null,
+  };
+
+  artistIdentities.set(demoArtist1.id, demoArtist1);
+  artistIdentities.set(demoArtist2.id, demoArtist2);
+  artistIdentities.set(artistOther1.id, artistOther1);
+  artistIdentities.set(artistOther2.id, artistOther2);
 
   // 2. Seed Default Administrator User
   const adminEmail = process.env.ADMIN_BOOTSTRAP_EMAIL || "admin@thequeue.live";
@@ -293,6 +419,7 @@ function initDatabase() {
   const tracks = new Map<string, StoredTrack>();
   const submissions = new Map<string, StoredSubmission>();
   const uploadIntents = new Map();
+  const stationPriorityTiers = new Map<string, StationPriorityTier>();
   const legalAcceptances: LegalAcceptanceRecord[] = [
     {
       id: "legal-acc-seed-demo",
@@ -316,11 +443,7 @@ function initDatabase() {
     },
   ];
 
-  // Only load development fixtures if explicitly enabled in isolated dev/test mode via server-side environment
-  const shouldLoadDevFixtures = process.env.ENABLE_DEV_FIXTURES === "true";
-
-  if (shouldLoadDevFixtures) {
-    // Seed Host Users, Profiles & Stations
+  // Seed Host Users, Profiles & Stations
   const kvibeUser: StoredUser = {
     id: "user-kvibe",
     email: "djkvibe@thequeue.live",
@@ -654,6 +777,8 @@ function initDatabase() {
       songName: "Velvet Groove",
       artistName: "Luna & The Waves",
       durationSeconds: 215,
+      spotifyUrl: "https://open.spotify.com/artist/4Z8W4fKeB5YxbusRsdQVPb",
+      artistIdentityId: "artist-identity-1",
     },
     tiers: [
       {
@@ -724,6 +849,8 @@ function initDatabase() {
       artistName: "Astral Motion",
       durationSeconds: 198,
       submittedAt: new Date(Date.now() - 3000000).toISOString(),
+      spotifyUrl: "https://open.spotify.com/artist/6eUKZXaKkcviH0Ku9w2n3V",
+      artistIdentityId: "artist-identity-other-1",
       submissionId: "sub-1",
       submittingUserId: "other-user-1",
       sourceTrackId: "track-1",
@@ -741,6 +868,8 @@ function initDatabase() {
       artistName: "Vapor Knight",
       durationSeconds: 210,
       submittedAt: new Date(Date.now() - 2500000).toISOString(),
+      spotifyUrl: "https://open.spotify.com/artist/06HL4z0CvFAxyc27GXpf02",
+      artistIdentityId: "artist-identity-other-2",
       submissionId: "sub-2",
       submittingUserId: "other-user-2",
       sourceTrackId: "track-2",
@@ -758,6 +887,8 @@ function initDatabase() {
       artistName: demoUser.displayName,
       durationSeconds: 185,
       submittedAt: new Date(Date.now() - 1200000).toISOString(),
+      spotifyUrl: "https://open.spotify.com/artist/4Z8W4fKeB5YxbusRsdQVPb",
+      artistIdentityId: "artist-identity-1",
       submissionId: "sub-3",
       submittingUserId: demoUser.id,
       sourceTrackId: "track-user-1",
@@ -783,6 +914,7 @@ function initDatabase() {
     artistIdentity: {
       id: "artist-identity-1",
       artistName: demoUser.displayName,
+      spotifyUrl: "https://open.spotify.com/artist/4Z8W4fKeB5YxbusRsdQVPb",
     },
     audioDataUrl: DEFAULT_AUDIO_SAMPLE,
     createdAt: new Date(Date.now() - 86400000 * 2).toISOString(),
@@ -803,6 +935,7 @@ function initDatabase() {
     artistIdentity: {
       id: "artist-identity-1",
       artistName: demoUser.displayName,
+      spotifyUrl: "https://open.spotify.com/artist/4Z8W4fKeB5YxbusRsdQVPb",
     },
     audioDataUrl: DEFAULT_AUDIO_SAMPLE,
     createdAt: new Date(Date.now() - 86400000).toISOString(),
@@ -812,7 +945,7 @@ function initDatabase() {
   const track3: StoredTrack = {
     id: "track-user-3",
     userId: demoUser.id,
-    artistIdentityId: "artist-identity-1",
+    artistIdentityId: "artist-identity-2",
     songName: "Late Night Drive",
     albumName: null,
     explicitContent: false,
@@ -821,8 +954,9 @@ function initDatabase() {
     durationSeconds: 240,
     processingState: ProcessingState.READY,
     artistIdentity: {
-      id: "artist-identity-1",
-      artistName: demoUser.displayName,
+      id: "artist-identity-2",
+      artistName: "Neon Echo",
+      spotifyUrl: "https://open.spotify.com/artist/3TVXtAsR1Inumwj472S9r4",
     },
     audioDataUrl: DEFAULT_AUDIO_SAMPLE,
     createdAt: new Date(Date.now() - 3600000 * 5).toISOString(),
@@ -849,6 +983,7 @@ function initDatabase() {
     tierColorSlot: null,
     currentQueueStatus: QueueStatus.QUEUED,
     submittedAt: new Date(Date.now() - 1200000).toISOString(),
+    spotifyUrl: "https://open.spotify.com/artist/4Z8W4fKeB5YxbusRsdQVPb",
     sourceTrackId: track1.id,
     artistIdentityId: track1.artistIdentityId,
     queueEntry: {
@@ -859,8 +994,7 @@ function initDatabase() {
     },
   };
 
-    submissions.set(sub1.id, sub1);
-  }
+  submissions.set(sub1.id, sub1);
 
   // Create initial demo session cookie token
   const initialSessionToken: StoredSessionToken = {
@@ -884,8 +1018,11 @@ function initDatabase() {
     createdAt: new Date().toISOString(),
   });
 
+  const playbackEvents: StoredPlaybackEvent[] = [];
+
   global.__THE_QUEUE_STATE__ = {
     users,
+    artistIdentities,
     sessionTokens,
     passwordResetTokens,
     emailVerificationTokens,
@@ -903,6 +1040,8 @@ function initDatabase() {
     submissions,
     uploadIntents,
     legalAcceptances,
+    stationPriorityTiers,
+    playbackEvents,
   };
 
   return global.__THE_QUEUE_STATE__;
@@ -1498,3 +1637,1023 @@ export function verifyAndConsumeEmailVerificationToken(
 
   return { success: false, message: "Invalid or expired verification token." };
 }
+
+// ============================================================================
+// Artist Identity Server Helpers & Ownership Control
+// ============================================================================
+
+export function getArtistIdentitiesForUser(userId: string): ArtistIdentitySummary[] {
+  const list: ArtistIdentitySummary[] = [];
+  for (const identity of serverDb.artistIdentities.values()) {
+    if (identity.userId === userId && !identity.deletedAt) {
+      let trackCount = 0;
+      for (const tr of serverDb.tracks.values()) {
+        if (tr.artistIdentityId === identity.id) {
+          trackCount++;
+        }
+      }
+      let submissionCount = 0;
+      for (const sub of serverDb.submissions.values()) {
+        if (sub.artistIdentityId === identity.id) {
+          submissionCount++;
+        }
+      }
+      list.push({
+        id: identity.id,
+        userId: identity.userId,
+        artistName: identity.artistName,
+        spotifyUrl: identity.spotifyUrl,
+        biography: identity.biography,
+        profileImageKey: identity.profileImageKey,
+        isDefault: identity.isDefault,
+        trackCount,
+        submissionCount,
+        createdAt: identity.createdAt,
+        updatedAt: identity.updatedAt,
+      });
+    }
+  }
+
+  return list.sort((a, b) => {
+    if (a.isDefault && !b.isDefault) return -1;
+    if (!a.isDefault && b.isDefault) return 1;
+    return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+  });
+}
+
+export function getArtistIdentityById(id: string): StoredArtistIdentity | null {
+  const identity = serverDb.artistIdentities.get(id);
+  if (!identity || identity.deletedAt) return null;
+  return identity;
+}
+
+export function createArtistIdentity(
+  userId: string,
+  data: CreateArtistIdentityDto,
+): StoredArtistIdentity {
+  const now = new Date().toISOString();
+  const id = `artist-identity-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+
+  // If this is set as default or the user has no identities, make it default
+  const existing = getArtistIdentitiesForUser(userId);
+  const shouldBeDefault = data.isDefault || existing.length === 0;
+
+  if (shouldBeDefault) {
+    for (const item of serverDb.artistIdentities.values()) {
+      if (item.userId === userId && item.isDefault) {
+        item.isDefault = false;
+        item.updatedAt = now;
+      }
+    }
+  }
+
+  const newIdentity: StoredArtistIdentity = {
+    id,
+    userId,
+    artistName: data.artistName.trim(),
+    normalizedArtistName: data.artistName.trim().toLowerCase(),
+    spotifyUrl: data.spotifyUrl || null,
+    biography: data.biography || null,
+    profileImageKey: data.profileImageKey || null,
+    isDefault: shouldBeDefault,
+    isPublic: true,
+    createdAt: now,
+    updatedAt: now,
+    deletedAt: null,
+  };
+
+  serverDb.artistIdentities.set(id, newIdentity);
+  return newIdentity;
+}
+
+export function updateArtistIdentity(
+  id: string,
+  userId: string,
+  data: UpdateArtistIdentityDto,
+): StoredArtistIdentity | null {
+  const identity = serverDb.artistIdentities.get(id);
+  if (!identity || identity.deletedAt) return null;
+  // Authorization check: User must own the Artist Identity
+  if (identity.userId !== userId) {
+    throw new Error("Unauthorized: You do not own this Artist Identity.");
+  }
+
+  const now = new Date().toISOString();
+
+  if (data.isDefault) {
+    for (const item of serverDb.artistIdentities.values()) {
+      if (item.userId === userId && item.id !== id && item.isDefault) {
+        item.isDefault = false;
+        item.updatedAt = now;
+      }
+    }
+    identity.isDefault = true;
+  } else if (data.isDefault === false) {
+    identity.isDefault = false;
+  }
+
+  if (data.artistName !== undefined) {
+    identity.artistName = data.artistName.trim();
+    identity.normalizedArtistName = data.artistName.trim().toLowerCase();
+  }
+  if (data.spotifyUrl !== undefined) {
+    identity.spotifyUrl = data.spotifyUrl || null;
+  }
+  if (data.biography !== undefined) {
+    identity.biography = data.biography || null;
+  }
+  if (data.profileImageKey !== undefined) {
+    identity.profileImageKey = data.profileImageKey || null;
+  }
+
+  identity.updatedAt = now;
+
+  // Also update cached artist info on user's tracks
+  for (const tr of serverDb.tracks.values()) {
+    if (tr.artistIdentityId === id) {
+      tr.artistIdentity = {
+        id: identity.id,
+        artistName: identity.artistName,
+        spotifyUrl: identity.spotifyUrl,
+      };
+      tr.updatedAt = now;
+    }
+  }
+
+  return identity;
+}
+
+export function deleteArtistIdentity(
+  id: string,
+  userId: string,
+): { success: boolean; message?: string } {
+  const identity = serverDb.artistIdentities.get(id);
+  if (!identity || identity.deletedAt) {
+    return { success: false, message: "Artist Identity not found." };
+  }
+  // Authorization check: User must own the Artist Identity
+  if (identity.userId !== userId) {
+    throw new Error("Unauthorized: You do not own this Artist Identity.");
+  }
+
+  // Soft delete preserves all historical attribution on tracks, submissions, and queue entries!
+  identity.deletedAt = new Date().toISOString();
+  identity.updatedAt = new Date().toISOString();
+
+  // If this was the default identity, pick another existing one as default
+  if (identity.isDefault) {
+    identity.isDefault = false;
+    const remaining = getArtistIdentitiesForUser(userId);
+    if (remaining.length > 0) {
+      const newDefault = serverDb.artistIdentities.get(remaining[0].id);
+      if (newDefault) {
+        newDefault.isDefault = true;
+        newDefault.updatedAt = new Date().toISOString();
+      }
+    }
+  }
+
+  return { success: true, message: "Artist identity removed." };
+}
+
+// ============================================================================
+// Station Priority Tier Helper Functions
+// ============================================================================
+
+export function getStationPriorityTiers(
+  stationId: string,
+  activeOnly: boolean = false,
+): StationPriorityTier[] {
+  const tiers: StationPriorityTier[] = [];
+  for (const tier of serverDb.stationPriorityTiers.values()) {
+    if (tier.stationId === stationId) {
+      if (!activeOnly || tier.isActive) {
+        tiers.push(tier);
+      }
+    }
+  }
+
+  // If no tiers exist yet for this station, seed initial default tiers
+  if (tiers.length === 0) {
+    const defaultTier1: StationPriorityTier = {
+      id: `tier-${stationId}-priority-jump`,
+      stationId,
+      name: "Priority Jump",
+      description: "Jump ahead of free line submissions directly to the top queue segment.",
+      priceCents: 500,
+      priorityRank: 1,
+      colorSlot: "TIER_COLOR_1",
+      isActive: true,
+      isUpgradeEnabled: true,
+      sortOrder: 1,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    const defaultTier2: StationPriorityTier = {
+      id: `tier-${stationId}-vip-review`,
+      stationId,
+      name: "VIP Instant Review",
+      description: "Top priority review with guaranteed full track listen and detailed live feedback.",
+      priceCents: 1500,
+      priorityRank: 2,
+      colorSlot: "TIER_COLOR_2",
+      isActive: true,
+      isUpgradeEnabled: true,
+      sortOrder: 2,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    serverDb.stationPriorityTiers.set(defaultTier1.id, defaultTier1);
+    serverDb.stationPriorityTiers.set(defaultTier2.id, defaultTier2);
+    tiers.push(defaultTier1, defaultTier2);
+  }
+
+  return tiers.sort((a, b) => a.sortOrder - b.sortOrder);
+}
+
+export function createStationPriorityTier(
+  stationId: string,
+  data: CreateStationPriorityTierDto,
+): StationPriorityTier {
+  const existing = getStationPriorityTiers(stationId, false);
+  const now = new Date().toISOString();
+  const nextSortOrder = existing.length > 0 ? Math.max(...existing.map((t) => t.sortOrder)) + 1 : 1;
+
+  const newTier: StationPriorityTier = {
+    id: `tier-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+    stationId,
+    name: data.name.trim(),
+    description: data.description ? data.description.trim() : null,
+    priceCents: data.priceCents,
+    priorityRank: data.priorityRank,
+    colorSlot: data.colorSlot,
+    isActive: data.isActive !== undefined ? data.isActive : true,
+    isUpgradeEnabled: data.isUpgradeEnabled !== undefined ? data.isUpgradeEnabled : true,
+    sortOrder: nextSortOrder,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  serverDb.stationPriorityTiers.set(newTier.id, newTier);
+  return newTier;
+}
+
+export function updateStationPriorityTier(
+  tierId: string,
+  stationId: string,
+  data: UpdateStationPriorityTierDto,
+): StationPriorityTier | null {
+  const tier = serverDb.stationPriorityTiers.get(tierId);
+  if (!tier || tier.stationId !== stationId) {
+    return null;
+  }
+
+  const now = new Date().toISOString();
+  if (data.name !== undefined) tier.name = data.name.trim();
+  if (data.description !== undefined) tier.description = data.description ? data.description.trim() : null;
+  if (data.priceCents !== undefined) tier.priceCents = data.priceCents;
+  if (data.priorityRank !== undefined) tier.priorityRank = data.priorityRank;
+  if (data.colorSlot !== undefined) tier.colorSlot = data.colorSlot;
+  if (data.isActive !== undefined) tier.isActive = data.isActive;
+  if (data.isUpgradeEnabled !== undefined) tier.isUpgradeEnabled = data.isUpgradeEnabled;
+  if (data.sortOrder !== undefined) tier.sortOrder = data.sortOrder;
+
+  tier.updatedAt = now;
+  serverDb.stationPriorityTiers.set(tier.id, tier);
+  return tier;
+}
+
+export function deleteStationPriorityTier(
+  tierId: string,
+  stationId: string,
+): boolean {
+  const tier = serverDb.stationPriorityTiers.get(tierId);
+  if (!tier || tier.stationId !== stationId) {
+    return false;
+  }
+  serverDb.stationPriorityTiers.delete(tierId);
+  return true;
+}
+
+export function reorderStationPriorityTiers(
+  stationId: string,
+  tierIds: string[],
+): StationPriorityTier[] {
+  tierIds.forEach((id, index) => {
+    const tier = serverDb.stationPriorityTiers.get(id);
+    if (tier && tier.stationId === stationId) {
+      tier.sortOrder = index + 1;
+      tier.updatedAt = new Date().toISOString();
+      serverDb.stationPriorityTiers.set(id, tier);
+    }
+  });
+
+  return getStationPriorityTiers(stationId, false);
+}
+
+// ============================================================================
+// Live Session Queue Management Helper Functions
+// ============================================================================
+
+export function isSessionAuthorizedHost(userId: string, sessionId: string): boolean {
+  const user = serverDb.users.get(userId);
+  if (!user) return false;
+  if (user.roles.includes(Role.OWNER_ADMIN)) return true;
+
+  const session = serverDb.sessions.get(sessionId);
+  if (!session) return false;
+
+  const station = serverDb.stations.get(session.stationId);
+  if (!station) return false;
+
+  let hostProfile = null;
+  for (const hp of serverDb.hostProfiles.values()) {
+    if (hp.userId === userId) {
+      hostProfile = hp;
+      break;
+    }
+  }
+
+  return Boolean(hostProfile && station.hostId === hostProfile.id);
+}
+
+// Helper to qualify and displace current player track
+function qualifyAndDisplaceCurrentPlayer(
+  session: StoredSession,
+  queue: StoredQueueEntry[],
+): void {
+  if (!session.currentQueueEntryId) return;
+  const currentEntry = queue.find((e) => e.id === session.currentQueueEntryId);
+  if (!currentEntry || currentEntry.status !== QueueStatus.PLAYING) return;
+
+  const loadedAt = currentEntry.loadedIntoPlayerAt
+    ? new Date(currentEntry.loadedIntoPlayerAt).getTime()
+    : 0;
+  // External link / loaded playback qualification: continuous loaded >= 120,000 ms (2 minutes)
+  const isQualified = loadedAt > 0 && Date.now() - loadedAt >= 120000;
+
+  if (isQualified) {
+    currentEntry.status = QueueStatus.COMPLETED;
+    currentEntry.completedAt = new Date().toISOString();
+    currentEntry.wasPlayed = true;
+    currentEntry.playbackCompleted = true;
+    currentEntry.loadedIntoPlayerAt = null;
+    currentEntry.originPriorityRank = undefined;
+    currentEntry.originSortOrder = undefined;
+
+    const sub = serverDb.submissions.get(currentEntry.submissionId);
+    if (sub) {
+      sub.currentQueueStatus = QueueStatus.COMPLETED;
+    }
+    const track = serverDb.tracks.get(currentEntry.sourceTrackId);
+    if (track) {
+      track.lastPlayedAt = new Date().toISOString();
+    }
+
+    recordPlaybackEvent({
+      liveSessionId: session.id,
+      stationId: session.stationId,
+      queueEntryId: currentEntry.id,
+      submissionId: currentEntry.submissionId,
+      trackId: currentEntry.sourceTrackId,
+      songName: currentEntry.songName,
+      artistName: currentEntry.artistName,
+      isPriority: !!currentEntry.isPriority,
+      artistIdentityId: currentEntry.artistIdentityId,
+      spotifyUrl: currentEntry.spotifyUrl,
+      eventType: "QUALIFIED_PLAY",
+      timestamp: currentEntry.completedAt,
+    });
+  } else {
+    // Restore near origin position
+    currentEntry.status = QueueStatus.QUEUED;
+    if (currentEntry.originPriorityRank !== undefined) {
+      currentEntry.priorityRank = currentEntry.originPriorityRank;
+    }
+    if (currentEntry.originSortOrder !== undefined) {
+      currentEntry.sortOrder = currentEntry.originSortOrder;
+    }
+    currentEntry.loadedIntoPlayerAt = null;
+    currentEntry.originPriorityRank = undefined;
+    currentEntry.originSortOrder = undefined;
+
+    const sub = serverDb.submissions.get(currentEntry.submissionId);
+    if (sub) {
+      sub.currentQueueStatus = QueueStatus.QUEUED;
+    }
+  }
+}
+
+// Transactional invariant: at most ONE entry can have status PLAYING
+function enforceOnePlayingEntryInvariant(
+  queue: StoredQueueEntry[],
+  activeEntryId: string | null,
+): void {
+  for (const entry of queue) {
+    if (entry.id !== activeEntryId && entry.status === QueueStatus.PLAYING) {
+      entry.status = QueueStatus.QUEUED;
+      entry.loadedIntoPlayerAt = null;
+    }
+  }
+}
+
+export function playNextTrack(sessionId: string): {
+  success: boolean;
+  currentTrack: any;
+  currentQueueEntryId: string | null;
+} {
+  const session = serverDb.sessions.get(sessionId);
+  if (!session) {
+    throw new Error("Live session not found");
+  }
+
+  const queue = serverDb.queues.get(sessionId) || [];
+
+  // 1. Authoritatively qualify and displace currently loaded track
+  qualifyAndDisplaceCurrentPlayer(session, queue);
+
+  // 2. Select next entry: NEXT first, then highest priority QUEUED
+  let nextEntry = queue.find((e) => e.status === QueueStatus.NEXT);
+  if (!nextEntry) {
+    const queuedItems = queue
+      .filter((e) => e.status === QueueStatus.QUEUED)
+      .sort((a, b) => {
+        if (b.priorityRank !== a.priorityRank) {
+          return b.priorityRank - a.priorityRank;
+        }
+        return a.sortOrder - b.sortOrder;
+      });
+    nextEntry = queuedItems[0];
+  }
+
+  if (nextEntry) {
+    nextEntry.originPriorityRank = nextEntry.priorityRank;
+    nextEntry.originSortOrder = nextEntry.sortOrder;
+    nextEntry.loadedIntoPlayerAt = new Date().toISOString();
+    nextEntry.status = QueueStatus.PLAYING;
+
+    session.currentQueueEntryId = nextEntry.id;
+    session.currentTrack = {
+      songName: nextEntry.songName,
+      artistName: nextEntry.artistName,
+      durationSeconds: nextEntry.durationSeconds,
+      spotifyUrl: nextEntry.spotifyUrl || undefined,
+      artistIdentityId: nextEntry.artistIdentityId || undefined,
+    };
+    session.lastPlaybackActivityAt = new Date().toISOString();
+
+    const sub = serverDb.submissions.get(nextEntry.submissionId);
+    if (sub) {
+      sub.currentQueueStatus = QueueStatus.PLAYING;
+    }
+    const track = serverDb.tracks.get(nextEntry.sourceTrackId);
+    if (track) {
+      track.lastPlayedAt = new Date().toISOString();
+    }
+
+    enforceOnePlayingEntryInvariant(queue, nextEntry.id);
+  } else {
+    session.currentQueueEntryId = null;
+    session.currentTrack = null;
+    enforceOnePlayingEntryInvariant(queue, null);
+  }
+
+  session.queueRevision = (session.queueRevision || 0) + 1;
+  serverDb.queues.set(sessionId, queue);
+
+  return {
+    success: true,
+    currentTrack: session.currentTrack,
+    currentQueueEntryId: session.currentQueueEntryId,
+  };
+}
+
+export function loadQueueEntry(
+  sessionId: string,
+  entryId: string,
+): { success: boolean; currentTrack: any } {
+  const session = serverDb.sessions.get(sessionId);
+  if (!session) {
+    throw new Error("Live session not found");
+  }
+
+  const queue = serverDb.queues.get(sessionId) || [];
+  const targetEntry = queue.find((e) => e.id === entryId);
+  if (!targetEntry) {
+    throw new Error("Queue entry not found");
+  }
+
+  // 1. Authoritatively qualify and displace current loaded track if different
+  if (session.currentQueueEntryId && session.currentQueueEntryId !== entryId) {
+    qualifyAndDisplaceCurrentPlayer(session, queue);
+  }
+
+  // 2. Load target entry
+  targetEntry.originPriorityRank = targetEntry.priorityRank;
+  targetEntry.originSortOrder = targetEntry.sortOrder;
+  targetEntry.loadedIntoPlayerAt = new Date().toISOString();
+  targetEntry.status = QueueStatus.PLAYING;
+
+  session.currentQueueEntryId = targetEntry.id;
+  session.currentTrack = {
+    songName: targetEntry.songName,
+    artistName: targetEntry.artistName,
+    durationSeconds: targetEntry.durationSeconds,
+    spotifyUrl: targetEntry.spotifyUrl || undefined,
+    artistIdentityId: targetEntry.artistIdentityId || undefined,
+  };
+  session.lastPlaybackActivityAt = new Date().toISOString();
+
+  const sub = serverDb.submissions.get(targetEntry.submissionId);
+  if (sub) {
+    sub.currentQueueStatus = QueueStatus.PLAYING;
+  }
+  const track = serverDb.tracks.get(targetEntry.sourceTrackId);
+  if (track) {
+    track.lastPlayedAt = new Date().toISOString();
+  }
+
+  enforceOnePlayingEntryInvariant(queue, targetEntry.id);
+
+  session.queueRevision = (session.queueRevision || 0) + 1;
+  serverDb.queues.set(sessionId, queue);
+
+  return {
+    success: true,
+    currentTrack: session.currentTrack,
+  };
+}
+
+// Clear Now Playing: MUST restore current track to QUEUED without completing or moving to history
+export function clearSessionPlayer(sessionId: string): { success: boolean } {
+  const session = serverDb.sessions.get(sessionId);
+  if (!session) {
+    throw new Error("Live session not found");
+  }
+
+  const queue = serverDb.queues.get(sessionId) || [];
+  if (session.currentQueueEntryId) {
+    const currentEntry = queue.find((e) => e.id === session.currentQueueEntryId);
+    if (currentEntry && currentEntry.status === QueueStatus.PLAYING) {
+      // Restore near origin - do NOT mark completed, do NOT move to history!
+      currentEntry.status = QueueStatus.QUEUED;
+      if (currentEntry.originPriorityRank !== undefined) {
+        currentEntry.priorityRank = currentEntry.originPriorityRank;
+      }
+      if (currentEntry.originSortOrder !== undefined) {
+        currentEntry.sortOrder = currentEntry.originSortOrder;
+      }
+      currentEntry.loadedIntoPlayerAt = null;
+      currentEntry.originPriorityRank = undefined;
+      currentEntry.originSortOrder = undefined;
+
+      const sub = serverDb.submissions.get(currentEntry.submissionId);
+      if (sub) {
+        sub.currentQueueStatus = QueueStatus.QUEUED;
+      }
+    }
+  }
+
+  enforceOnePlayingEntryInvariant(queue, null);
+
+  session.currentQueueEntryId = null;
+  session.currentTrack = null;
+  session.queueRevision = (session.queueRevision || 0) + 1;
+  serverDb.queues.set(sessionId, queue);
+
+  return { success: true };
+}
+
+export function moveEntryToNext(
+  sessionId: string,
+  entryId: string,
+): { success: boolean } {
+  const session = serverDb.sessions.get(sessionId);
+  if (!session) {
+    throw new Error("Live session not found");
+  }
+
+  const queue = serverDb.queues.get(sessionId) || [];
+  const target = queue.find((e) => e.id === entryId);
+  if (!target) {
+    throw new Error("Queue entry not found");
+  }
+
+  // Clear any existing NEXT entry back to QUEUED
+  for (const item of queue) {
+    if (item.status === QueueStatus.NEXT && item.id !== entryId) {
+      item.status = QueueStatus.QUEUED;
+    }
+  }
+
+  target.status = QueueStatus.NEXT;
+  session.queueRevision = (session.queueRevision || 0) + 1;
+  serverDb.queues.set(sessionId, queue);
+
+  return { success: true };
+}
+
+export function completeQueueEntry(
+  sessionId: string,
+  entryId: string,
+): { success: boolean } {
+  const session = serverDb.sessions.get(sessionId);
+  if (!session) {
+    throw new Error("Live session not found");
+  }
+
+  const queue = serverDb.queues.get(sessionId) || [];
+  const target = queue.find((e) => e.id === entryId);
+  if (!target) {
+    throw new Error("Queue entry not found");
+  }
+
+  target.status = QueueStatus.COMPLETED;
+  target.completedAt = new Date().toISOString();
+  target.wasPlayed = true;
+  target.playbackCompleted = true;
+  target.loadedIntoPlayerAt = null;
+  target.originPriorityRank = undefined;
+  target.originSortOrder = undefined;
+
+  const sub = serverDb.submissions.get(target.submissionId);
+  if (sub) {
+    sub.currentQueueStatus = QueueStatus.COMPLETED;
+  }
+  const track = serverDb.tracks.get(target.sourceTrackId);
+  if (track) {
+    track.lastPlayedAt = new Date().toISOString();
+  }
+
+  if (session.currentQueueEntryId === entryId) {
+    session.currentQueueEntryId = null;
+    session.currentTrack = null;
+  }
+
+  recordPlaybackEvent({
+    liveSessionId: session.id,
+    stationId: session.stationId,
+    queueEntryId: target.id,
+    submissionId: target.submissionId,
+    trackId: target.sourceTrackId,
+    songName: target.songName,
+    artistName: target.artistName,
+    isPriority: !!target.isPriority,
+    artistIdentityId: target.artistIdentityId,
+    spotifyUrl: target.spotifyUrl,
+    eventType: "QUALIFIED_PLAY",
+    timestamp: target.completedAt,
+  });
+
+  session.queueRevision = (session.queueRevision || 0) + 1;
+  serverDb.queues.set(sessionId, queue);
+
+  return { success: true };
+}
+
+export function removeOrSkipQueueEntry(
+  sessionId: string,
+  entryId: string,
+  reason: "SKIPPED" | "REMOVED" = "SKIPPED",
+): { success: boolean } {
+  const session = serverDb.sessions.get(sessionId);
+  if (!session) {
+    throw new Error("Live session not found");
+  }
+
+  const queue = serverDb.queues.get(sessionId) || [];
+  const target = queue.find((e) => e.id === entryId);
+  if (!target) {
+    throw new Error("Queue entry not found");
+  }
+
+  target.status = reason === "REMOVED" ? QueueStatus.REMOVED : QueueStatus.SKIPPED;
+  if (reason === "SKIPPED") {
+    target.skippedAt = new Date().toISOString();
+  } else {
+    target.removedAt = new Date().toISOString();
+  }
+  target.loadedIntoPlayerAt = null;
+
+  const sub = serverDb.submissions.get(target.submissionId);
+  if (sub) {
+    sub.currentQueueStatus = target.status;
+  }
+
+  if (session.currentQueueEntryId === entryId) {
+    session.currentQueueEntryId = null;
+    session.currentTrack = null;
+  }
+
+  session.queueRevision = (session.queueRevision || 0) + 1;
+  serverDb.queues.set(sessionId, queue);
+
+  return { success: true };
+}
+
+// ============================================================================
+// Authoritative Playback Events & Weekly Top 3 Ranking
+// ============================================================================
+
+export function recordPlaybackEvent(
+  data: Omit<StoredPlaybackEvent, "id"> & { id?: string },
+): StoredPlaybackEvent {
+  if (!serverDb.playbackEvents) {
+    serverDb.playbackEvents = [];
+  }
+  // Idempotency: avoid recording duplicate qualification events for the same queueEntryId
+  const existing = serverDb.playbackEvents.find(
+    (e) =>
+      e.queueEntryId === data.queueEntryId &&
+      (e.eventType === "QUALIFIED_PLAY" || e.eventType === "COMPLETE"),
+  );
+  if (
+    existing &&
+    (data.eventType === "QUALIFIED_PLAY" || data.eventType === "COMPLETE")
+  ) {
+    return existing;
+  }
+
+  const event: StoredPlaybackEvent = {
+    id:
+      data.id ||
+      `pbe-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+    ...data,
+  };
+  serverDb.playbackEvents.push(event);
+  return event;
+}
+
+export function getStationWeeklyTop3(
+  stationIdOrSlugOrHostname: string,
+  referenceDate: Date = new Date(),
+): WeeklyTop3Response {
+  // 1. Resolve station
+  let station: StoredStation | undefined;
+  const lookup = (stationIdOrSlugOrHostname || "").toLowerCase().trim();
+
+  // Try direct ID
+  station = serverDb.stations.get(stationIdOrSlugOrHostname);
+  if (!station) {
+    // Try slug or vanityHostname
+    for (const st of serverDb.stations.values()) {
+      const hostProfile = st.hostId ? serverDb.hostProfiles.get(st.hostId) : undefined;
+      if (
+        st.id === stationIdOrSlugOrHostname ||
+        st.slug?.toLowerCase() === lookup ||
+        hostProfile?.hostSlug?.toLowerCase() === lookup ||
+        hostProfile?.normalizedHostSlug?.toLowerCase() === lookup ||
+        (st as any).vanityHostname?.toLowerCase() === lookup
+      ) {
+        station = st;
+        break;
+      }
+    }
+  }
+
+  if (!station) {
+    throw new Error("Station not found");
+  }
+
+  // Resolve Host Display Name
+  let hostName = station.stationName;
+  if (station.hostId) {
+    const hostProfile = serverDb.hostProfiles.get(station.hostId);
+    if (hostProfile?.userId) {
+      const user = serverDb.users.get(hostProfile.userId);
+      if (user?.displayName) {
+        hostName = user.displayName;
+      }
+    }
+  }
+
+  // 2. Server-authoritative Weekly Period
+  const period = getCurrentWeeklyPeriod(referenceDate);
+  const periodStartMs = period.startDate.getTime();
+  const periodEndMs = period.endDate.getTime();
+
+  // 3. Ensure live playing track is evaluated if it has reached 120s continuous playback qualification
+  for (const session of serverDb.sessions.values()) {
+    if (
+      session.stationId === station.id &&
+      session.status === LiveSessionStatus.LIVE &&
+      session.currentQueueEntryId
+    ) {
+      const queue = serverDb.queues.get(session.id) || [];
+      const currentEntry = queue.find((e) => e.id === session.currentQueueEntryId);
+      if (
+        currentEntry &&
+        currentEntry.status === QueueStatus.PLAYING &&
+        currentEntry.loadedIntoPlayerAt
+      ) {
+        const loadedTime = new Date(currentEntry.loadedIntoPlayerAt).getTime();
+        if (
+          loadedTime > 0 &&
+          Date.now() - loadedTime >= QUALIFICATION_CONTINUOUS_PLAYBACK_MS
+        ) {
+          recordPlaybackEvent({
+            liveSessionId: session.id,
+            stationId: station.id,
+            queueEntryId: currentEntry.id,
+            submissionId: currentEntry.submissionId,
+            trackId: currentEntry.sourceTrackId,
+            songName: currentEntry.songName,
+            artistName: currentEntry.artistName,
+            isPriority: !!currentEntry.isPriority,
+            artistIdentityId: currentEntry.artistIdentityId,
+            spotifyUrl: currentEntry.spotifyUrl,
+            eventType: "QUALIFIED_PLAY",
+            timestamp: new Date(
+              loadedTime + QUALIFICATION_CONTINUOUS_PLAYBACK_MS,
+            ).toISOString(),
+          });
+        }
+      }
+    }
+  }
+
+  if (!serverDb.playbackEvents) {
+    serverDb.playbackEvents = [];
+  }
+
+  // Also harvest any historical completed queue entries that were played in this station
+  // to ensure backwards compatibility with pre-existing completed entries
+  for (const session of serverDb.sessions.values()) {
+    if (session.stationId === station.id) {
+      const queue = serverDb.queues.get(session.id) || [];
+      for (const entry of queue) {
+        if (entry.wasPlayed && entry.completedAt) {
+          const completedMs = new Date(entry.completedAt).getTime();
+          if (completedMs >= periodStartMs && completedMs < periodEndMs) {
+            recordPlaybackEvent({
+              liveSessionId: session.id,
+              stationId: station.id,
+              queueEntryId: entry.id,
+              submissionId: entry.submissionId,
+              trackId: entry.sourceTrackId,
+              songName: entry.songName,
+              artistName: entry.artistName,
+              isPriority: !!entry.isPriority,
+              artistIdentityId: entry.artistIdentityId,
+              spotifyUrl: entry.spotifyUrl,
+              eventType: "QUALIFIED_PLAY",
+              timestamp: entry.completedAt,
+            });
+          }
+        }
+      }
+    }
+  }
+
+  const stationEvents = serverDb.playbackEvents.filter((e) => {
+    if (e.stationId !== station!.id) return false;
+    if (e.eventType !== "QUALIFIED_PLAY" && e.eventType !== "COMPLETE") return false;
+    const timeMs = new Date(e.timestamp).getTime();
+    return timeMs >= periodStartMs && timeMs < periodEndMs;
+  });
+
+  // 5. Group by track identifier
+  const trackGroups = new Map<string, StoredPlaybackEvent[]>();
+  for (const ev of stationEvents) {
+    const key =
+      ev.trackId ||
+      `${ev.songName.trim().toLowerCase()}___${ev.artistName.trim().toLowerCase()}`;
+    const group = trackGroups.get(key) || [];
+    group.push(ev);
+    trackGroups.set(key, group);
+  }
+
+  // 6. Aggregate each track with 4-hour rate limit for normal plays and immediate count for paid priority
+  interface TrackAggregate {
+    trackId: string;
+    songName: string;
+    artistName: string;
+    qualifyingPlayCount: number;
+    lastQualifyingPlayAt?: string;
+    spotifyUrl?: string | null;
+    artistIdentityId?: string | null;
+  }
+
+  const aggregates: TrackAggregate[] = [];
+
+  for (const [key, evs] of trackGroups.entries()) {
+    // Sort events strictly chronologically ascending
+    evs.sort(
+      (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+    );
+
+    let qualifyingPlayCount = 0;
+    let lastQualifyingPlayAt: string | undefined = undefined;
+    let lastCountedNormalPlayTime = -Infinity;
+
+    for (const ev of evs) {
+      const evTime = new Date(ev.timestamp).getTime();
+      if (ev.isPriority) {
+        // Paid priority plays count immediately upon qualification!
+        qualifyingPlayCount++;
+        lastQualifyingPlayAt = ev.timestamp;
+      } else {
+        // Normal play: counts at most once every 4 hours per Host/Station
+        if (evTime - lastCountedNormalPlayTime >= NORMAL_PLAY_RATE_LIMIT_MS) {
+          qualifyingPlayCount++;
+          lastQualifyingPlayAt = ev.timestamp;
+          lastCountedNormalPlayTime = evTime;
+        }
+      }
+    }
+
+    if (qualifyingPlayCount > 0) {
+      const latestEv = evs[evs.length - 1];
+      const trackId = latestEv.trackId || key;
+      const songName = latestEv.songName;
+      const artistName = latestEv.artistName;
+
+      // Check ArtistIdentity & Spotify Link (Requirement 10)
+      let spotifyUrl: string | null = null;
+      let artistIdentityId: string | null = null;
+
+      for (const ev of evs) {
+        if (ev.artistIdentityId) {
+          const artist = serverDb.artistIdentities.get(ev.artistIdentityId);
+          if (artist && !(artist as any).deletedAt) {
+            artistIdentityId = artist.id;
+            if (artist.spotifyUrl && artist.spotifyUrl.trim().length > 0) {
+              spotifyUrl = artist.spotifyUrl;
+            }
+            break;
+          }
+        }
+      }
+
+      aggregates.push({
+        trackId,
+        songName,
+        artistName,
+        qualifyingPlayCount,
+        lastQualifyingPlayAt,
+        spotifyUrl,
+        artistIdentityId,
+      });
+    }
+  }
+
+  // 7. Deterministic tie-breaking:
+  // 1. qualifying play count DESC
+  // 2. most recent qualifying play DESC
+  // 3. stable song/track identifier ASC
+  aggregates.sort((a, b) => {
+    if (b.qualifyingPlayCount !== a.qualifyingPlayCount) {
+      return b.qualifyingPlayCount - a.qualifyingPlayCount;
+    }
+    const timeA = a.lastQualifyingPlayAt
+      ? new Date(a.lastQualifyingPlayAt).getTime()
+      : 0;
+    const timeB = b.lastQualifyingPlayAt
+      ? new Date(b.lastQualifyingPlayAt).getTime()
+      : 0;
+    if (timeB !== timeA) {
+      return timeB - timeA;
+    }
+    const idA = a.trackId || a.songName;
+    const idB = b.trackId || b.songName;
+    return idA.localeCompare(idB);
+  });
+
+  // 8. Slice Top 3 (or fewer if fewer exist)
+  const top3Items: WeeklyTop3Item[] = aggregates.slice(0, 3).map((item, index) => ({
+    rank: index + 1,
+    trackId: item.trackId,
+    songName: item.songName,
+    artistName: item.artistName,
+    qualifyingPlayCount: item.qualifyingPlayCount,
+    lastQualifyingPlayAt: item.lastQualifyingPlayAt,
+    spotifyUrl: item.spotifyUrl,
+    artistIdentityId: item.artistIdentityId,
+  }));
+
+  return {
+    stationId: station.id,
+    stationName: station.stationName,
+    hostName,
+    period: {
+      start: period.startIso,
+      end: period.endIso,
+      timeZone: "America/New_York",
+      formattedRange: period.formattedRange,
+      periodKey: period.periodKey,
+    },
+    items: top3Items,
+  };
+}
+
+export function getSessionWeeklyTop3(
+  sessionId: string,
+  referenceDate: Date = new Date(),
+): WeeklyTop3Response {
+  const session = serverDb.sessions.get(sessionId);
+  if (!session) {
+    throw new Error("Live session not found");
+  }
+  return getStationWeeklyTop3(session.stationId, referenceDate);
+}
+

@@ -4,7 +4,7 @@ import * as React from "react";
 import { useParams, notFound } from "next/navigation";
 import Link from "next/link";
 import { Button, Badge, Card } from "@platform/ui";
-import { PublicStationDetail, PublicQueueEntry } from "@platform/types";
+import { PublicStationDetail, PublicQueueEntry, WeeklyTop3Response } from "@platform/types";
 import { RESERVED_SLUGS } from "@platform/validation";
 import { api } from "@/lib/api";
 import {
@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { PublicQueueView } from "@/components/PublicQueueView";
 import { SubmissionModal } from "@/components/SubmissionModal";
+import { WeeklyTop3Card } from "@/components/WeeklyTop3Card";
 
 export default function StationVanityPage() {
   const params = useParams();
@@ -37,6 +38,7 @@ export default function StationVanityPage() {
 
   const [station, setStation] = React.useState<PublicStationDetail | null>(null);
   const [queueEntries, setQueueEntries] = React.useState<PublicQueueEntry[]>([]);
+  const [weeklyTop3, setWeeklyTop3] = React.useState<WeeklyTop3Response | null>(null);
   const [isLoading, setIsLoading] = React.useState(true);
   const [isRefreshing, setIsRefreshing] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -57,6 +59,14 @@ export default function StationVanityPage() {
           stationData.currentSession.id,
         );
         setQueueEntries(queueData || []);
+      }
+
+      // Fetch server-authoritative Weekly Top 3
+      try {
+        const top3Data = await api.stations.getWeeklyTop3(hostname);
+        setWeeklyTop3(top3Data);
+      } catch (top3Err) {
+        // Non-blocking
       }
     } catch (err: any) {
       if (err?.status === 404) {
@@ -288,6 +298,13 @@ export default function StationVanityPage() {
           </div>
         </div>
       </Card>
+
+      {/* Server-Authoritative Weekly Top 3 Ranking */}
+      <WeeklyTop3Card
+        data={weeklyTop3}
+        isLoading={isRefreshing}
+        onRefresh={() => fetchStationData(true)}
+      />
 
       {/* If Live, display live queue and current track */}
       {isLive && liveSession ? (

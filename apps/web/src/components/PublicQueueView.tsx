@@ -3,7 +3,20 @@
 import * as React from "react";
 import { Badge, Card } from "@platform/ui";
 import { PublicQueueEntry } from "@platform/types";
-import { Music, Clock, Sparkles, Disc, Radio, Volume2, Layers } from "lucide-react";
+import { Music, Clock, Sparkles, Disc, Radio, Volume2, Layers, ExternalLink } from "lucide-react";
+
+export function SpotifyIcon({ className = "h-3.5 w-3.5" }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      className={className}
+      aria-hidden="true"
+    >
+      <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.503 17.308c-.215.353-.676.467-1.029.252-2.824-1.725-6.379-2.115-10.567-1.158-.403.092-.808-.16-.9-.562-.093-.404.159-.808.562-.901 4.585-1.048 8.52-.607 11.682 1.34.353.216.467.676.252 1.029zm1.47-3.262c-.27.44-.848.58-1.288.31-3.232-1.986-8.159-2.56-11.982-1.398-.497.151-1.03-.131-1.181-.628-.152-.497.131-1.03.628-1.181 4.372-1.327 9.803-.687 13.513 1.609.44.27.58.848.31 1.288zm.126-3.41c-3.876-2.302-10.27-2.514-13.985-1.386-.594.18-1.226-.154-1.407-.748-.18-.593.154-1.226.748-1.407 4.273-1.298 11.332-1.05 15.794 1.598.534.317.708 1.01.391 1.544-.318.533-1.011.708-1.541.399z" />
+    </svg>
+  );
+}
 
 interface PublicQueueViewProps {
   entries: PublicQueueEntry[];
@@ -11,6 +24,7 @@ interface PublicQueueViewProps {
     songName: string;
     artistName: string;
     durationSeconds: number;
+    spotifyUrl?: string | null;
   } | null;
 }
 
@@ -67,9 +81,26 @@ export const PublicQueueView: React.FC<PublicQueueViewProps> = ({
               <h4 className="text-base sm:text-lg font-bold text-zinc-50 mt-0.5 truncate">
                 {currentTrack.songName}
               </h4>
-              <p className="text-xs sm:text-sm font-medium text-violet-300 truncate">
-                {currentTrack.artistName}
-              </p>
+              <div className="flex items-center gap-2 mt-0.5">
+                {currentTrack.artistName && (
+                  <p className="text-xs sm:text-sm font-medium text-violet-300 truncate">
+                    {currentTrack.artistName}
+                  </p>
+                )}
+                {currentTrack.spotifyUrl && (
+                  <a
+                    href={currentTrack.spotifyUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#1DB954]/10 hover:bg-[#1DB954]/20 border border-[#1DB954]/30 text-[#1DB954] text-[11px] font-semibold transition-colors"
+                    title={currentTrack.artistName ? `Open ${currentTrack.artistName} on Spotify` : "Open Spotify Profile"}
+                  >
+                    <SpotifyIcon className="h-3 w-3 text-[#1DB954]" />
+                    <span>Spotify</span>
+                    <ExternalLink className="h-2.5 w-2.5 opacity-70" />
+                  </a>
+                )}
+              </div>
             </div>
           </div>
 
@@ -164,9 +195,30 @@ export const PublicQueueView: React.FC<PublicQueueViewProps> = ({
                         )}
                       </div>
 
-                      <p className="text-xs text-zinc-400 mt-0.5 truncate">
-                        {entry.artistName}
-                      </p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        {entry.artistName ? (
+                          <p className="text-xs text-zinc-400 truncate">
+                            {entry.artistName}
+                          </p>
+                        ) : (
+                          <p className="text-xs text-zinc-500 italic truncate">
+                            Independent
+                          </p>
+                        )}
+                        {entry.spotifyUrl && (
+                          <a
+                            href={entry.spotifyUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded bg-[#1DB954]/10 hover:bg-[#1DB954]/20 border border-[#1DB954]/30 text-[#1DB954] text-[10px] font-semibold transition-colors shrink-0"
+                            title={entry.artistName ? `Open ${entry.artistName} on Spotify` : "Open Spotify Profile"}
+                          >
+                            <SpotifyIcon className="h-2.5 w-2.5 text-[#1DB954]" />
+                            <span>Spotify</span>
+                            <ExternalLink className="h-2 w-2 opacity-70" />
+                          </a>
+                        )}
+                      </div>
                     </div>
                   </div>
 

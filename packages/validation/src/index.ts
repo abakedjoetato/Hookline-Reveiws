@@ -314,6 +314,130 @@ export const externalSocialUrlSchema = z
   );
 
 // F. Artist & Track Metadata Schema
+export function normalizeSpotifyUrl(input: string): string {
+  let trimmed = input.trim();
+  if (!trimmed) return "";
+  if (!/^https?:\/\//i.test(trimmed)) {
+    trimmed = `https://${trimmed}`;
+  }
+  try {
+    const parsed = new URL(trimmed);
+    parsed.protocol = "https:";
+    return parsed.toString();
+  } catch {
+    return trimmed;
+  }
+}
+
+export const spotifyUrlSchema = z
+  .string()
+  .trim()
+  .transform((val) => normalizeSpotifyUrl(val))
+  .refine(
+    (val) => {
+      if (!val) return true;
+      try {
+        const parsed = new URL(val);
+        if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+          return false;
+        }
+        const hostname = parsed.hostname.toLowerCase();
+        const isApprovedDomain =
+          hostname === "open.spotify.com" ||
+          hostname === "spotify.com" ||
+          hostname === "spotify.link" ||
+          hostname.endsWith(".spotify.com");
+        if (!isApprovedDomain) return false;
+        if (
+          parsed.pathname.toLowerCase().includes("javascript:") ||
+          parsed.pathname.toLowerCase().includes("data:")
+        ) {
+          return false;
+        }
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    {
+      message:
+        "Must be a valid Spotify profile or artist URL (e.g. https://open.spotify.com/artist/...)",
+    },
+  );
+
+export const optionalSpotifyUrlSchema = z
+  .string()
+  .trim()
+  .optional()
+  .nullable()
+  .transform((val) =>
+    val && val.trim().length > 0 ? normalizeSpotifyUrl(val) : null,
+  )
+  .refine(
+    (val) => {
+      if (!val) return true;
+      try {
+        const parsed = new URL(val);
+        if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+          return false;
+        }
+        const hostname = parsed.hostname.toLowerCase();
+        const isApprovedDomain =
+          hostname === "open.spotify.com" ||
+          hostname === "spotify.com" ||
+          hostname === "spotify.link" ||
+          hostname.endsWith(".spotify.com");
+        if (!isApprovedDomain) return false;
+        if (
+          parsed.pathname.toLowerCase().includes("javascript:") ||
+          parsed.pathname.toLowerCase().includes("data:")
+        ) {
+          return false;
+        }
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    {
+      message:
+        "Must be a valid Spotify profile or artist URL (e.g. https://open.spotify.com/artist/...)",
+    },
+  );
+
+export const createArtistIdentitySchema = z.object({
+  artistName: z
+    .string()
+    .min(1, "Artist name cannot be blank")
+    .max(100, "Artist name cannot exceed 100 characters")
+    .transform((val) => val.trim()),
+  spotifyUrl: optionalSpotifyUrlSchema,
+  biography: z.string().max(1000).optional().nullable(),
+  profileImageKey: z.string().optional().nullable(),
+  isDefault: z.boolean().optional().default(false),
+});
+
+export type CreateArtistIdentityInput = z.infer<
+  typeof createArtistIdentitySchema
+>;
+
+export const updateArtistIdentitySchema = z.object({
+  artistName: z
+    .string()
+    .min(1, "Artist name cannot be blank")
+    .max(100, "Artist name cannot exceed 100 characters")
+    .transform((val) => val.trim())
+    .optional(),
+  spotifyUrl: optionalSpotifyUrlSchema,
+  biography: z.string().max(1000).optional().nullable(),
+  profileImageKey: z.string().optional().nullable(),
+  isDefault: z.boolean().optional(),
+});
+
+export type UpdateArtistIdentityInput = z.infer<
+  typeof updateArtistIdentitySchema
+>;
+
 export const artistNameSchema = z
   .string()
   .min(1, "Artist name cannot be blank")
@@ -489,6 +613,7 @@ export const updateUserProfileSchema = z.object({
   avatarUrl: z.string().url().optional().nullable().or(z.literal("")),
   country: z.string().max(100).optional().nullable(),
   websiteUrl: z.string().url().optional().nullable().or(z.literal("")),
+  spotifyProfileUrl: z.string().url().optional().nullable().or(z.literal("")),
 });
 
 export type UpdateUserProfileInput = z.infer<typeof updateUserProfileSchema>;
@@ -636,3 +761,258 @@ export const updatePlatformSettingsSchema = z.object({
 export type UpdatePlatformSettingsInput = z.infer<
   typeof updatePlatformSettingsSchema
 >;
+
+// ============================================================================
+// Spotify URL & Media Validation
+// ============================================================================
+
+export function validateSpotifyUrl(url?: string | null): { valid: boolean; error?: string } {
+  if (!url || url.trim() === "") return { valid: true };
+  const trimmed = url.trim();
+
+  // Reject dangerous schemes immediately
+  if (
+    trimmed.toLowerCase().startsWith("javascript:") ||
+    trimmed.toLowerCase().startsWith("data:") ||
+    trimmed.toLowerCase().startsWith("vbscript:")
+  ) {
+    return {
+      valid: false,
+      error: "Invalid URL scheme.",
+    };
+  }
+
+  // Support spotify: URI format
+  if (/^spotify:(artist|user|track|album|playlist):[a-zA-Z0-9]+$/i.test(trimmed)) {
+    return { valid: true };
+  }
+
+  // Support Web URLs
+  try {
+    const withProtocol = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+    const parsed = new URL(withProtocol);
+    const hostname = parsed.hostname.toLowerCase();
+    const isApprovedDomain =
+      hostname === "open.spotify.com" ||
+      hostname === "spotify.com" ||
+      hostname === "spotify.link" ||
+      hostname.endsWith(".spotify.com");
+
+    if (!isApprovedDomain) {
+      return {
+        valid: false,
+        error: "URL must be a Spotify link (e.g. https://open.spotify.com/artist/...)",
+      };
+    }
+
+    if (
+      parsed.pathname.toLowerCase().includes("javascript:") ||
+      parsed.pathname.toLowerCase().includes("data:")
+    ) {
+      return {
+        valid: false,
+        error: "Invalid Spotify URL.",
+      };
+    }
+
+    return { valid: true };
+  } catch {
+    return {
+      valid: false,
+      error: "Please enter a valid Spotify URL (e.g. https://open.spotify.com/artist/...)",
+    };
+  }
+}
+
+// ============================================================================
+// Submission Validation Schema
+// ============================================================================
+
+export const createSubmissionSchema = z.object({
+  sourceTrackId: z.string().min(1, "Track ID is required"),
+  artistIdentityId: z.string().nullable().optional(),
+  tierSnapshotId: z.string().optional().nullable(),
+});
+
+export type CreateSubmissionInput = z.infer<typeof createSubmissionSchema>;
+
+// ============================================================================
+// Station Priority Tier Schemas
+// ============================================================================
+
+export const createStationPriorityTierSchema = z.object({
+  name: z.string().min(1, "Tier name is required").max(50),
+  description: z.string().max(300).optional().nullable(),
+  priceCents: z.number().int().min(50, "Price must be at least $0.50").max(100000),
+  priorityRank: z.number().int().min(1).max(100),
+  colorSlot: z.string().min(1),
+  isActive: z.boolean().optional().default(true),
+  isUpgradeEnabled: z.boolean().optional().default(true),
+});
+
+export type CreateStationPriorityTierInput = z.infer<
+  typeof createStationPriorityTierSchema
+>;
+
+export const updateStationPriorityTierSchema = z.object({
+  name: z.string().min(1).max(50).optional(),
+  description: z.string().max(300).optional().nullable(),
+  priceCents: z.number().int().min(50).max(100000).optional(),
+  priorityRank: z.number().int().min(1).max(100).optional(),
+  colorSlot: z.string().min(1).optional(),
+  isActive: z.boolean().optional(),
+  isUpgradeEnabled: z.boolean().optional(),
+  sortOrder: z.number().int().optional(),
+});
+
+export type UpdateStationPriorityTierInput = z.infer<
+  typeof updateStationPriorityTierSchema
+>;
+
+export const reorderStationPriorityTiersSchema = z.object({
+  tierIds: z.array(z.string().min(1)).min(1, "At least one tier ID is required"),
+});
+
+export type ReorderStationPriorityTiersInput = z.infer<
+  typeof reorderStationPriorityTiersSchema
+>;
+
+// ============================================================================
+// Operational Admin Validation Schemas
+// ============================================================================
+
+export const adminSubmissionFilterSchema = z.object({
+  search: z.string().optional(),
+  submissionId: z.string().optional(),
+  username: z.string().optional(),
+  artistName: z.string().optional(),
+  songName: z.string().optional(),
+  stationId: z.string().optional(),
+  hostId: z.string().optional(),
+  liveSessionId: z.string().optional(),
+  paymentStatus: z.string().optional(),
+  queueStatus: z.string().optional(),
+  isPriority: z
+    .preprocess((val) => {
+      if (val === "true" || val === true) return true;
+      if (val === "false" || val === false) return false;
+      return undefined;
+    }, z.boolean().optional()),
+  dateFrom: z.string().optional(),
+  dateTo: z.string().optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+});
+
+export type AdminSubmissionFilterInput = z.infer<
+  typeof adminSubmissionFilterSchema
+>;
+
+export const adminSubmissionActionSchema = z.object({
+  action: z.enum(["REMOVE", "RESTRICT", "INVESTIGATE_FLAG"]),
+  reason: z.string().min(3, "Reason must be at least 3 characters").max(500),
+  adminNotes: z.string().max(1000).optional(),
+});
+
+export type AdminSubmissionActionInput = z.infer<
+  typeof adminSubmissionActionSchema
+>;
+
+export const adminUserFilterSchema = z.object({
+  search: z.string().optional(),
+  role: z.string().optional(),
+  accountStatus: z.string().optional(),
+  dateFrom: z.string().optional(),
+  dateTo: z.string().optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+});
+
+export type AdminUserFilterInput = z.infer<typeof adminUserFilterSchema>;
+
+export const adminUserActionSchema = z.object({
+  action: z.enum(["SUSPEND", "UNSUSPEND", "REVOKE_SESSIONS"]),
+  reason: z.string().min(3, "Reason must be at least 3 characters").max(500),
+});
+
+export type AdminUserActionInput = z.infer<typeof adminUserActionSchema>;
+
+export const adminCompensatingLedgerSchema = z.object({
+  paymentId: z.string().optional(),
+  submissionId: z.string().optional(),
+  description: z.string().min(5, "Description must be at least 5 characters").max(300),
+  hostAmountCents: z.number().int(),
+  platformAmountCents: z.number().int(),
+  reason: z.string().min(5, "Reason is required for auditing compensating entries").max(500),
+});
+
+export type AdminCompensatingLedgerInput = z.infer<
+  typeof adminCompensatingLedgerSchema
+>;
+
+export const adminPaymentFilterSchema = z.object({
+  search: z.string().optional(),
+  submissionId: z.string().optional(),
+  status: z.string().optional(),
+  payingUserId: z.string().optional(),
+  hostId: z.string().optional(),
+  stationId: z.string().optional(),
+  dateFrom: z.string().optional(),
+  dateTo: z.string().optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+});
+
+export type AdminPaymentFilterInput = z.infer<typeof adminPaymentFilterSchema>;
+
+export const adminRepairSchema = z.object({
+  discrepancyType: z.string().min(1),
+  targetId: z.string().min(1),
+  reason: z.string().min(3, "Audit reason is required").max(500),
+});
+
+export type AdminRepairInput = z.infer<typeof adminRepairSchema>;
+
+export const adminAuditLogFilterSchema = z.object({
+  search: z.string().optional(),
+  actingAdminUserId: z.string().optional(),
+  actionType: z.string().optional(),
+  targetEntityType: z.string().optional(),
+  targetEntityId: z.string().optional(),
+  dateFrom: z.string().optional(),
+  dateTo: z.string().optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+});
+
+export type AdminAuditLogFilterInput = z.infer<
+  typeof adminAuditLogFilterSchema
+>;
+
+export const adminMediaFilterSchema = z.object({
+  search: z.string().optional(),
+  ownerUserId: z.string().optional(),
+  storageStatus: z.string().optional(),
+  isPlayed: z
+    .preprocess((val) => {
+      if (val === "true" || val === true) return true;
+      if (val === "false" || val === false) return false;
+      return undefined;
+    }, z.boolean().optional()),
+  dateFrom: z.string().optional(),
+  dateTo: z.string().optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+});
+
+export type AdminMediaFilterInput = z.infer<typeof adminMediaFilterSchema>;
+
+export const adminStationSettingsSchema = z.object({
+  submissionsEnabled: z.boolean().optional(),
+  name: z.string().min(1).max(100).optional(),
+});
+
+export type AdminStationSettingsInput = z.infer<
+  typeof adminStationSettingsSchema
+>;
+
