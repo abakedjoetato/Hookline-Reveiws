@@ -34,6 +34,7 @@ import {
 import { HostQueueManager } from "@/components/HostQueueManager";
 import { HostPriorityTierManager } from "@/components/HostPriorityTierManager";
 import { WeeklyTop3Card } from "@/components/WeeklyTop3Card";
+import { HostOverlayPanel } from "@/components/HostOverlayPanel";
 
 export default function HostStudioPage() {
   const router = useRouter();
@@ -353,6 +354,9 @@ export default function HostStudioPage() {
 
       {/* Priority Tiers Management Panel */}
       <HostPriorityTierManager />
+
+      {/* Stream Overlays Panel */}
+      <HostOverlayPanel stationSlug={station.slug} />
 
       {/* Station Configuration Panel */}
       <Card className="border-zinc-800 p-6 sm:p-8 space-y-6">

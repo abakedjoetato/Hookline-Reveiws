@@ -124,6 +124,7 @@ export default function MusicLibraryPage() {
                 track={track}
                 activePlayingTrackId={activePlayingTrackId}
                 onPlayToggle={(id) => setActivePlayingTrackId(id)}
+                onUpdated={() => fetchTracks(true)}
                 onDeleted={() => {
                   if (activePlayingTrackId === track.id) {
                     setActivePlayingTrackId(null);

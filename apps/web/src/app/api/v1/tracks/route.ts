@@ -27,6 +27,7 @@ export async function GET(req: NextRequest) {
       musicalKey: t.musicalKey,
       durationSeconds: t.durationSeconds,
       processingState: t.processingState,
+      isPublic: t.isPublic ?? false,
       artistIdentity: t.artistIdentity,
       createdAt: t.createdAt,
       updatedAt: t.updatedAt,

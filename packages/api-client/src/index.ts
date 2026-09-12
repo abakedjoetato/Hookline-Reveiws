@@ -327,6 +327,9 @@ export class ApiClient {
         uploadIntentId,
       }),
 
+    update: (trackId: string, data: Partial<import("@platform/types").TrackSummary>) =>
+      this.patch<import("@platform/types").TrackSummary>(`/tracks/${trackId}`, data),
+
     delete: (trackId: string) =>
       this.delete<{ success: boolean }>(`/tracks/${trackId}`),
 
@@ -438,6 +441,27 @@ export class ApiClient {
   public theme = {
     getPublic: () =>
       this.get<import("@platform/types").PublicThemeConfig>("/theme/public"),
+  };
+
+  // Public Profiles API
+  public profiles = {
+    get: (username: string) =>
+      this.get<import("@platform/types").PublicUserProfile>(`/profile/${username}`),
+  };
+
+  // Host Overlays API
+  public overlays = {
+    getByStation: (hostname: string) =>
+      this.get<{
+        stationName: string;
+        hostname: string;
+        isLive: boolean;
+        nowPlaying: import("@platform/types").PublicQueueEntry | null;
+        theme: {
+          style: string;
+          accentColor: string;
+        };
+      }>(`/overlay/${hostname}`),
   };
 
   // Public Stations API

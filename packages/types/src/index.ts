@@ -469,6 +469,7 @@ export interface TrackSummary {
   musicalKey?: string | null;
   durationSeconds: number;
   processingState: ProcessingState;
+  isPublic?: boolean;
   artistIdentity?: {
     id: string;
     artistName: string;
@@ -623,15 +624,42 @@ export interface UserProfile {
   displayName: string;
   bio?: string | null;
   avatarUrl?: string | null;
+  bannerUrl?: string | null;
   country?: string | null;
   websiteUrl?: string | null;
   spotifyProfileUrl?: string | null;
+  genres?: string[];
   accountStatus: AccountStatus;
   emailVerified: boolean;
   roles: Role[];
   permissions: string[];
   createdAt: Date | string;
   updatedAt: Date | string;
+}
+
+export interface PublicUserProfile {
+  id: string;
+  username: string;
+  displayName: string;
+  bio?: string | null;
+  avatarUrl?: string | null;
+  bannerUrl?: string | null;
+  country?: string | null;
+  websiteUrl?: string | null;
+  spotifyProfileUrl?: string | null;
+  genres?: string[];
+  artistIdentities: {
+    id: string;
+    artistName: string;
+    spotifyUrl?: string | null;
+    biography?: string | null;
+  }[];
+  publicTracks: TrackSummary[];
+  stats: {
+    publicTracksCount: number;
+    artistIdentitiesCount: number;
+    joinedDate: string;
+  };
 }
 
 export interface RegisterDto {

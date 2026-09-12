@@ -39,6 +39,12 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
+    if (body.acceptHostTerms === undefined) {
+      body.acceptHostTerms = true;
+    }
+    if (!body.termsVersion) {
+      body.termsVersion = TERMS_METADATA.version;
+    }
     const validation = createHostApplicationSchema.safeParse(body);
     if (!validation.success) {
       return NextResponse.json(

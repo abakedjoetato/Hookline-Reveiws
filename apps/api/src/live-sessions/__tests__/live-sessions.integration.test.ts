@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from "vitest";
 import { Test, TestingModule } from "@nestjs/testing";
 import { INestApplication } from "@nestjs/common";
 import { AppModule } from "../../app.module";
@@ -35,8 +35,8 @@ describe("LiveSessions Integration Tests", () => {
     app = moduleFixture.createNestApplication();
     await app.init();
 
-    prisma = moduleFixture.get<PrismaClient>(PrismaClient);
     service = moduleFixture.get<LiveSessionsService>(LiveSessionsService);
+    prisma = (service as any).prisma || moduleFixture.get<PrismaClient>(PrismaClient);
 
     // Provide mocked data to emulate a db response
     hostUser = { id: generateUuidV7() };
@@ -53,14 +53,15 @@ describe("LiveSessions Integration Tests", () => {
     if (prisma) await prisma.$disconnect();
   });
 
-  it("should enforce active session concurrency", async () => {
-    // We mock $transaction to intercept calls
+  beforeEach(() => {
     vi.spyOn(prisma as any, "$transaction").mockImplementation(
       async (callback: any) => {
         return callback(prisma as any);
       },
     );
+  });
 
+  it("should enforce active session concurrency", async () => {
     vi.spyOn(prisma, "$queryRaw").mockResolvedValue([{ id: "host1" }]);
     vi.spyOn(prisma.station, "findUnique").mockResolvedValue(station as any);
 
@@ -96,29 +97,28 @@ describe("LiveSessions Integration Tests", () => {
   });
 
   it("should enforce queueRevision atomicity", async () => {
-    vi.spyOn(prisma, "$queryRaw").mockResolvedValue([
-      {
-        id: "sess1",
-        status: "PREPARING",
-        hostId: hostUser.id,
-        queueRevision: 0,
-      },
-    ]);
+    vi.spyOn(prisma, "$queryRaw")
+      .mockResolvedValueOnce([
+        {
+          id: "sess1",
+          status: "PREPARING",
+          hostId: hostUser.id,
+          queueRevision: 0,
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          id: "sess1",
+          status: "PREPARING",
+          hostId: hostUser.id,
+          queueRevision: 1,
+        },
+      ]);
     vi.spyOn(prisma.liveSession, "update").mockResolvedValue({
       id: "sess1",
     } as any);
 
     const promise1 = service.startLiveSession(hostUser.id, "sess1", 0);
-
-    // Change the DB returned revision for the second call to simulate a stale read
-    vi.spyOn(prisma, "$queryRaw").mockResolvedValue([
-      {
-        id: "sess1",
-        status: "PREPARING",
-        hostId: hostUser.id,
-        queueRevision: 1,
-      },
-    ]);
     const promise2 = service.startLiveSession(hostUser.id, "sess1", 0);
 
     const results = await Promise.allSettled([promise1, promise2]);
@@ -130,9 +130,13 @@ describe("LiveSessions Integration Tests", () => {
   });
 
   it("should enforce Queue Entry Add concurrency", async () => {
-    vi.spyOn(prisma, "$queryRaw").mockResolvedValue([
-      { id: "sess1", status: "LIVE", hostId: hostUser.id, queueRevision: 0 },
-    ]);
+    vi.spyOn(prisma, "$queryRaw")
+      .mockResolvedValueOnce([
+        { id: "sess1", status: "LIVE", hostId: hostUser.id, queueRevision: 0 },
+      ])
+      .mockResolvedValueOnce([
+        { id: "sess1", status: "LIVE", hostId: hostUser.id, queueRevision: 1 },
+      ]);
     vi.spyOn(prisma.submission, "findUnique").mockResolvedValue({
       id: "sub1",
       liveSessionId: "sess1",
@@ -149,10 +153,6 @@ describe("LiveSessions Integration Tests", () => {
       submissionId: "sub1",
       expectedQueueRevision: 0,
     });
-
-    vi.spyOn(prisma, "$queryRaw").mockResolvedValue([
-      { id: "sess1", status: "LIVE", hostId: hostUser.id, queueRevision: 1 },
-    ]);
     const promise2 = service.addQueueEntry(hostUser.id, "sess1", {
       submissionId: "sub1",
       expectedQueueRevision: 0,

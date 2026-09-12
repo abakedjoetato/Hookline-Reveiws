@@ -25,6 +25,7 @@ import {
   PublicThemeConfig,
   AdminCustomizationConfig,
   UserProfile,
+  PublicUserProfile,
   UserSessionInfo,
   SecurityEventLog,
   UserPreferencesDto,
@@ -1530,6 +1531,115 @@ export function sanitizeUser(user: StoredUser): UserProfile {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { passwordHash, ...safe } = user;
   return safe;
+}
+
+export function getPublicUserProfile(usernameOrId: string): PublicUserProfile | null {
+  const query = usernameOrId.trim().toLowerCase();
+  const user = Array.from(serverDb.users.values()).find(
+    (u) => u.username.toLowerCase() === query || u.id === usernameOrId
+  );
+  if (!user) return null;
+
+  // Active public artist identities
+  const artistIdentities = Array.from(serverDb.artistIdentities.values())
+    .filter((a) => a.userId === user.id && !a.deletedAt && a.isPublic !== false)
+    .map((a) => ({
+      id: a.id,
+      artistName: a.artistName,
+      spotifyUrl: a.spotifyUrl,
+      biography: a.biography,
+    }));
+
+  // Public tracks only (tracks default to private, strictly filter by isPublic === true)
+  const publicTracks: TrackSummary[] = Array.from(serverDb.tracks.values())
+    .filter((t) => t.userId === user.id && t.isPublic === true && t.processingState === "READY")
+    .map((t) => ({
+      id: t.id,
+      userId: t.userId,
+      artistIdentityId: t.artistIdentityId,
+      songName: t.songName,
+      albumName: t.albumName,
+      explicitContent: t.explicitContent,
+      bpm: t.bpm,
+      musicalKey: t.musicalKey,
+      durationSeconds: t.durationSeconds,
+      processingState: t.processingState,
+      isPublic: true,
+      artistIdentity: t.artistIdentity,
+      createdAt: t.createdAt,
+      updatedAt: t.updatedAt,
+    }));
+
+  return {
+    id: user.id,
+    username: user.username,
+    displayName: user.displayName,
+    bio: user.bio,
+    avatarUrl: user.avatarUrl,
+    bannerUrl: user.bannerUrl || null,
+    country: user.country,
+    websiteUrl: user.websiteUrl,
+    spotifyProfileUrl: user.spotifyProfileUrl,
+    genres: user.genres || ["Independent", "Electronic"],
+    artistIdentities,
+    publicTracks,
+    stats: {
+      publicTracksCount: publicTracks.length,
+      artistIdentitiesCount: artistIdentities.length,
+      joinedDate: String(user.createdAt),
+    },
+  };
+}
+
+export function getOverlayDataForStation(hostname: string) {
+  const target = hostname.trim().toLowerCase();
+  const station = Array.from(serverDb.stations.values()).find(
+    (s) => s.slug.toLowerCase() === target
+  );
+
+  const session = Array.from(serverDb.sessions.values()).find(
+    (ls) =>
+      (station && ls.stationId === station.id) ||
+      ls.stationSlug.toLowerCase() === target
+  );
+
+  if (!station && !session) return null;
+
+  const stationName = station ? station.stationName : session ? session.stationName : hostname;
+  const stationSlug = station ? station.slug : session ? session.stationSlug : hostname;
+  const isLive = session ? session.status === LiveSessionStatus.LIVE : false;
+
+  let nowPlaying: any = null;
+  if (session && isLive) {
+    const queue = serverDb.queues.get(session.id) || [];
+    const playingEntry = queue.find(
+      (e) => e.liveSessionId === session.id && e.status === QueueStatus.PLAYING
+    );
+
+    if (playingEntry) {
+      nowPlaying = {
+        id: playingEntry.id,
+        songName: playingEntry.songName,
+        artistName: playingEntry.artistName,
+        spotifyUrl: playingEntry.spotifyUrl || null,
+        durationSeconds: playingEntry.durationSeconds,
+        tierName: playingEntry.tierName || null,
+        colorSlot: playingEntry.colorSlot || null,
+        isPriority: playingEntry.isPriority || false,
+      };
+    }
+  }
+
+  return {
+    stationName,
+    hostname: stationSlug,
+    isLive,
+    nowPlaying,
+    theme: {
+      style: "modern",
+      accentColor: "#8B5CF6",
+    },
+  };
 }
 
 export function createPasswordResetToken(email: string): string | null {

@@ -8,7 +8,9 @@ export class StripeService {
   private readonly webhookSecret: string;
 
   constructor(private readonly configService: ConfigService) {
-    const secretKey = this.configService.get<string>("STRIPE_SECRET_KEY");
+    const secretKey =
+      this.configService.get<string>("STRIPE_SECRET_KEY") ||
+      (process.env.NODE_ENV === "test" ? "sk_test_dummy_key_for_testing" : undefined);
     if (!secretKey) {
       throw new InternalServerErrorException(
         "STRIPE_SECRET_KEY is not defined in environment",

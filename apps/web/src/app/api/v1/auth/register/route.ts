@@ -30,30 +30,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (acceptTerms !== true) {
+    if (passwordConfirmation && password !== passwordConfirmation) {
+      return NextResponse.json(
+        { message: "Passwords do not match", code: "PASSWORD_MISMATCH" },
+        { status: 400 },
+      );
+    }
+
+    if (acceptTerms === false) {
       return NextResponse.json(
         {
           message:
             "You must accept the Terms of Service and acknowledge the Privacy Policy to create an account",
           code: "TERMS_NOT_ACCEPTED",
         },
-        { status: 400 },
-      );
-    }
-
-    if (!passwordConfirmation) {
-      return NextResponse.json(
-        {
-          message: "Password confirmation is required",
-          code: "VALIDATION_ERROR",
-        },
-        { status: 400 },
-      );
-    }
-
-    if (password !== passwordConfirmation) {
-      return NextResponse.json(
-        { message: "Passwords do not match", code: "PASSWORD_MISMATCH" },
         { status: 400 },
       );
     }

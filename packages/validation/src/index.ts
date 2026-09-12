@@ -564,6 +564,9 @@ export const RESERVED_SLUGS = [
   "session",
   "auth",
   "theme",
+  "profile",
+  "artist",
+  "overlay",
   "apply-host",
   "onboarding",
   "become-host",
@@ -611,12 +614,24 @@ export const updateUserProfileSchema = z.object({
   displayName: z.string().min(2).max(50).optional(),
   bio: z.string().max(500).optional().nullable(),
   avatarUrl: z.string().url().optional().nullable().or(z.literal("")),
+  bannerUrl: z.string().url().optional().nullable().or(z.literal("")),
   country: z.string().max(100).optional().nullable(),
   websiteUrl: z.string().url().optional().nullable().or(z.literal("")),
   spotifyProfileUrl: z.string().url().optional().nullable().or(z.literal("")),
 });
 
 export type UpdateUserProfileInput = z.infer<typeof updateUserProfileSchema>;
+
+export const updateTrackSchema = z.object({
+  songName: z.string().min(1).max(200).optional(),
+  albumName: z.string().max(200).optional().nullable(),
+  explicitContent: z.boolean().optional(),
+  bpm: z.number().int().min(20).max(300).optional().nullable(),
+  musicalKey: z.string().max(10).optional().nullable(),
+  isPublic: z.boolean().optional(),
+});
+
+export type UpdateTrackInput = z.infer<typeof updateTrackSchema>;
 
 export const changePasswordSchema = z.object({
   currentPassword: z.string().optional(),

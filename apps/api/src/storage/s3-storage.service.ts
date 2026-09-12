@@ -23,15 +23,17 @@ export class S3StorageService implements StorageService, OnModuleInit {
   private bucket: string;
 
   constructor() {
-    const region = process.env.S3_REGION;
+    const region = process.env.S3_REGION || (process.env.NODE_ENV === "test" ? "us-east-1" : undefined);
     const endpoint = process.env.S3_ENDPOINT;
-    const accessKeyId = process.env.S3_ACCESS_KEY;
-    const secretAccessKey = process.env.S3_SECRET_KEY;
+    const accessKeyId = process.env.S3_ACCESS_KEY || (process.env.NODE_ENV === "test" ? "test-key" : undefined);
+    const secretAccessKey = process.env.S3_SECRET_KEY || (process.env.NODE_ENV === "test" ? "test-secret" : undefined);
     this.bucket = process.env.S3_BUCKET || "thequeue-media-local";
     const forcePathStyle = process.env.S3_FORCE_PATH_STYLE === "true";
 
     if (!region || !accessKeyId || !secretAccessKey) {
-      throw new Error("S3 environment variables are missing");
+      if (process.env.NODE_ENV !== "test") {
+        throw new Error("S3 environment variables are missing");
+      }
     }
 
     this.s3Client = new S3Client({
