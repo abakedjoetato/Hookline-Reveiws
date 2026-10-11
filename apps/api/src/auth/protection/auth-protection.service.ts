@@ -7,14 +7,16 @@ import Redis from "ioredis";
 export class AuthProtectionService {
   private readonly logger = new Logger(AuthProtectionService.name);
   private redisClient: Redis;
-  private prisma: PrismaClient;
 
   // Tiers of lockout thresholds for authentication flows
   private readonly MAX_FAILED_ATTEMPTS_PER_EMAIL = 5;
   private readonly MAX_FAILED_ATTEMPTS_PER_IP = 20;
   private readonly LOCKOUT_DURATION_SECONDS = 15 * 60; // 15 minutes
 
-  constructor(private configService: ConfigService) {
+  constructor(
+    private configService: ConfigService,
+    private readonly prisma: PrismaClient,
+  ) {
     const isTest = process.env.NODE_ENV === "test";
     const redisUrl =
       process.env[isTest ? "TEST_REDIS_URL" : "REDIS_URL"] ||
@@ -28,7 +30,6 @@ export class AuthProtectionService {
       this.logger.error("Redis connection error in AuthProtectionService", err);
     });
 
-    this.prisma = new PrismaClient();
   }
 
   /**

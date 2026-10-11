@@ -15,6 +15,8 @@ vi.mock("@platform/database", async (importOriginal) => {
         authenticationAttempt: {
           create: vi.fn().mockResolvedValue({ id: "test-id" }),
         },
+        $disconnect: vi.fn().mockResolvedValue(undefined),
+        $queryRaw: vi.fn().mockResolvedValue([{ "?column?": 1 }]),
       };
     }),
   };

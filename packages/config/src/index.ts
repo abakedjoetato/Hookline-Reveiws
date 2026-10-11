@@ -66,9 +66,35 @@ export const getLegalConfig = () => ({
 // Weekly Top 3 & Authoritative Playback Constants & Period Calculations
 // ============================================================================
 
+// ============================================================================
+// Payment split (Stripe Connect destination charges)
+// ============================================================================
+
+/** Platform share of each paid submission, in basis points (15%). */
+export const PLATFORM_FEE_BPS = 1500;
+
+/**
+ * The single source of truth for splitting a payment. The Stripe
+ * application fee and the stored allocations must both use this so the
+ * ledger reconciles to the cent.
+ */
+export function splitPayment(grossCents: number): {
+  grossCents: number;
+  platformCents: number;
+  hostCents: number;
+} {
+  const platformCents = Math.round((grossCents * PLATFORM_FEE_BPS) / 10_000);
+  return { grossCents, platformCents, hostCents: grossCents - platformCents };
+}
+
 export const WEEKLY_TOP3_TIMEZONE = "America/New_York" as const;
 export const QUALIFICATION_CONTINUOUS_PLAYBACK_MS = 120_000; // 120 seconds
-export const NORMAL_PLAY_RATE_LIMIT_MS = 4 * 60 * 60 * 1000; // 4 hours
+/**
+ * A track may be played any number of times. A qualifying play only counts
+ * once per track, per host, within this window. Applies equally to free and
+ * paid plays.
+ */
+export const PLAY_COUNT_WINDOW_MS = 4 * 60 * 60 * 1000; // 4 hours
 
 export interface WeeklyPeriodResult {
   timeZone: "America/New_York";

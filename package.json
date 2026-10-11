@@ -6,35 +6,33 @@
     "packages/*"
   ],
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=20.12.0"
   },
   "packageManager": "npm@10.8.2",
   "scripts": {
-    "dev": "npm run dev --workspace=apps/web",
-    "build": "turbo build",
+    "dev": "npm run build:packages && turbo run dev --filter=api --filter=worker --filter=web",
+    "build": "npm run build:packages && npm run build -w apps/api && npm run build -w apps/worker && npm run build -w apps/web",
     "lint": "turbo lint",
-    "typecheck": "turbo typecheck",
-    "test": "turbo test",
+    "typecheck": "npm run build:packages && turbo run typecheck",
+    "test": "npm run build:packages && turbo run test",
     "test:e2e": "playwright test",
     "format": "prettier --write \"**/*.{ts,tsx,js,json,md,css}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,json,md,css}\"",
-    "db:generate": "turbo db:generate",
-    "db:migrate": "turbo db:migrate"
+    "db:generate": "npm run db:generate -w packages/database",
+    "db:migrate": "npm run db:migrate -w packages/database",
+    "build:packages": "npm run build -w packages/config && npm run build -w packages/types && npm run build -w packages/logger && npm run build -w packages/validation && npm run build -w packages/auth && npm run build -w packages/database",
+    "db:deploy": "npm run db:deploy -w packages/database",
+    "db:seed": "npm run db:seed -w packages/database",
+    "infrastructure:up": "docker compose -f infrastructure/docker/docker-compose.yml up -d",
+    "infrastructure:down": "docker compose -f infrastructure/docker/docker-compose.yml down"
   },
   "devDependencies": {
-    "playwright": "^1.48.0",
+    "@playwright/test": "^1.64.0",
     "prettier": "^3.3.3",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
     "turbo": "^2.1.3",
     "typescript": "^5.6.3",
     "vitest": "^2.1.3"
-  },
-  "dependencies": {
-    "@stripe/react-stripe-js": "^6.8.2",
-    "@stripe/stripe-js": "^9.14.0",
-    "class-transformer": "^0.5.1",
-    "class-validator": "^0.15.1",
-    "decimal.js": "^10.6.0",
-    "socket.io-client": "^4.8.3",
-    "tailwindcss": "^4.3.3"
   }
 }

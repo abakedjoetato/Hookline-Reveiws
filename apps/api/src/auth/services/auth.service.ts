@@ -25,6 +25,8 @@ import { AuthProtectionService } from "../protection/auth-protection.service";
 import { MailDeliveryService } from "../../mail/mail.interface";
 import { TokenRepository } from "../repositories/token.repository";
 import { SecurityEventRepository } from "../repositories/security-event.repository";
+import { LegalService } from "../../legal/legal.service";
+import { TERMS_METADATA, PRIVACY_METADATA } from "@platform/config";
 
 @Injectable()
 export class AuthService {
@@ -37,9 +39,14 @@ export class AuthService {
     private readonly securityEventRepository: SecurityEventRepository,
     @Inject("MailDeliveryService")
     private readonly mailService: MailDeliveryService,
+    private readonly legalService: LegalService,
   ) {}
 
-  async register(input: SignUpInput, ipAddress: string): Promise<void> {
+  async register(
+    input: SignUpInput,
+    ipAddress: string,
+    userAgent?: string,
+  ): Promise<{ userId: string }> {
     await this.authProtectionService.verifyActionAllowed(
       input.email,
       ipAddress,
@@ -57,9 +64,13 @@ export class AuthService {
       throw new BadRequestException("Email is already registered");
     }
 
+    if (await this.userRepository.findByUsername(input.username)) {
+      throw new BadRequestException("Username is already taken");
+    }
+
     const passwordHash = await hashPassword(input.password);
 
-    await this.prisma.$transaction(async (tx: any) => {
+    const userId = await this.prisma.$transaction(async (tx: any) => {
       const user = await this.userRepository.create(tx, {
         email: input.email,
         username: input.username,
@@ -84,10 +95,22 @@ export class AuthService {
         ipAddress,
       });
 
+      // Signup requires accepting the Terms and acknowledging the Privacy Policy
+      for (const [slug, version] of [
+        ["terms", TERMS_METADATA.version],
+        ["privacy", PRIVACY_METADATA.version],
+      ] as const) {
+        await this.legalService.recordAcceptance(
+          { userId: user.id, documentSlug: slug, version, source: "SIGNUP", ipAddress, userAgent },
+          tx,
+        );
+      }
+
       // Fire and forget email delivery
       this.mailService
         .sendEmailVerification(user.email, rawVerificationToken)
         .catch(() => {});
+      return user.id as string;
     });
 
     await this.authProtectionService.recordAttempt(
@@ -96,19 +119,20 @@ export class AuthService {
       undefined,
       true,
     );
+    return { userId };
   }
 
   async login(
     input: LoginInput,
     ipAddress: string,
     userAgent?: string,
-  ): Promise<{ cookie: string }> {
+  ): Promise<{ cookie: string; userId: string }> {
     await this.authProtectionService.verifyActionAllowed(
       input.email,
       ipAddress,
     );
 
-    const user = await this.userRepository.findByEmail(input.email);
+    const user = await this.userRepository.findByEmailOrUsername(input.email);
 
     if (!user) {
       await this.authProtectionService.recordAttempt(
@@ -118,7 +142,7 @@ export class AuthService {
         false,
         "Login failed: User not found",
       );
-      throw new UnauthorizedException("Invalid email or password"); // Neutral message
+      throw new UnauthorizedException("Invalid email/username or password"); // Neutral message
     }
 
     const isValidPassword = await verifyPassword(
@@ -133,7 +157,7 @@ export class AuthService {
         false,
         "Login failed: Invalid password",
       );
-      throw new UnauthorizedException("Invalid email or password");
+      throw new UnauthorizedException("Invalid email/username or password");
     }
 
     if (
@@ -185,7 +209,30 @@ export class AuthService {
       ipAddress,
       userAgent,
     );
-    return { cookie };
+    return { cookie, userId: user.id };
+  }
+
+  /** Issues a session for a just-registered account (no password re-check). */
+  async createSessionAfterRegistration(
+    userId: string,
+    ipAddress: string,
+    userAgent?: string,
+  ): Promise<string> {
+    return this.sessionService.createSessionCookie(userId, ipAddress, userAgent);
+  }
+
+  async resendEmailVerification(userId: string, ipAddress: string): Promise<void> {
+    const user = await this.userRepository.findById(userId);
+    if (!user || user.emailVerified) return;
+    await this.authProtectionService.verifyActionAllowed(user.email, ipAddress);
+    const rawToken = generateSecureToken();
+    await this.tokenRepository.createEmailVerificationToken(
+      this.prisma,
+      user.email,
+      hashToken(rawToken),
+      new Date(Date.now() + 24 * 60 * 60 * 1000),
+    );
+    await this.mailService.sendEmailVerification(user.email, rawToken);
   }
 
   async verifyEmail(
@@ -286,14 +333,14 @@ export class AuthService {
       await this.tokenRepository.markPasswordResetTokenUsed(tx, record.id);
       await this.userRepository.updatePassword(tx, user.id, newPasswordHash);
 
-      // Revoke all sessions on password reset
-      await this.sessionService.revokeAllSessions(user.id, ipAddress);
-
       await this.securityEventRepository.logEvent(tx, {
         userId: user.id,
         eventType: "PASSWORD_CHANGED",
         ipAddress,
       });
     });
+
+    // Revoke all sessions after the new password is committed
+    await this.sessionService.revokeAllSessions(user.id, ipAddress);
   }
 }

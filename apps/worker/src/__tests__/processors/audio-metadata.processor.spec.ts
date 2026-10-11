@@ -27,6 +27,7 @@ describe("AudioMetadataProcessor", () => {
     $transaction: vi.fn((cb) => cb(mockPrisma)),
     trackMediaVersion: {
       findFirst: vi.fn(),
+      findUnique: vi.fn().mockResolvedValue({ mimeType: "audio/wav", originalFilename: "song.wav" }),
       update: vi.fn(),
       count: vi.fn(),
     },

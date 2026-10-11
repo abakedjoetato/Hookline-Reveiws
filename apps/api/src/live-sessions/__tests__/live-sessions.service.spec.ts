@@ -60,7 +60,8 @@ describe("LiveSessionsService", () => {
         $transaction: vi.fn(async (cb) => cb(prismaMock)),
         $queryRaw: vi.fn().mockImplementation((query) => {
           if (query && query[0] && query[0].includes("host_profiles")) {
-            return [{ id: "host1" }];
+            // The locked HostProfile row; Station.hostId references this id
+            return [{ id: mockHostId }];
           }
           return [];
         }),

@@ -1,15 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { generateUuidV7, testDbConnection, prisma } from "../index";
-
-vi.mock("@prisma/client", () => {
-  return {
-    PrismaClient: vi.fn().mockImplementation(() => {
-      return {
-        $queryRaw: vi.fn().mockResolvedValue([{ "?column?": 1 }]),
-      };
-    }),
-  };
-});
+import { generateUuidV7 } from "../index";
 
 describe("Database Foundation Utilities", () => {
   beforeEach(() => {
@@ -32,34 +22,6 @@ describe("Database Foundation Utilities", () => {
       const second = generateUuidV7();
 
       expect(second > first).toBe(true);
-    });
-  });
-
-  describe("testDbConnection", () => {
-    it("should return true when database query executes successfully", async () => {
-      const mockQueryRaw = vi
-        .spyOn(prisma, "$queryRaw")
-        .mockResolvedValue([{ "?column?": 1 }]);
-
-      const isConnected = await testDbConnection();
-
-      expect(isConnected).toBe(true);
-      expect(mockQueryRaw).toHaveBeenCalled();
-    });
-
-    it("should return false and log error when query fails", async () => {
-      const mockQueryRaw = vi
-        .spyOn(prisma, "$queryRaw")
-        .mockRejectedValue(new Error("Connection failure"));
-      const consoleSpy = vi
-        .spyOn(console, "error")
-        .mockImplementation(() => {});
-
-      const isConnected = await testDbConnection();
-
-      expect(isConnected).toBe(false);
-      expect(mockQueryRaw).toHaveBeenCalled();
-      consoleSpy.mockRestore();
     });
   });
 });

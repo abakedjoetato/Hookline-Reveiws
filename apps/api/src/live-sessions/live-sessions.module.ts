@@ -7,10 +7,10 @@ import { LiveSessionsCronService } from "./live-sessions-cron.service";
 import { QueueOrderingService } from "./queue-ordering/queue-ordering.service";
 import { AuthProtectionModule } from "../auth/protection/auth-protection.module";
 import { AuthModule } from "../auth/auth.module";
-import { PrismaClient } from "@platform/database";
+import { StorageModule } from "../storage/storage.module";
 
 @Module({
-  imports: [AuthProtectionModule, AuthModule],
+  imports: [AuthProtectionModule, AuthModule, StorageModule],
   controllers: [LiveSessionsController],
   providers: [
     LiveSessionsGateway,
@@ -18,10 +18,6 @@ import { PrismaClient } from "@platform/database";
     LiveSessionsCronService,
     LiveSessionsService,
     QueueOrderingService,
-    {
-      provide: PrismaClient,
-      useValue: new PrismaClient(),
-    },
   ],
   exports: [LiveSessionsService, LiveSessionsEventService, QueueOrderingService],
 })

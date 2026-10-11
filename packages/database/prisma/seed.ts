@@ -1,10 +1,25 @@
+/**
+ * Production-safe bootstrap. Idempotent: run on every deploy.
+ * - Creates reference data (genres, ledger accounts, legal docs) if missing.
+ * - Creates platform settings rows only if missing; never overwrites values an
+ *   admin has since changed (fee split, payment emergency state, etc).
+ * - Creates the first Owner Admin from ADMIN_BOOTSTRAP_* env vars, once.
+ */
 import {
   PrismaClient,
   AccountStatus,
   StripePlatformMode,
   PaymentEmergencyState,
-} from "@prisma/client";
+} from "../src/index";
 import * as crypto from "crypto";
+
+for (const file of [".env", "../../.env"]) {
+  try {
+    process.loadEnvFile(file);
+  } catch {
+    /* not present */
+  }
+}
 import * as argon2 from "argon2";
 
 const prisma = new PrismaClient();
@@ -96,11 +111,7 @@ async function main() {
   console.log("👉 Seeding default platform fee rule (85/15 Connect split)...");
   await prisma.platformFeeRule.upsert({
     where: { id: "00000000-0000-0000-0000-000000000001" },
-    update: {
-      hostPercentage: 85.0,
-      platformPercentage: 15.0,
-      isActive: true,
-    },
+    update: {},
     create: {
       id: "00000000-0000-0000-0000-000000000001",
       ruleName: "TheQueue Default 85/15 split",
@@ -117,22 +128,7 @@ async function main() {
   const defaultConfigId = "00000000-0000-0000-0000-000000000002";
   await prisma.platformConfiguration.upsert({
     where: { id: defaultConfigId },
-    update: {
-      isActive: true,
-      minimumPriorityPrice: 200, // $2.00 price floor cents
-      maximumPriorityPrice: 50000,
-      supportedCurrencies: JSON.stringify(["USD"]),
-      enabledPayoutProviders: JSON.stringify(["STRIPE"]),
-      globalPayoutDelayDays: 7,
-      globalRefundWindowDays: 3,
-      globalUploadLimitMb: 50,
-      maxTrackDurationSeconds: 600,
-      featureFlags: JSON.stringify({
-        hostApplicationsEnabled: true,
-        priorityTiersEnabled: true,
-        userUploadsEnabled: true,
-      }),
-    },
+    update: {},
     create: {
       id: defaultConfigId,
       isActive: true,
@@ -261,27 +257,28 @@ async function main() {
   // ==========================================================================
   // 8. Seed Stripe Platform Configuration (Non-secret Metadata)
   // ==========================================================================
-  console.log("👉 Seeding default non-secret Stripe platform configuration...");
+  console.log("👉 Ensuring Stripe platform configuration record...");
   const defaultStripeConfigId = "00000000-0000-0000-0000-000000000003";
+  const stripeKey = process.env.STRIPE_SECRET_KEY ?? "";
   await prisma.stripePlatformConfiguration.upsert({
     where: { id: defaultStripeConfigId },
+    // Admin-managed after first deploy; only refresh the mode from the key in use
     update: {
-      stripePlatformAccountId: "acct_1Pzq871638201TheQueue",
-      stripePlatformDisplayName: "TheQueue Live Payments Inc.",
-      stripePlatformCountry: "US",
-      stripePlatformDefaultCurrency: "USD",
-      stripePlatformConnected: true,
-      stripePlatformMode: StripePlatformMode.TEST,
-      isPaymentsEnabled: true,
+      stripePlatformMode: stripeKey.startsWith("sk_live_")
+        ? StripePlatformMode.LIVE
+        : StripePlatformMode.TEST,
+      stripePlatformConnected: stripeKey.length > 0,
     },
     create: {
       id: defaultStripeConfigId,
-      stripePlatformAccountId: "acct_1Pzq871638201TheQueue",
-      stripePlatformDisplayName: "TheQueue Live Payments Inc.",
-      stripePlatformCountry: "US",
+      stripePlatformAccountId: process.env.STRIPE_PLATFORM_ACCOUNT_ID || "acct_unconfigured",
+      stripePlatformDisplayName: process.env.LEGAL_ENTITY_NAME || "TheQueue",
+      stripePlatformCountry: process.env.STRIPE_PLATFORM_COUNTRY || "US",
       stripePlatformDefaultCurrency: "USD",
-      stripePlatformConnected: true,
-      stripePlatformMode: StripePlatformMode.TEST,
+      stripePlatformConnected: stripeKey.length > 0,
+      stripePlatformMode: stripeKey.startsWith("sk_live_")
+        ? StripePlatformMode.LIVE
+        : StripePlatformMode.TEST,
       isPaymentsEnabled: true,
     },
   });
@@ -293,12 +290,7 @@ async function main() {
   const defaultEmergencyControlId = "00000000-0000-0000-0000-000000000004";
   await prisma.paymentEmergencyControl.upsert({
     where: { id: defaultEmergencyControlId },
-    update: {
-      state: PaymentEmergencyState.PAYMENTS_ENABLED,
-      reason: "Platform initialization: Payments activated.",
-      changedByUserId: "00000000-0000-0000-0000-000000000000", // System default creator ID
-      previousState: PaymentEmergencyState.PAYMENTS_ENABLED,
-    },
+    update: {},
     create: {
       id: defaultEmergencyControlId,
       state: PaymentEmergencyState.PAYMENTS_ENABLED,
@@ -309,16 +301,19 @@ async function main() {
   });
 
   // ==========================================================================
-  // 10. Seed Local Development Administrator (Environment-Driven, Secure)
+  // 10. Bootstrap the first Owner Administrator (environment-driven, once)
   // ==========================================================================
-  console.log("👉 Checking for local development administrator credentials...");
-  const adminEmail = process.env.SEED_ADMIN_EMAIL;
-  const adminUsername = process.env.SEED_ADMIN_USERNAME;
-  const adminPassword = process.env.SEED_ADMIN_PASSWORD;
+  console.log("👉 Checking for Owner Administrator credentials...");
+  const adminEmail = process.env.ADMIN_BOOTSTRAP_EMAIL;
+  const adminUsername = process.env.ADMIN_BOOTSTRAP_USERNAME;
+  const adminPassword = process.env.ADMIN_BOOTSTRAP_PASSWORD;
+  if (adminPassword && adminPassword.length < 12) {
+    throw new Error("ADMIN_BOOTSTRAP_PASSWORD must be at least 12 characters.");
+  }
 
   if (adminEmail && adminUsername && adminPassword) {
     console.log(
-      `👤 Seeding local development administrator: ${adminUsername} (${adminEmail})...`,
+      `👤 Seeding Owner Administrator: ${adminUsername} (${adminEmail})...`,
     );
 
     const hashedPassword = await argon2.hash(adminPassword, {
@@ -332,13 +327,12 @@ async function main() {
     const normalizedEmail = adminEmail.toLowerCase().trim();
     const normalizedUsername = adminUsername.toLowerCase().trim();
 
+    // Existing account keeps its current password; the env password is only
+    // used when the account is first created.
     const adminUser = await prisma.user.upsert({
-      where: { email: normalizedEmail },
+      where: { normalizedEmail },
       update: {
-        passwordHash: hashedPassword,
         isAdmin: true,
-        accountStatus: AccountStatus.ACTIVE,
-        emailVerified: true,
       },
       create: {
         id: adminId,
@@ -411,7 +405,7 @@ async function main() {
     );
   } else {
     console.log(
-      "⚠️  Skipping local development administrator seeding: SEED_ADMIN_EMAIL, SEED_ADMIN_USERNAME, or SEED_ADMIN_PASSWORD was not supplied.",
+      "⚠️  Skipping Owner Administrator seeding: ADMIN_BOOTSTRAP_EMAIL, ADMIN_BOOTSTRAP_USERNAME, or ADMIN_BOOTSTRAP_PASSWORD was not supplied.",
     );
   }
 

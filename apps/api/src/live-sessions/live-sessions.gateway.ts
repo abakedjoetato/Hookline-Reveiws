@@ -10,14 +10,21 @@ import {
 import { Server, Socket } from "socket.io";
 import { UseFilters } from "@nestjs/common";
 import { SessionService } from "../auth/services/session.service";
-import * as cookie from "cookie";
+import { parse as parseCookie } from "cookie";
 import { LiveSessionsService } from "./live-sessions.service";
 import { PrismaClient } from "@platform/database";
 import { LiveSessionsEventService } from "./live-sessions-event.service";
+import { SESSION_COOKIE_NAME } from "../auth/services/cookie.service";
+
+const allowedOrigins = (process.env.CORS_ALLOWED_ORIGINS || "http://localhost:3000")
+  .split(",")
+  .map((o) => o.trim())
+  .filter(Boolean);
 
 @WebSocketGateway({
   cors: {
-    origin: true,
+    // Cookies authenticate the socket, so only our own web origins may connect
+    origin: allowedOrigins,
     credentials: true,
   },
 })
@@ -33,9 +40,11 @@ export class LiveSessionsGateway
     private readonly prisma: PrismaClient,
     private readonly eventsService: LiveSessionsEventService
   ) {
+    // Everyone in a session (host included) is in the PUBLIC room, so one
+    // emit reaches all of them exactly once. With the Redis adapter this also
+    // reaches clients connected to other API instances.
     this.eventsService.events$.subscribe((event) => {
-      this.server.to(`session:PUBLIC:${event.sessionId}`).emit(event.type, event.payload);
-      this.server.to(`session:HOST:${event.sessionId}`).emit(event.type, event.payload);
+      this.server?.to(`session:PUBLIC:${event.sessionId}`).emit(event.type, event.payload);
     });
   }
 
@@ -49,8 +58,8 @@ export class LiveSessionsGateway
       if (authHeader && authHeader.startsWith("Bearer ")) {
         token = authHeader.substring(7);
       } else if (cookieHeader) {
-        const cookies = cookie.parse(cookieHeader);
-        token = cookies["queue_session"];
+        const cookies = parseCookie(cookieHeader);
+        token = cookies[SESSION_COOKIE_NAME];
       }
 
       if (token) {

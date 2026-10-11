@@ -2,7 +2,7 @@
 
 ## Status
 
-Approved
+Amended: the repo uses npm workspaces (with Turborepo), not pnpm
 
 ## Context
 

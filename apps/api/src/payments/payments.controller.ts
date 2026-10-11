@@ -11,7 +11,9 @@ import { Request, Response } from "express";
 import { StripeService } from "./stripe.service";
 import { WebhooksService } from "./webhooks.service";
 import { PublicRoute } from "../auth/decorators/auth.decorators";
+import { SkipThrottle } from "@nestjs/throttler";
 
+@SkipThrottle()
 @Controller("payments")
 export class PaymentsController {
   constructor(
@@ -48,11 +50,10 @@ export class PaymentsController {
       await this.webhooksService.processEvent(event, req.rawBody.toString());
       res.json({ received: true });
     } catch (err: any) {
-      // Return 200 even on processing failure to avoid Stripe disabling the webhook endpoint if it's our internal error.
-      // We will track the failure state in the PaymentProviderEvent record for retries.
-      return res
-        .status(200)
-        .send(`Webhook processed with internal errors: ${err.message}`);
+      // 500 makes Stripe retry with backoff (for up to 3 days). Processing is
+      // idempotent per event id, so retries are safe. The failure is also
+      // recorded on PaymentProviderEvent for the admin reconciliation view.
+      return res.status(500).json({ received: false, error: "processing_failed" });
     }
   }
 }

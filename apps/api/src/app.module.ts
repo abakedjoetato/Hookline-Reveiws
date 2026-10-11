@@ -9,7 +9,8 @@ import { ConfigModule, ConfigService } from "@nestjs/config";
 import { HealthController } from "./health.controller";
 import { createLogger } from "@platform/logger";
 import { MailModule } from "./mail/mail.module";
-import { ThrottlerModule } from "@nestjs/throttler";
+import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
+import { APP_GUARD } from "@nestjs/core";
 import { ThrottlerStorageRedisService } from "@nest-lab/throttler-storage-redis";
 import Redis from "ioredis";
 import { AuthModule } from "./auth/auth.module";
@@ -22,9 +23,16 @@ import { BullModule } from "@nestjs/bullmq";
 
 import { IdempotencyModule } from "./common/idempotency/idempotency.module";
 import { PaymentsModule } from "./payments/payments.module";
+import { PrismaModule } from "./prisma/prisma.module";
+import { LegalModule } from "./legal/legal.module";
+import { AccountModule } from "./account/account.module";
+import { HostModule } from "./host/host.module";
+import { PlatformModule } from "./platform/platform.module";
+import { PublicModule } from "./public/public.module";
 
 @Module({
   imports: [
+    PrismaModule,
     ScheduleModule.forRoot(),
     ConfigModule.forRoot({
       isGlobal: true,
@@ -38,10 +46,11 @@ import { PaymentsModule } from "./payments/payments.module";
           config.get<string>("REDIS_URL") || "redis://localhost:6379";
         return {
           throttlers: [
-            // Default rate limit: 100 requests per 60 seconds
+            // Per client IP; ttl is in milliseconds
             {
-              ttl: 60,
-              limit: 100,
+              name: "default",
+              ttl: 60_000,
+              limit: Number(config.get<string>("RATE_LIMIT_PER_MINUTE") || 300),
             },
           ],
           // Store rate limits in Redis
@@ -76,9 +85,15 @@ import { PaymentsModule } from "./payments/payments.module";
     IdempotencyModule,
 
     PaymentsModule,
+    LegalModule,
+    AccountModule,
+    HostModule,
+    PlatformModule,
+    PublicModule,
   ],
   controllers: [HealthController],
-  providers: [],
+  // Rate limiting applies to every route (webhooks and probes opt out)
+  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {

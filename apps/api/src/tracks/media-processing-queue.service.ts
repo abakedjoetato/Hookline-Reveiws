@@ -19,7 +19,8 @@ export class MediaProcessingQueueService {
 
   async enqueueExtractAudioMetadata(payload: ExtractAudioMetadataPayload) {
     // Generate an idempotent job ID based on media version and operation
-    const jobId = `${MediaJobName.EXTRACT_AUDIO_METADATA}:${payload.mediaVersionId}`;
+    // BullMQ job IDs may not contain ":" (Redis key separator)
+    const jobId = `${MediaJobName.EXTRACT_AUDIO_METADATA}__${payload.mediaVersionId}`;
 
     await this.mediaQueue.add(MediaJobName.EXTRACT_AUDIO_METADATA, payload, {
       jobId,
@@ -33,7 +34,7 @@ export class MediaProcessingQueueService {
 
   async enqueueProcessArtwork(payload: ProcessArtworkPayload) {
     // Generate an idempotent job ID based on artwork record and operation
-    const jobId = `${MediaJobName.PROCESS_ARTWORK}:${payload.artworkId}`;
+    const jobId = `${MediaJobName.PROCESS_ARTWORK}__${payload.artworkId}`;
 
     await this.mediaQueue.add(MediaJobName.PROCESS_ARTWORK, payload, {
       jobId,
@@ -46,7 +47,7 @@ export class MediaProcessingQueueService {
   }
 
   async enqueueDeleteMediaObjects(payload: DeleteMediaObjectsPayload) {
-    const jobId = `${MediaJobName.DELETE_MEDIA_OBJECTS}:${payload.correlationId || Date.now()}`;
+    const jobId = `${MediaJobName.DELETE_MEDIA_OBJECTS}__${payload.correlationId || Date.now()}`;
 
     await this.mediaQueue.add(MediaJobName.DELETE_MEDIA_OBJECTS, payload, {
       jobId,
@@ -59,7 +60,7 @@ export class MediaProcessingQueueService {
   }
 
   async enqueueDeleteUserMedia(payload: DeleteUserMediaPayload) {
-    const jobId = `${MediaJobName.DELETE_USER_MEDIA}:${payload.ownerUserId}:${payload.correlationId || Date.now()}`;
+    const jobId = `${MediaJobName.DELETE_USER_MEDIA}__${payload.ownerUserId}__${payload.correlationId || Date.now()}`;
 
     await this.mediaQueue.add(MediaJobName.DELETE_USER_MEDIA, payload, {
       jobId,

@@ -46,10 +46,10 @@ export class SessionRepository {
     });
   }
 
-  async updateLastSeen(sessionId: string) {
+  async updateLastSeen(sessionId: string, idleExpiresAt?: Date) {
     return this.prisma.userSession.update({
       where: { id: sessionId },
-      data: { lastSeenAt: new Date() },
+      data: { lastSeenAt: new Date(), ...(idleExpiresAt ? { idleExpiresAt } : {}) },
     });
   }
 

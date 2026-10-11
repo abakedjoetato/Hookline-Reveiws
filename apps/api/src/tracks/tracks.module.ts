@@ -6,7 +6,6 @@ import { TrackMediaRepository } from "./track-media.repository";
 import { TrackArtworkRepository } from "./track-artwork.repository";
 import { StorageModule } from "../storage/storage.module";
 import { AuthModule } from "../auth/auth.module";
-import { PrismaClient } from "@platform/database";
 import { BullModule } from "@nestjs/bullmq";
 import {
   MEDIA_PROCESSING_QUEUE,
@@ -30,7 +29,6 @@ import { UploadIntentRepository } from "./intents/upload-intent.repository";
     TrackArtworkRepository,
     MediaProcessingQueueService,
     UploadIntentRepository,
-    PrismaClient,
   ],
   exports: [TracksService],
 })

@@ -24,7 +24,6 @@ import { AdminReservationsService } from "./admin-reservations.service";
 import { AdminAuditLogsController } from "./admin-audit-logs.controller";
 import { AdminAuditLogsService } from "./admin-audit-logs.service";
 import { AdminMediaController } from "./admin-media.controller";
-import { PrismaClient } from "@platform/database";
 import { TracksModule } from "../tracks/tracks.module";
 import { AuthModule } from "../auth/auth.module";
 import { MediaProcessingQueueService } from "../tracks/media-processing-queue.service";
@@ -67,7 +66,6 @@ import { MEDIA_PROCESSING_QUEUE } from "../tracks/media-processing-queue.service
     AdminReconciliationService,
     AdminReservationsService,
     AdminAuditLogsService,
-    PrismaClient,
     MediaProcessingQueueService,
   ],
   exports: [

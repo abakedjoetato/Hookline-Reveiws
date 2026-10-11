@@ -27,39 +27,8 @@ export class AdminHostsController {
     return this.hostsService.getHosts(query);
   }
 
-  @Post("host-applications/:id/approve")
-  @RequiredPermissions(AdminPermission.USER_BAN_MANAGE)
-  async approveHost(@Req() req: RequestWithUser, @Param("id") id: string) {
-    return this.hostsService.approveHost(id, req.user.id);
-  }
-
-  @Post("host-applications/:id/reject")
-  @RequiredPermissions(AdminPermission.USER_BAN_MANAGE)
-  async rejectHost(
-    @Req() req: RequestWithUser,
-    @Param("id") id: string,
-    @Body() body: { reason?: string },
-  ) {
-    return this.hostsService.rejectHost(
-      id,
-      req.user.id,
-      body.reason || "Application declined by administrator",
-    );
-  }
-
-  @Post("host-applications/:id/suspend")
-  @RequiredPermissions(AdminPermission.USER_BAN_MANAGE)
-  async suspendHost(
-    @Req() req: RequestWithUser,
-    @Param("id") id: string,
-    @Body() body: { reason?: string },
-  ) {
-    return this.hostsService.suspendHost(
-      id,
-      req.user.id,
-      body.reason || "Host suspended by administrator",
-    );
-  }
+  // Approve / reject / suspend live in host/admin-host-applications.controller.ts
+  // so there is a single approval path (role, station, Stripe checks).
 
   @Post("hosts/:id/reinstate")
   @RequiredPermissions(AdminPermission.USER_BAN_MANAGE)

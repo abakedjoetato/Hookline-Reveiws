@@ -4,11 +4,16 @@
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
+// Prisma 7 TypeScript client (no native query engine). Connects through the
+// standard `pg` driver via @prisma/adapter-pg; see src/index.ts.
 generator client {
-  provider = "prisma-client-js"
+  provider               = "prisma-client"
+  output                 = "../src/generated"
+  moduleFormat           = "cjs"
+  importFileExtension    = ""
+  generatedFileExtension = "ts"
 }
 
 // ============================================================================
@@ -91,6 +96,9 @@ model UserProfile {
   biography       String?   @db.Text
   profileImageKey String?
   bannerImageKey  String?
+  avatarUrl       String?
+  websiteUrl      String?
+  spotifyProfileUrl String?
   country         String?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
@@ -469,6 +477,7 @@ model Track {
   bpm                   Int?
   musicalKey            String?
   isArchived            Boolean             @default(false)
+  isPublic              Boolean             @default(false) // Shown on the artist's public profile
   lastPlayedAt          DateTime?
   createdAt             DateTime            @default(now())
   updatedAt             DateTime            @updatedAt
@@ -831,6 +840,8 @@ model Station {
   isPublicVisible           Boolean             @default(true)
   acceptedContentRules      String?             @db.Text
   explicitContentAllowed    Boolean             @default(true)
+  primaryStreamingPlatform  StreamingPlatform   @default(TWITCH)
+  streamUrl                 String?
   maxTrackDurationSeconds   Int                 @default(600) // Default 10 min
   maxQueueSize              Int                 @default(100)
   repeatsAllowed            Boolean             @default(false)
@@ -951,6 +962,7 @@ model LiveSession {
 
   // Real-time sequencing support
   queueRevision             Int                   @default(0)
+  lastEventSequence         Int                   @default(0) // last QueueEvent.eventSequence issued
   publicQueueUpdatedAt      DateTime?
 
   // Relations
@@ -1303,6 +1315,14 @@ model QueueEntry {
   tierOriginPriorityRank Int?
   tierOriginSortOrder   Decimal?          @db.Decimal(20, 8)
 
+  // Play counting: a track can be played any number of times, but a qualifying
+  // play (120s continuous) only counts once per track, per host, per 4 hours.
+  // Decided once at play time so rankings are cheap and never re-litigated.
+  countedAsPlay         Boolean           @default(false)
+  countedPlayAt         DateTime?
+  playTrackKey          String?           // sourceTrackId, or normalized "song|artist" for external links
+  countedHostUserId     String?           @db.Uuid
+
   // Relations
   liveSession           LiveSession       @relation(fields: [liveSessionId], references: [id], onDelete: Restrict)
   submission            Submission        @relation(fields: [submissionId], references: [id], onDelete: Restrict)
@@ -1319,6 +1339,8 @@ model QueueEntry {
   @@index([sortOrder])
   @@index([wasPlayed, completedAt])
   @@index([liveSessionId, wasPlayed, completedAt])
+  @@index([countedHostUserId, playTrackKey, countedPlayAt])
+  @@index([liveSessionId, countedAsPlay, countedPlayAt])
 }
 
 model QueueEvent {

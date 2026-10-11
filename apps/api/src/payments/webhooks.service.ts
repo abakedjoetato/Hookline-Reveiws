@@ -1,4 +1,8 @@
+import { appendQueueEvent } from "../live-sessions/queue-events";
 import { Injectable, Logger } from "@nestjs/common";
+import { ModuleRef } from "@nestjs/core";
+import { splitPayment } from "@platform/config";
+import { postLedgerTransaction } from "./ledger";
 import {
   PrismaClient,
   PaymentStatus,
@@ -17,6 +21,7 @@ export class WebhooksService {
   constructor(
     private readonly prisma: PrismaClient,
     private readonly queueOrderingService: QueueOrderingService,
+    private readonly moduleRef: ModuleRef,
   ) {}
 
   async processEvent(event: Stripe.Event, rawBody: string) {
@@ -61,6 +66,14 @@ export class WebhooksService {
       ) {
         const paymentIntent = event.data.object as Stripe.PaymentIntent;
         await this.handlePaymentIntentFailed(paymentIntent);
+      } else if (event.type === "charge.refunded") {
+        await this.handleChargeRefunded(event.data.object as Stripe.Charge);
+      } else if (event.type === "charge.dispute.created") {
+        await this.handleDispute(event.data.object as Stripe.Dispute, "OPENED");
+      } else if (event.type === "charge.dispute.closed") {
+        await this.handleDispute(event.data.object as Stripe.Dispute, "CLOSED");
+      } else if (event.type === "account.updated") {
+        await this.handleAccountUpdated(event.data.object as Stripe.Account);
       }
 
       // Mark as completed
@@ -94,7 +107,10 @@ export class WebhooksService {
         where: { providerPaymentId: paymentIntent.id },
         include: {
           submission: {
-            include: { queueEntry: true },
+            include: {
+              queueEntry: true,
+              liveSession: { select: { id: true, station: { select: { hostId: true } } } },
+            },
           },
         },
       });
@@ -134,20 +150,44 @@ export class WebhooksService {
         },
       });
 
-      // 3. Create Ledger Transaction
-      await tx.ledgerTransaction.create({
-        data: {
-          id: generateUuidV7(),
-          idempotencyKey: `webhook_${paymentIntent.id}_capture`,
-          description: `Capture payment ${payment.id}`,
-          systemSource: "PAYMENT_CAPTURE",
-          paymentId: payment.id,
-          isPosted: true,
-          effectiveAt: new Date(),
-        },
+      // 3. Post the balanced ledger transaction for the capture:
+      //    gross in, host share passed through to Connect, platform fee kept.
+      await postLedgerTransaction(tx, {
+        idempotencyKey: `webhook_${paymentIntent.id}_capture`,
+        description: `Capture payment ${payment.id}`,
+        systemSource: "PAYMENT_CAPTURE",
+        paymentId: payment.id,
+        lines: [
+          { account: "PAYMENT_CLEARING", amountCents: payment.grossAmountCents },
+          { account: "HOST_PAYABLE", amountCents: -payment.hostAllocationCents },
+          { account: "PLATFORM_COMMISSION", amountCents: -payment.platformAllocationCents },
+        ],
       });
 
-      // 4. Activate Submission & Queue Entry
+      // 4. Record the host's earning (powers the host income page)
+      const hostProfileId = payment.submission?.liveSession?.station?.hostId;
+      if (hostProfileId) {
+        const alreadyRecorded = await tx.hostEarning.findFirst({ where: { paymentId: payment.id } });
+        if (!alreadyRecorded) {
+          await tx.hostEarning.create({
+            data: {
+              id: generateUuidV7(),
+              hostId: hostProfileId,
+              paymentId: payment.id,
+              submissionId: payment.submissionId,
+              liveSessionId: payment.submission?.liveSession?.id ?? null,
+              grossAmountCents: payment.grossAmountCents,
+              hostShareCents: payment.hostAllocationCents,
+              status: "ALLOCATED_TO_STRIPE",
+              allocatedAt: new Date(),
+            },
+          });
+        }
+      } else {
+        this.logger.error(`No host found for payment ${payment.id}; host earning not recorded`);
+      }
+
+      // 5. Activate Submission & Queue Entry
       if (payment.submission && payment.submission.queueEntry) {
         const isUpgrade = paymentIntent.metadata?.upgradeSubmissionId;
 
@@ -257,16 +297,13 @@ export class WebhooksService {
           });
 
           // Queue Audit Event for Upgrade
-          await tx.queueEvent.create({
-            data: {
-              id: generateUuidV7(),
+          await appendQueueEvent(tx, {
               queueEntryId: submission.queueEntry.id,
               liveSessionId,
               actingUserId: payment.payingUserId,
               eventType: "TIER_UPGRADE",
               newState: QueueStatus.QUEUED,
-            },
-          });
+            });
         } else {
           // New Submission
           const submission = payment.submission;
@@ -322,16 +359,13 @@ export class WebhooksService {
           }
 
           // Queue Audit Event for Submission
-          await tx.queueEvent.create({
-            data: {
-              id: generateUuidV7(),
+          await appendQueueEvent(tx, {
               queueEntryId: submission.queueEntry.id,
               liveSessionId,
               actingUserId: payment.payingUserId,
               eventType: "SUBMIT",
               newState: QueueStatus.QUEUED,
-            },
-          });
+            });
         }
 
         // Consume active reservation
@@ -417,5 +451,118 @@ export class WebhooksService {
         }
       }
     });
+  }
+
+  /**
+   * Refunds are issued from the Stripe dashboard with "reverse transfer" and
+   * "refund application fee" on, so the host share and platform fee are both
+   * returned in proportion.
+   */
+  private async handleChargeRefunded(charge: Stripe.Charge) {
+    const paymentIntentId =
+      typeof charge.payment_intent === "string" ? charge.payment_intent : charge.payment_intent?.id;
+    if (!paymentIntentId) return;
+    await this.prisma.$transaction(async (tx) => {
+      const payment = await tx.payment.findUnique({
+        where: { providerPaymentId: paymentIntentId },
+        include: { refunds: true },
+      });
+      if (!payment) return;
+      const known = new Set(payment.refunds.map((r) => r.providerRefundId));
+      for (const refund of charge.refunds?.data ?? []) {
+        if (refund.status !== "succeeded" || known.has(refund.id)) continue;
+        const split = splitPayment(refund.amount);
+        const refundId = generateUuidV7();
+        await tx.refund.create({
+          data: {
+            id: refundId,
+            paymentId: payment.id,
+            providerRefundId: refund.id,
+            amountCents: refund.amount,
+            hostReversalAmountCents: split.hostCents,
+            platformReversalAmountCents: split.platformCents,
+            reason: refund.reason ?? null,
+            status: "SUCCEEDED",
+            processedAt: new Date(refund.created * 1000),
+          },
+        });
+        await postLedgerTransaction(tx, {
+          idempotencyKey: `webhook_${refund.id}_refund`,
+          description: `Refund ${refund.id} for payment ${payment.id}`,
+          systemSource: "REFUND_REVERSAL",
+          paymentId: payment.id,
+          refundId,
+          lines: [
+            { account: "PAYMENT_CLEARING", amountCents: -refund.amount },
+            { account: "HOST_PAYABLE", amountCents: split.hostCents },
+            { account: "PLATFORM_COMMISSION", amountCents: split.platformCents },
+          ],
+        });
+      }
+      const refunded = charge.amount_refunded;
+      const fully = refunded >= payment.grossAmountCents;
+      await tx.payment.update({
+        where: { id: payment.id },
+        data: {
+          refundedAmountCents: refunded,
+          status: fully ? PaymentStatus.REFUNDED : PaymentStatus.PARTIALLY_REFUNDED,
+          refundedAt: new Date(),
+        },
+      });
+      if (fully) {
+        await tx.hostEarning.updateMany({
+          where: { paymentId: payment.id },
+          data: { status: "REFUNDED", reversedAt: new Date() },
+        });
+      }
+    });
+  }
+
+  private async handleDispute(dispute: Stripe.Dispute, phase: "OPENED" | "CLOSED") {
+    const paymentIntentId =
+      typeof dispute.payment_intent === "string" ? dispute.payment_intent : dispute.payment_intent?.id;
+    if (!paymentIntentId) return;
+    await this.prisma.$transaction(async (tx) => {
+      const payment = await tx.payment.findUnique({ where: { providerPaymentId: paymentIntentId } });
+      if (!payment) return;
+      await tx.dispute.upsert({
+        where: { providerDisputeId: dispute.id },
+        create: {
+          id: generateUuidV7(),
+          paymentId: payment.id,
+          providerDisputeId: dispute.id,
+          reasonCode: dispute.reason,
+          amountCents: dispute.amount,
+          status: dispute.status,
+        },
+        update: { status: dispute.status, resolvedAt: phase === "CLOSED" ? new Date() : undefined },
+      });
+      if (phase === "OPENED") {
+        await tx.payment.update({
+          where: { id: payment.id },
+          data: { status: PaymentStatus.DISPUTED, disputedAt: new Date(), disputedAmountCents: dispute.amount },
+        });
+        await tx.hostEarning.updateMany({ where: { paymentId: payment.id }, data: { status: "DISPUTED" } });
+      } else {
+        const lost = dispute.status === "lost";
+        await tx.payment.update({
+          where: { id: payment.id },
+          data: { status: lost ? PaymentStatus.CHARGEBACK : PaymentStatus.SETTLED },
+        });
+        await tx.hostEarning.updateMany({
+          where: { paymentId: payment.id },
+          data: lost ? { status: "REVERSED", reversedAt: new Date() } : { status: "ALLOCATED_TO_STRIPE" },
+        });
+      }
+    });
+  }
+
+  /** Host finished (or changed) Stripe Connect onboarding. */
+  private async handleAccountUpdated(account: Stripe.Account) {
+    // Resolved lazily to avoid a module import cycle (HostModule imports PaymentsModule)
+    const { HostService } = await import("../host/host.service");
+    const hostService = this.moduleRef.get(HostService, { strict: false });
+    const result = await hostService.applyStripeAccountState(account.id, account);
+    if (result) await hostService.maybeAutoApprove(result.userId);
   }
 }

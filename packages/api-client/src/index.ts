@@ -10,45 +10,12 @@ export class ApiClient {
   private instance: AxiosInstance;
 
   constructor(options: ApiClientOptions = {}) {
-    let resolvedBaseUrl = options.baseURL;
-
-    if (typeof window !== "undefined") {
-      // In browser environment:
-      // Default to same-origin relative '/api/v1' unless an explicit custom non-localhost:4000 URL is provided
-      if (
-        !resolvedBaseUrl ||
-        resolvedBaseUrl.includes("localhost:4000") ||
-        resolvedBaseUrl.includes("127.0.0.1:4000")
-      ) {
-        const publicUrl =
-          typeof process !== "undefined" && process.env?.NEXT_PUBLIC_API_URL
-            ? process.env.NEXT_PUBLIC_API_URL
-            : undefined;
-
-        if (
-          publicUrl &&
-          !publicUrl.includes("localhost:4000") &&
-          !publicUrl.includes("127.0.0.1:4000")
-        ) {
-          resolvedBaseUrl = publicUrl;
-        } else {
-          resolvedBaseUrl = "/api/v1";
-        }
-      }
-    } else {
-      // In server environment (Node/Next.js SSR):
-      if (
-        !resolvedBaseUrl ||
-        resolvedBaseUrl.includes("localhost:4000") ||
-        resolvedBaseUrl.includes("127.0.0.1:4000")
-      ) {
-        resolvedBaseUrl =
-          process.env.API_URL ||
-          (process.env.PORT
-            ? `http://127.0.0.1:${process.env.PORT}/api/v1`
-            : "http://127.0.0.1:3000/api/v1");
-      }
-    }
+    // Browser: same-origin path. Server-side callers pass an absolute URL.
+    const resolvedBaseUrl =
+      options.baseURL ??
+      (typeof window === "undefined"
+        ? `${process.env.API_INTERNAL_URL || "http://localhost:4000"}/api/v1`
+        : "/api/v1");
 
     this.instance = axios.create({
       baseURL: resolvedBaseUrl,
@@ -76,9 +43,11 @@ export class ApiClient {
     this.instance.interceptors.response.use(
       (response) => response,
       (error) => {
+        const rawMessage = error.response?.data?.message;
         const parsedError = {
           message:
-            error.response?.data?.message ||
+            (Array.isArray(rawMessage) ? rawMessage[0] : rawMessage) ||
+            (error.response?.status === 429 ? "Too many requests. Please wait a moment and try again." : null) ||
             error.message ||
             "An unexpected error occurred",
           status: error.response?.status || 500,
@@ -497,6 +466,11 @@ export class ApiClient {
     getStripeStatus: () =>
       this.get<import("@platform/types").StripeConnectStatusResponse>("/host/stripe/status"),
 
+    /** Re-checks the Connect account with Stripe (e.g. after returning from onboarding). */
+    syncStripeStatus: () =>
+      this.post<import("@platform/types").StripeConnectStatusResponse>("/host/stripe/status"),
+
+    /** @deprecated use syncStripeStatus */
     verifyStripeTest: () =>
       this.post<import("@platform/types").StripeConnectStatusResponse>("/host/stripe/status"),
 
@@ -526,6 +500,19 @@ export class ApiClient {
 
     reorderPriorityTiers: (data: import("@platform/types").ReorderStationPriorityTiersDto) =>
       this.post<import("@platform/types").StationPriorityTier[]>("/host/station/tiers/reorder", data),
+
+    /** Income totals, per year and per broadcast. `timeZone` sets year boundaries. */
+    getEarnings: (timeZone?: string) =>
+      this.get<import("@platform/types").HostEarningsSummary>(
+        `/host/earnings${timeZone ? `?tz=${encodeURIComponent(timeZone)}` : ""}`,
+      ),
+
+    getLiveEarnings: (liveSessionId: string) =>
+      this.get<import("@platform/types").HostLiveEarnings>(`/host/earnings/live/${liveSessionId}`),
+
+    /** One-time link into the host's Stripe Express dashboard. */
+    getStripeDashboardLink: () =>
+      this.post<{ url: string }>("/host/stripe/dashboard-link"),
   };
 
   // Admin Customization & Management API

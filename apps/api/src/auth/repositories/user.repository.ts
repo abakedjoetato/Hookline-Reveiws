@@ -22,6 +22,23 @@ export class UserRepository {
     });
   }
 
+  async findByUsername(username: string) {
+    return this.prisma.user.findUnique({
+      where: { normalizedUsername: username.toLowerCase().trim() },
+      include: {
+        roleAssignments: true,
+        permissionAssignments: true,
+      },
+    });
+  }
+
+  /** Login identifier: email address or username. */
+  async findByEmailOrUsername(identifier: string) {
+    return identifier.includes("@")
+      ? this.findByEmail(identifier)
+      : this.findByUsername(identifier);
+  }
+
   async findById(id: string) {
     return this.prisma.user.findUnique({
       where: { id },
@@ -45,7 +62,7 @@ export class UserRepository {
     return client.user.create({
       data: {
         id: generateUuidV7(),
-        email: data.email,
+        email: data.email.trim(),
         normalizedEmail: data.email.toLowerCase().trim(),
         username: data.username,
         normalizedUsername: data.username.toLowerCase().trim(),
@@ -57,6 +74,9 @@ export class UserRepository {
             id: generateUuidV7(),
             role: Role.USER,
           },
+        },
+        profile: {
+          create: { id: generateUuidV7() },
         },
       },
     });

@@ -1,3 +1,14 @@
+// Local development: load the repo-root .env (production uses real env vars)
+if (process.env.NODE_ENV !== "production") {
+  for (const file of [".env", "../../.env"]) {
+    try {
+      process.loadEnvFile(file);
+    } catch {
+      /* file not present */
+    }
+  }
+}
+
 import Redis from "ioredis";
 import { Worker, Queue, Job } from "bullmq";
 import express from "express";
@@ -195,7 +206,7 @@ app.get("/metrics", (_req, res) => {
   });
 });
 
-const healthPort = process.env.PORT || APP_PORTS.worker;
+const healthPort = process.env.WORKER_PORT || APP_PORTS.worker;
 const healthServer = app.listen(healthPort, () => {
   logger.info(
     `Internal health & metrics server listening on port ${healthPort}`,

@@ -32,10 +32,10 @@ import {
 } from "@stripe/react-stripe-js";
 import { api } from "../lib/api";
 
-const stripePromise = loadStripe(
-  process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ||
-    "pk_test_TYooMQauvdEDq54NiTphI7jx",
-);
+// Paid tiers are unavailable (and the Elements form never renders) without a key
+const stripePromise = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+  ? loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY)
+  : null;
 
 interface UpgradeModalProps {
   isOpen: boolean;
@@ -68,14 +68,6 @@ const StripeUpgradePaymentForm: React.FC<{
     }
 
     try {
-      if (clientSecret.startsWith("pi_mock_")) {
-        setTimeout(() => {
-          setIsProcessing(false);
-          onSuccess();
-        }, 600);
-        return;
-      }
-
       const { error, paymentIntent } = await stripe.confirmCardPayment(
         clientSecret,
         {

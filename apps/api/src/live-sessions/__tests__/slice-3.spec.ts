@@ -11,6 +11,10 @@ describe("LiveSessionsService - Slice 3", () => {
   beforeEach(() => {
     txMock = {
       $queryRaw: vi.fn(),
+      $executeRaw: vi.fn(),
+      playbackEvent: {
+        create: vi.fn(),
+      },
       queueEntry: {
         findUnique: vi.fn(),
         findFirst: vi.fn(),
@@ -100,6 +104,9 @@ describe("LiveSessionsService - Slice 3", () => {
         }),
       );
 
+      // Under 2 minutes: not a qualifying play, nothing is counted
+      expect(txMock.playbackEvent.create).not.toHaveBeenCalled();
+
       // Verify session update
       expect(txMock.liveSession.update).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -147,6 +154,23 @@ describe("LiveSessionsService - Slice 3", () => {
             status: QueueStatus.MOVED_TO_HISTORY,
             wasPlayed: true,
           }),
+        }),
+      );
+
+      // A qualifying play with no counted play of this track in the last
+      // 4 hours for this host counts.
+      expect(txMock.queueEntry.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: "entry-current" },
+          data: expect.objectContaining({
+            countedAsPlay: true,
+            countedHostUserId: "host-1",
+          }),
+        }),
+      );
+      expect(txMock.playbackEvent.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ eventType: "QUALIFIED_PLAY" }),
         }),
       );
 

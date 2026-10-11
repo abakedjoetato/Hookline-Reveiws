@@ -10,11 +10,11 @@ The platform is designed as a TypeScript monorepo to ensure maximum code reusabi
 
 ### Applications (`apps/`)
 
-- **`web` (Port 3000)**: Next.js App Router public portal. Used by listeners to browse live streams, register, upload music to their libraries, and submit tracks to hosts.
-- **`host` (Port 3001)**: Next.js App Router host dashboard. Used by broadcasters to set queues, review incoming submissions, play track audio (the DJ panel), edit priorities, and configure overlays.
-- **`admin` (Port 3002)**: Next.js App Router admin HQ. High-security dashboard for approving hosts, managing user accounts, checking audit trails, and reconciling payouts.
-- **`api` (Port 4000)**: NestJS framework API. Serves as the **sole authoritative data gatekeeper** and validation boundary. No client application directly touches database systems or storage providers.
-- **`worker` (Port 4001)**: Standalone Node.js worker processing heavy asynchronous background tasks (e.g., audio encoding, virus scanning, and payment payouts) via BullMQ queues.
+- **`web` (Port 3000)**: Next.js App Router site with every page: public stations and sessions, artist library and submissions, host onboarding, studio and income, admin console, and the OBS overlay. Role checks in the UI are cosmetic; the API enforces them. (The separate `host` and `admin` apps were merged in; see ADR 0029.)
+- **`api` (Port 4000)**: NestJS API. The **sole authoritative data gatekeeper** and validation boundary. Also serves live-queue Socket.IO events and receives Stripe webhooks.
+- **`worker` (health on Port 4001)**: Standalone BullMQ worker for media jobs (audio metadata, artwork, deletions).
+
+The browser only ever talks to its own origin: `/api/*` and `/socket.io/*` are routed to the API by the reverse proxy in production (Caddy) and by Next.js rewrites in development, so session cookies stay first-party.
 
 ### Shared Packages (`packages/`)
 
@@ -22,7 +22,7 @@ The platform is designed as a TypeScript monorepo to ensure maximum code reusabi
 - **`types`**: System-wide domain types and state machine enums.
 - **`logger`**: High-performance structured Pino logger supporting correlation request tracing.
 - **`validation`**: Zod validation schemas enforcing strict inputs and environmental parameters.
-- **`database`**: Centralized Prisma Client configuration, DB connection checks, and lexicographically sortable **UUIDv7** generators.
+- **`database`**: Prisma 7 schema and migrations, and a `PrismaClient` wired to Postgres through the `pg` driver adapter (no native query engine). The API holds one shared instance (`PrismaModule`). Also UUIDv7 generators.
 - **`auth`**: Argon2id password hashing, secure token utilities, cookie configuration parameters, and privilege assertion guards.
 - **`ui`**: Tailwind CSS v4 source stylesheets (`styles.css`) and 17+ dark-first reusable React components.
 - **`api-client`**: Axios-based communication client with request ID propagation.
@@ -79,17 +79,16 @@ Audio uploads and track artworks are stored in private, secure, S3-compatible bu
 
 ---
 
-## 4. Planned Integration Features (Future Phases)
-
-These interfaces are designed as architectural placeholders to be expanded in later development milestones:
+## 4. Integrations
 
 ### Real-Time Communication (Socket.IO)
 
-- **Station Live State**: Real-time broadcasts when hosts mark themselves online.
-- **DJ Queue Updates**: Instantly pushing new track submissions to the host’s browser-based DJ control panel.
-- **Live Overlays**: Pushing active song artwork and title changes to the OBS browser-source overlay.
+- Clients join a session room (`join-session`); the host is recognised from the session cookie.
+- Every queue change emits an event with the new `queueRevision`; clients refetch when they detect a gap.
+- Events fan out through the Redis adapter, so multiple API instances can run.
+- Without a socket URL configured the web app falls back to polling every 5 seconds.
 
-### Payment Integration (Stripe Connect Only)
+### Payment Integration (Stripe Connect Only, implemented)
 
 - **Stripe Connect Destination Charges**: Stripe is the sole enabled payment and payout provider for our production release. Standard users submit paid priority submissions through Stripe checkout gateways.
 - Broadcasters set custom priority pricing.
