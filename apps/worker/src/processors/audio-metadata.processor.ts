@@ -31,10 +31,18 @@ export class AudioMetadataProcessor {
 
       const hash = crypto.createHash("sha256").update(buffer).digest("hex");
 
-      // 3. Extract metadata using music-metadata
-      const metadata = await mm.parseBuffer(buffer, "audio/mpeg", {
-        duration: true,
+      // 3. Extract metadata using music-metadata. The stored MIME type is a
+      //    hint; music-metadata also sniffs the content, so WAV/FLAC/M4A/OGG
+      //    parse correctly (forcing "audio/mpeg" made them all fail).
+      const media = await this.prisma.trackMediaVersion.findUnique({
+        where: { id: mediaVersionId },
+        select: { mimeType: true, originalFilename: true },
       });
+      const metadata = await mm.parseBuffer(
+        buffer,
+        { mimeType: media?.mimeType, path: media?.originalFilename },
+        { duration: true },
+      );
 
       const format = metadata.format;
       const durationSeconds = format.duration ? Math.round(format.duration) : 0;
@@ -58,6 +66,10 @@ export class AudioMetadataProcessor {
           });
         }
 
+        // A file we can't read a duration from is unusable for playback
+        const state =
+          durationSeconds > 0 ? ProcessingState.READY : ProcessingState.FAILED;
+
         // Update the processing media version
         await tx.trackMediaVersion.update({
           where: { id: mediaVersionId },
@@ -68,16 +80,13 @@ export class AudioMetadataProcessor {
             channelCount,
             audioCodec,
             sha256Hash: hash,
-            processingState: ProcessingState.READY,
-            isCurrent: true,
+            processingState: state,
+            processingError: state === ProcessingState.FAILED ? "Could not read audio duration" : null,
+            isCurrent: state === ProcessingState.READY,
           },
         });
 
-        // Update Track level properties (BPM/Key could be extracted, but here we just update duration/state)
-        // Only mark READY if we got valid duration
-        const state =
-          durationSeconds > 0 ? ProcessingState.READY : ProcessingState.FAILED;
-
+        // Update Track level properties (duration/state)
         await tx.track.update({
           where: { id: trackId },
           data: {

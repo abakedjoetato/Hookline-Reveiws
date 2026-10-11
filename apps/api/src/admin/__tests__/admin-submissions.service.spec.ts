@@ -18,6 +18,9 @@ describe("AdminSubmissionsService", () => {
     queueEvent: {
       create: vi.fn(),
     },
+    liveSession: {
+      update: vi.fn().mockResolvedValue({ lastEventSequence: 1 }),
+    },
     $transaction: vi.fn((cb) => cb(mockPrisma)),
   };
 

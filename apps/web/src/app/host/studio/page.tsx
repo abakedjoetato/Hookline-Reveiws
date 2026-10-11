@@ -30,11 +30,13 @@ import {
   Loader2,
   ShieldCheck,
   RefreshCw,
+  DollarSign,
 } from "lucide-react";
 import { HostQueueManager } from "@/components/HostQueueManager";
 import { HostPriorityTierManager } from "@/components/HostPriorityTierManager";
 import { WeeklyTop3Card } from "@/components/WeeklyTop3Card";
 import { HostOverlayPanel } from "@/components/HostOverlayPanel";
+import { LiveEarningsCard } from "@/components/LiveEarningsCard";
 
 export default function HostStudioPage() {
   const router = useRouter();
@@ -296,6 +298,12 @@ export default function HostStudioPage() {
               <ExternalLink className="h-4 w-4" /> Public View
             </Button>
           </Link>
+
+          <Link href="/host/income">
+            <Button variant="ghost" size="md" className="gap-2 text-xs min-h-[44px]">
+              <DollarSign className="h-4 w-4" /> Income
+            </Button>
+          </Link>
         </div>
       </div>
 
@@ -319,9 +327,10 @@ export default function HostStudioPage() {
         </div>
       )}
 
-      {/* If LIVE, show the Interactive Live Host Queue Manager */}
+      {/* If LIVE, show this broadcast's earnings and the live queue */}
       {isLive && station.currentLiveSessionId && (
         <div className="space-y-4">
+          <LiveEarningsCard liveSessionId={station.currentLiveSessionId} />
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-bold text-zinc-100 flex items-center gap-2">
               <Radio className="h-5 w-5 text-red-500 animate-pulse" /> Live Queue Operations

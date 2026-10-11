@@ -70,6 +70,8 @@ export const apiEnvSchema = z.object({
   ...smtpSchema,
   ...stripeSchema,
   PORT: z.coerce.number().int().default(4000),
+  // Public URL of the web app; used for email links and Stripe return URLs
+  NEXT_PUBLIC_WEB_URL: z.string().url("NEXT_PUBLIC_WEB_URL is required"),
   CORS_ALLOWED_ORIGINS: z
     .string()
     .min(1, "CORS_ALLOWED_ORIGINS list is required"),
@@ -88,6 +90,7 @@ export type ApiEnvConfig = z.infer<typeof apiEnvSchema>;
 
 export const workerEnvSchema = z.object({
   NODE_ENV: infrastructureSchema.NODE_ENV,
+  DATABASE_URL: infrastructureSchema.DATABASE_URL,
   REDIS_URL: infrastructureSchema.REDIS_URL,
   ...s3Schema,
   ...smtpSchema,
@@ -218,8 +221,9 @@ export function validatePasswordConfirmation(
 export type SignUpInput = z.infer<typeof signUpSchema>;
 
 export const loginSchema = z.object({
-  email: z.string().email("Invalid email address"),
-  password: z.string().min(1, "Password is required"),
+  // Email address or username
+  email: z.string().trim().min(1, "Email or username is required").max(254),
+  password: z.string().min(1, "Password is required").max(256),
 });
 
 export type LoginInput = z.infer<typeof loginSchema>;
@@ -650,11 +654,20 @@ export const hexColorSchema = z
   .string()
   .regex(hexColorRegex, "Must be a valid hex color code (e.g. #8B5CF6)");
 
+/** Absolute https URL, or a site-relative path such as /api/v1/media/public/... */
+const assetUrlSchema = z
+  .string()
+  .max(2000)
+  .refine(
+    (v) => (v.startsWith("/") && !v.startsWith("//")) || /^https?:\/\//i.test(v),
+    "Must be an https URL or a site path",
+  );
+
 export const updateCustomizationSchema = z.object({
   siteName: z.string().min(1, "Site name is required").max(100).optional(),
-  primaryLogoUrl: z.string().url().optional().nullable().or(z.literal("")),
-  alternateLogoUrl: z.string().url().optional().nullable().or(z.literal("")),
-  faviconUrl: z.string().url().optional().nullable().or(z.literal("")),
+  primaryLogoUrl: assetUrlSchema.optional().nullable().or(z.literal("")),
+  alternateLogoUrl: assetUrlSchema.optional().nullable().or(z.literal("")),
+  faviconUrl: assetUrlSchema.optional().nullable().or(z.literal("")),
   tokens: z.record(z.string()).optional(),
   primaryColor: hexColorSchema.optional(),
   primaryHoverColor: hexColorSchema.optional(),
@@ -855,12 +868,29 @@ export type CreateSubmissionInput = z.infer<typeof createSubmissionSchema>;
 // Station Priority Tier Schemas
 // ============================================================================
 
+export const tierColorSlotSchema = z.enum([
+  "TIER_COLOR_1",
+  "TIER_COLOR_2",
+  "TIER_COLOR_3",
+  "TIER_COLOR_4",
+  "TIER_COLOR_5",
+  "TIER_COLOR_6",
+  "TIER_COLOR_7",
+  "TIER_COLOR_8",
+  "TIER_COLOR_9",
+  "TIER_COLOR_10",
+]);
+
+/** ADR 0026: at most 10 active paid tiers per station. */
+export const MAX_ACTIVE_PRIORITY_TIERS = 10;
+
 export const createStationPriorityTierSchema = z.object({
   name: z.string().min(1, "Tier name is required").max(50),
   description: z.string().max(300).optional().nullable(),
-  priceCents: z.number().int().min(50, "Price must be at least $0.50").max(100000),
+  // $2.00 floor: Stripe fees come out of the platform's 15%, so cheaper tiers lose money
+  priceCents: z.number().int().min(200, "Price must be at least $2.00").max(50000, "Price cannot exceed $500.00"),
   priorityRank: z.number().int().min(1).max(100),
-  colorSlot: z.string().min(1),
+  colorSlot: tierColorSlotSchema,
   isActive: z.boolean().optional().default(true),
   isUpgradeEnabled: z.boolean().optional().default(true),
 });
@@ -872,9 +902,9 @@ export type CreateStationPriorityTierInput = z.infer<
 export const updateStationPriorityTierSchema = z.object({
   name: z.string().min(1).max(50).optional(),
   description: z.string().max(300).optional().nullable(),
-  priceCents: z.number().int().min(50).max(100000).optional(),
+  priceCents: z.number().int().min(200, "Price must be at least $2.00").max(50000, "Price cannot exceed $500.00").optional(),
   priorityRank: z.number().int().min(1).max(100).optional(),
-  colorSlot: z.string().min(1).optional(),
+  colorSlot: tierColorSlotSchema.optional(),
   isActive: z.boolean().optional(),
   isUpgradeEnabled: z.boolean().optional(),
   sortOrder: z.number().int().optional(),

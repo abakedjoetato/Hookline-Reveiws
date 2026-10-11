@@ -18,11 +18,13 @@ describe("Central Zod Environment Validation", () => {
     STRIPE_WEBHOOK_SECRET: "whsec_key",
     PORT: "4000",
     CORS_ALLOWED_ORIGINS: "http://localhost:3000,http://localhost:3001",
+    NEXT_PUBLIC_WEB_URL: "http://localhost:3000",
     SESSION_SECRET: "session_secret_rotation_key_32_characters_long",
     ENCRYPTION_SECRET: "encryption_secret_field_key_32_characters_long",
   };
 
   const validWorkerEnv = {
+    DATABASE_URL: "postgresql://postgres:secret@localhost:5432/thequeue_dev",
     NODE_ENV: "production",
     REDIS_URL: "redis://localhost:6379",
     S3_ENDPOINT: "http://localhost:9000",

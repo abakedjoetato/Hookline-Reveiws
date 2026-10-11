@@ -1,114 +1,79 @@
-# TheQueue - Live Music-Submission & Livestream-Management Platform
+# Hookline Reviews (TheQueue)
 
-TheQueue is a production-grade, highly scalable platform designed to connect music creators directly with live stream broadcasters. Built with a modern TypeScript monorepo, it empowers standard users to upload music, build personal libraries, and submit tracks to approved stream hosts. Host broadcasters can then configure their custom music station, open queues, process payments, and manage audio submissions live using a browser-based DJ control panel with real-time stream overlays.
+A paid music-submission platform for livestreamers. Artists upload tracks and submit them to a host's live queue, for free or by paying for a priority tier. Hosts review submissions live on stream (TikTok, Twitch, YouTube, Kick, Facebook), show an OBS "now playing" overlay, and get paid through Stripe Connect.
 
-## 🏗️ Monorepo Architecture Overview
-
-This project is organized as a high-performance, strictly-typed monorepo utilizing **pnpm workspaces** and **Turborepo** caching.
+## How it fits together
 
 ```text
-apps/
-  ├── web/       - The standard public website and uploader interface (Port 3000)
-  ├── host/      - The host dashboard and DJ queue panel (Port 3001)
-  ├── admin/     - The system administrator console (Port 3002)
-  ├── api/       - NestJS backend API application (Port 4000)
-  └── worker/    - Standalone Node.js BullMQ asynchronous job worker (Port 4001)
-
-packages/
-  ├── config/    - Shared TypeScript and bundler configs
-  ├── types/     - Common TypeScript models and domain enums
-  ├── logger/    - Structured Pino logging framework with tracing
-  ├── validation/ - Centralized Zod environmental & input validation
-  ├── database/  - Prisma ORM setup, connection client, & UUIDv7 tools
-  ├── auth/      - Argon2id hashing, secure tokens, & privilege guards
-  ├── ui/        - Tailwind CSS v4 shared React components and design system
-  └── api-client/- Typed Axios client for frontend-to-backend communication
+Browser ──► Caddy (HTTPS) ──► /api/*, /socket.io/*  ──► api     NestJS, Postgres, Redis, Stripe
+                          └─► everything else        ──► web     Next.js (all pages: artist, host, admin)
+                                                         worker  BullMQ jobs (audio metadata, artwork, deletes)
+Uploads/downloads use presigned URLs straight to S3-compatible storage (MinIO, AWS S3, R2).
 ```
 
-## 🛠️ Prerequisites
+| Path | What it is |
+|---|---|
+| `apps/api` | NestJS REST API under `/api/v1`, Socket.IO live-queue events, Stripe webhooks. The only service that touches the database. |
+| `apps/web` | Next.js app with every page: public stations, artist library and submissions, host onboarding, studio and income, admin console, OBS overlay. Calls the API on the same origin. |
+| `apps/worker` | Background jobs: reads audio duration/format after upload, processes artwork, deletes media. |
+| `packages/database` | Prisma 7 schema, migrations, seed, and the shared `PrismaClient` (pg driver adapter). |
+| `packages/types` | Shared request/response types (the contract between `web` and `api`). |
+| `packages/validation` | Zod schemas for every request body and for environment variables. |
+| `packages/api-client` | Typed client the web app uses for every API call. |
+| `packages/{config,auth,logger,ui}` | Constants (payment split, play-count window), password hashing, logging, UI components. |
 
-To run this platform locally, make sure you have the following installed:
+## Key business rules
 
-- **Node.js**: `v20.0.0` or higher (LTS recommended)
-- **pnpm**: `v9.0.0` or higher (Uses lockfile version 9)
-- **Docker & Docker Compose**: For containerized infrastructure services
+- **Payment split:** 85% to the host's Stripe Connect account, 15% platform fee (Stripe fees come out of the 15%). `splitPayment()` in `@platform/config` is the single source of truth.
+- **Priority tiers:** $2.00 minimum, $500 maximum, at most 10 active per station, fixed colour slots. Tiers are snapshotted when a host goes live, so edits never affect a broadcast in progress.
+- **Play counting:** a track can be played any number of times, but a play only *counts* (Weekly Top 3, stats) after 120 s of continuous playback and at most once per track, per host, per 4 hours. Free and paid plays follow the same rule. See `docs/decisions/0028-play-counting-window.md`.
+- **Host income:** each confirmed payment records a host earning. Hosts see income per broadcast, per year and in total at `/host/income` (net of refunds), with a link into their Stripe Express dashboard. The studio shows the current broadcast's earnings while live.
 
-## 🚀 Local Quickstart Guide
+## Local development
 
-### 1. Provision Infrastructure
-
-Bring up PostgreSQL, Redis, MinIO (S3-compatible Object Storage), and Mailpit (local SMTP email trap) using Docker Compose:
+Requirements: Node.js 20.12+ (22 recommended), npm 10, Docker (for Postgres, Redis, MinIO, Mailpit).
 
 ```bash
-pnpm infrastructure:up
+cp .env.example .env          # defaults match the local Docker services
+npm install
+npm run infrastructure:up     # Postgres, Redis, MinIO (+ private bucket), Mailpit
+npm run db:deploy             # apply migrations
+npm run db:seed               # reference data + first Owner Admin from ADMIN_BOOTSTRAP_*
+npm run dev                   # api :4000, worker :4001, web :3000
 ```
 
-_Note: S3 storage buckets are automatically initialized on startup._
+Open http://localhost:3000 and sign in as the bootstrap owner. Emails land in Mailpit at http://localhost:8025.
 
-### 2. Configure Environment Variables
+`STRIPE_CONNECT_DEV_BYPASS=true` in `.env` lets host onboarding complete without a real Stripe account (ignored in production). Paid submissions need Stripe **test** keys; forward webhooks with `stripe listen --forward-to localhost:4000/api/v1/payments/webhook`.
 
-Copy the development environment parameters template file:
+### Database changes
+
+Edit `packages/database/prisma/schema.prisma`, then `npm run db:migrate` (creates and applies a migration). Hand-written SQL that Prisma can't express (check constraints, triggers, partial indexes) lives in `prisma/sql/integrity.sql` and is included in the baseline migration.
+
+## Tests
 
 ```bash
-cp .env.example .env
+npm test                                   # unit tests for every workspace
+TEST_DATABASE_URL=postgresql://... npm test # also runs the real-Postgres tests (money path, play counting)
+npm run typecheck
+E2E_BASE_URL=http://localhost:3000 npm run test:e2e   # browser smoke tests against a running stack
 ```
 
-### 3. Initialize Database
+CI (`.github/workflows/ci.yml`) runs typecheck, all tests against a Postgres service, the app builds, and the Docker image builds.
 
-Generate the type-safe Prisma client and execute initial migrations:
+## Production
+
+See **[docs/deployment.md](docs/deployment.md)**. In short:
 
 ```bash
-pnpm db:generate
-pnpm db:migrate
+cp .env.production.example .env.production   # fill in every value
+docker compose --env-file .env.production -f infrastructure/docker/docker-compose.prod.yml up -d --build
 ```
 
-### 4. Install Dependencies
+This runs Caddy (automatic HTTPS), web, api, worker, a one-shot `migrate` job (migrations + idempotent seed), Postgres, Redis and MinIO. Each service can be swapped for a managed equivalent.
 
-Install all workspace packages and links:
+## Docs
 
-```bash
-pnpm install
-```
-
-### 5. Start Development Servers
-
-Run all Next.js applications, the NestJS API, and the BullMQ worker concurrently under watch mode:
-
-```bash
-pnpm dev
-```
-
----
-
-## 🧪 Testing System
-
-We utilize **Vitest** for workspace-wide unit/integration tests and **Playwright** for end-to-end user flows.
-
-### Run Unit & Integration Tests
-
-Runs all 23 concurrent, offline unit and integration tests across our packages and app API layers:
-
-```bash
-pnpm test
-```
-
-### Run End-to-End Tests
-
-Executes Playwright smoke tests to verify application shell load and layout parameters:
-
-```bash
-pnpm test:e2e
-```
-
----
-
-## 📖 Deep-Dive Architecture & Standards
-
-Detailed standards and architectural decisions are thoroughly documented in the `docs/` folder:
-
-- **[Architecture & Flow](docs/architecture.md)**: Deep dive on Monorepo patterns, Auth boundaries, and Worker systems.
-- **[Development Standards](docs/development-standards.md)**: Naming, logging, validation, and database rules.
-- **[Security Baseline](docs/security-baseline.md)**: Cryptographic guidelines, headers, and secret scanning.
-- **[Testing Guidelines](docs/testing.md)**: Integration and mocking patterns.
-- **[Local Infrastructure](docs/local-infrastructure.md)**: Docker container details, ports, and reset workflows.
-- **[Architectural Decisions (ADRs)](docs/decisions/)**: Records of key technical choices (UUIDv7, Opaque cookies, Next.js App Router, NestJS).
+- [Architecture](docs/architecture.md), [Domain model](docs/domain-model.md), [Queue model](docs/queue-model.md), [Payments](docs/payment-model.md), [Ledger](docs/financial-ledger.md)
+- [Deployment](docs/deployment.md), [Security baseline](docs/security-baseline.md), [Testing](docs/testing.md)
+- [Architecture decisions](docs/decisions/)

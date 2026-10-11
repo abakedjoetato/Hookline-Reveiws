@@ -11,6 +11,7 @@ import {
   Param,
   UseGuards,
   Req,
+  ParseUUIDPipe,
 } from "@nestjs/common";
 import { LiveSessionsService } from "./live-sessions.service";
 import {
@@ -25,7 +26,7 @@ import {
 } from "./dto/live-session.dto";
 import { SessionGuard } from "../auth/guards/session.guard";
 import { RequestWithUser } from "../auth/interfaces/request-with-user.interface";
-import { PublicRoute } from "../auth/decorators/auth.decorators";
+import { OptionalSession, PublicRoute } from "../auth/decorators/auth.decorators";
 
 @Controller("live-sessions")
 @UseGuards(SessionGuard)
@@ -38,10 +39,10 @@ export class LiveSessionsController {
     return this.liveSessionsService.getPublicLiveSessions();
   }
 
-  @PublicRoute()
+  @OptionalSession()
   @Get(":id/public")
-  async getPublicLiveSession(@Param("id") id: string) {
-    return this.liveSessionsService.getPublicLiveSession(id);
+  async getPublicLiveSession(@Req() req: RequestWithUser, @Param("id", ParseUUIDPipe) id: string) {
+    return this.liveSessionsService.getPublicLiveSession(id, req.user?.id);
   }
 
   @PublicRoute()

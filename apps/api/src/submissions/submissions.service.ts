@@ -1,3 +1,4 @@
+import { appendQueueEvent } from "../live-sessions/queue-events";
 import {
   Injectable,
   BadRequestException,
@@ -12,6 +13,7 @@ import { QueueOrderingService } from "../live-sessions/queue-ordering/queue-orde
 import { ReorderIntent } from "../live-sessions/dto/live-session.dto";
 import { IdempotencyService } from "../common/idempotency/idempotency.service";
 import { StripeService } from "../payments/stripe.service";
+import { splitPayment } from "@platform/config";
 import { ApiIdempotencyStatus, PaymentStatus } from "@platform/database";
 import * as crypto from "crypto";
 
@@ -206,16 +208,13 @@ export class SubmissionsService {
           });
 
           // Queue Audit Event
-          await tx.queueEvent.create({
-            data: {
-              id: generateUuidV7(),
+          await appendQueueEvent(tx, {
               queueEntryId,
               liveSessionId,
               actingUserId: userId,
               eventType: "SUBMIT",
               newState: QueueStatus.QUEUED,
-            },
-          });
+            });
 
           // Increment session queueRevision
           await tx.liveSession.update({
@@ -390,9 +389,8 @@ export class SubmissionsService {
               hostUserId: liveSession.hostId,
               submissionId: submissionId,
               grossAmountCents: tier.priceCents,
-              hostAllocationCents: Math.round(tier.priceCents * 0.85),
-              platformAllocationCents:
-                tier.priceCents - Math.round(tier.priceCents * 0.85),
+              hostAllocationCents: splitPayment(tier.priceCents).hostCents,
+              platformAllocationCents: splitPayment(tier.priceCents).platformCents,
               status: PaymentStatus.CREATED,
             },
           });
@@ -590,9 +588,8 @@ export class SubmissionsService {
             hostUserId: submission.liveSession.hostId,
             submissionId: submissionId,
             grossAmountCents: tier.priceCents,
-            hostAllocationCents: Math.round(tier.priceCents * 0.85),
-            platformAllocationCents:
-              tier.priceCents - Math.round(tier.priceCents * 0.85),
+            hostAllocationCents: splitPayment(tier.priceCents).hostCents,
+            platformAllocationCents: splitPayment(tier.priceCents).platformCents,
             status: PaymentStatus.CREATED,
           },
         });

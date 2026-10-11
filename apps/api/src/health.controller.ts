@@ -5,15 +5,19 @@ import {
   Req,
 } from "@nestjs/common";
 import { ApiTags, ApiOperation, ApiResponse } from "@nestjs/swagger";
-import { testDbConnection } from "@platform/database";
+import { PrismaClient } from "@platform/database";
+import { SkipThrottle } from "@nestjs/throttler";
 import Redis from "ioredis";
 
+@SkipThrottle()
 @ApiTags("Health & Diagnostics")
 @Controller({
   path: "",
   version: "1",
 })
 export class HealthController {
+  constructor(private readonly prisma: PrismaClient) {}
+
   @Get("health")
   @ApiOperation({ summary: "Liveness probe" })
   @ApiResponse({ status: 200, description: "Service is alive and running" })
@@ -46,7 +50,8 @@ export class HealthController {
 
     // 1. Verify PostgreSQL Database
     try {
-      const isDbHealthy = await testDbConnection();
+      await this.prisma.$queryRaw`SELECT 1`;
+      const isDbHealthy = true;
       if (isDbHealthy) {
         services.database = "UP";
       } else {
@@ -80,8 +85,8 @@ export class HealthController {
 
     // 3. Verify S3 Object Storage
     try {
+      // S3_ENDPOINT is only needed for non-AWS providers (MinIO, R2, ...)
       const hasS3Config = !!(
-        process.env.S3_ENDPOINT &&
         process.env.S3_REGION &&
         process.env.S3_BUCKET &&
         process.env.S3_ACCESS_KEY &&

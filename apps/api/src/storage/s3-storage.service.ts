@@ -20,6 +20,8 @@ import * as path from "path";
 export class S3StorageService implements StorageService, OnModuleInit {
   private readonly logger = new Logger(S3StorageService.name);
   private s3Client: S3Client;
+  /** Signs URLs the browser will use; differs when S3 is on an internal host. */
+  private presignClient: S3Client;
   private bucket: string;
 
   constructor() {
@@ -45,6 +47,19 @@ export class S3StorageService implements StorageService, OnModuleInit {
       },
       forcePathStyle, // Required for MinIO
     });
+
+    // e.g. S3_ENDPOINT=http://minio:9000 (container network) but browsers need
+    // S3_PUBLIC_ENDPOINT=https://media.example.com
+    const publicEndpoint = process.env.S3_PUBLIC_ENDPOINT || endpoint;
+    this.presignClient =
+      publicEndpoint === endpoint
+        ? this.s3Client
+        : new S3Client({
+            region,
+            endpoint: publicEndpoint,
+            credentials: { accessKeyId, secretAccessKey },
+            forcePathStyle,
+          });
   }
 
   onModuleInit() {
@@ -80,7 +95,7 @@ export class S3StorageService implements StorageService, OnModuleInit {
       ContentType: mimeType,
     });
 
-    const url = await getSignedUrl(this.s3Client, command, {
+    const url = await getSignedUrl(this.presignClient, command, {
       expiresIn: expiresInSeconds,
     });
 
@@ -102,7 +117,7 @@ export class S3StorageService implements StorageService, OnModuleInit {
       Key: objectKey,
     });
 
-    return getSignedUrl(this.s3Client, command, {
+    return getSignedUrl(this.presignClient, command, {
       expiresIn: expiresInSeconds,
     });
   }

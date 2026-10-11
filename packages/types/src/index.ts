@@ -943,6 +943,52 @@ export interface ReorderStationPriorityTiersDto {
 }
 
 // ============================================================================
+// Host Income (net = host's 85% share minus refunded host share, USD cents)
+// ============================================================================
+
+export interface HostEarningsTotals {
+  grossCents: number;
+  netHostCents: number;
+  refundedHostCents: number;
+  paidSubmissions: number;
+}
+
+export interface HostEarningsYearRow {
+  year: number;
+  grossCents: number;
+  netHostCents: number;
+  paidSubmissions: number;
+}
+
+export interface HostEarningsLiveRow {
+  liveSessionId: string;
+  liveTitle: string;
+  stationName: string;
+  status: LiveSessionStatus;
+  startedAt: string;
+  endedAt: string | null;
+  grossCents: number;
+  netHostCents: number;
+  paidSubmissions: number;
+}
+
+export interface HostEarningsSummary {
+  currency: "USD";
+  timeZone: string;
+  total: HostEarningsTotals;
+  yearly: HostEarningsYearRow[];
+  perLive: HostEarningsLiveRow[];
+}
+
+export interface HostLiveEarnings {
+  liveSessionId: string;
+  currency: "USD";
+  grossCents: number;
+  netHostCents: number;
+  paidSubmissions: number;
+}
+
+// ============================================================================
 // Legal & Terms of Service Models
 // ============================================================================
 

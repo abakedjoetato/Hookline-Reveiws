@@ -3,7 +3,9 @@ import { LiveSessionsEventService } from "./live-sessions-event.service";
 import { ReorderIntent } from "./dto/live-session.dto";
 
 import {
+  Inject,
   Injectable,
+  Optional,
   NotFoundException,
   ForbiddenException,
   ConflictException,
@@ -11,7 +13,9 @@ import {
 } from "@nestjs/common";
 import { PrismaClient, generateUuidV7, QueueEntry } from "@platform/database";
 import { LiveSessionStatus, QueueStatus, StreamingPlatform, WeeklyTop3Response, WeeklyTop3Item } from "@platform/types";
-import { getCurrentWeeklyPeriod, NORMAL_PLAY_RATE_LIMIT_MS } from "@platform/config";
+import { getCurrentWeeklyPeriod } from "@platform/config";
+import { hasQualifyingDuration, recordQualifyingPlay } from "./play-counting";
+import { STORAGE_SERVICE, StorageService } from "../storage/storage.interface";
 import { CreateLiveSessionDto, AddQueueEntryDto } from "./dto/live-session.dto";
 
 @Injectable()
@@ -20,6 +24,7 @@ export class LiveSessionsService {
     private readonly prisma: PrismaClient,
     private readonly queueOrderingService: QueueOrderingService,
     private readonly events: LiveSessionsEventService,
+    @Optional() @Inject(STORAGE_SERVICE) private readonly storage?: StorageService,
   ) {}
 
   async createLiveSession(
@@ -43,7 +48,8 @@ export class LiveSessionsService {
         where: { id: dto.stationId },
       });
 
-      if (!station || station.hostId !== userId) {
+      // Station.hostId references HostProfile.id (not the user id)
+      if (!station || station.hostId !== lockedHosts[0].id) {
         throw new ForbiddenException("You do not own this station");
       }
 
@@ -478,8 +484,14 @@ export class LiveSessionsService {
     }));
   }
 
+  /**
+   * `viewerUserId`: when the viewer is this session's host, the current
+   * track includes short-lived audio/artwork links for the player. Other
+   * viewers never receive raw audio.
+   */
   async getPublicLiveSession(
     id: string,
+    viewerUserId?: string,
   ): Promise<import("./dto/live-session.dto").PublicLiveSessionDetail> {
     const session = await this.prisma.liveSession.findUnique({
       where: { id },
@@ -500,6 +512,11 @@ export class LiveSessionsService {
       songName: string;
       artistName: string;
       durationSeconds: number;
+      submitterName?: string;
+      audioUrl?: string;
+      artworkUrl?: string | null;
+      spotifyUrl?: string | null;
+      artistIdentityId?: string | null;
     } | null = null;
 
     if (session.currentQueueEntryId) {
@@ -512,14 +529,17 @@ export class LiveSessionsService {
                 include: { artistIdentity: true },
               },
               trackSnapshot: true,
+              artistIdentity: true,
+              submittingUser: { select: { displayName: true } },
             },
           },
         },
       });
 
       if (currentEntry?.submission) {
-        const snap = currentEntry.submission.trackSnapshot;
-        const track = currentEntry.submission.sourceTrack;
+        const sub = currentEntry.submission;
+        const snap = sub.trackSnapshot;
+        const track = sub.sourceTrack;
         currentTrack = {
           songName: snap?.songName || track?.songName || "Untitled Track",
           artistName:
@@ -527,7 +547,13 @@ export class LiveSessionsService {
             track?.artistIdentity?.artistName ||
             "Unknown Artist",
           durationSeconds: snap?.durationSeconds ?? track?.durationSeconds ?? 0,
+          submitterName: sub.submittingUser?.displayName,
+          spotifyUrl: sub.artistIdentity?.spotifyUrl ?? null,
+          artistIdentityId: sub.artistIdentityId,
         };
+        if (viewerUserId && viewerUserId === session.hostId && this.storage) {
+          Object.assign(currentTrack, await this.hostMediaLinks(snap, sub.sourceTrackId));
+        }
       }
     }
 
@@ -549,6 +575,22 @@ export class LiveSessionsService {
       paidSubmissionsOpen: session.paidSubmissionsOpen,
       currentQueueEntryId: session.currentQueueEntryId,
       currentTrack,
+    };
+  }
+
+  private async hostMediaLinks(
+    snap: { mediaVersionId: string | null; artworkS3Key: string | null } | null,
+    sourceTrackId: string,
+  ): Promise<{ audioUrl?: string; artworkUrl?: string | null }> {
+    const media = snap?.mediaVersionId
+      ? await this.prisma.trackMediaVersion.findUnique({ where: { id: snap.mediaVersionId } })
+      : await this.prisma.trackMediaVersion.findFirst({ where: { trackId: sourceTrackId, isCurrent: true } });
+    const audioKey = media?.processedObjectKey || media?.originalObjectKey;
+    return {
+      audioUrl: audioKey ? await this.storage!.createPresignedDownload(audioKey, 2 * 60 * 60) : undefined,
+      artworkUrl: snap?.artworkS3Key
+        ? await this.storage!.createPresignedDownload(snap.artworkS3Key, 2 * 60 * 60)
+        : null,
     };
   }
 
@@ -615,6 +657,7 @@ export class LiveSessionsService {
     tx: any,
     currentEntryId: string,
     liveSessionId: string,
+    hostUserId: string,
   ) {
     const currentEntry = await tx.queueEntry.findUnique({
       where: { id: currentEntryId },
@@ -627,16 +670,9 @@ export class LiveSessionsService {
       return;
     }
 
-    const loadedAt = currentEntry.loadedIntoPlayerAt;
-
-    // Check qualification for external links. 2 minutes = 120,000 ms.
-    let played = false;
-    if (loadedAt) {
-      const elapsed = Date.now() - loadedAt.getTime();
-      if (elapsed >= 120000) {
-        played = true;
-      }
-    }
+    const now = new Date();
+    // A track loaded for 120s+ of continuous playback is a qualifying play.
+    const played = hasQualifyingDuration(currentEntry.loadedIntoPlayerAt, now);
 
     if (played) {
       // Move to history
@@ -644,8 +680,8 @@ export class LiveSessionsService {
         where: { id: currentEntryId },
         data: {
           status: QueueStatus.MOVED_TO_HISTORY,
-          completedAt: new Date(),
-          movedToHistoryAt: new Date(),
+          completedAt: now,
+          movedToHistoryAt: now,
           wasPlayed: true,
           playbackCompleted: true,
           loadedIntoPlayerAt: null,
@@ -660,17 +696,12 @@ export class LiveSessionsService {
         },
       });
 
-      await (tx.playbackEvent as any)
-        ?.create?.({
-          data: {
-            id: generateUuidV7(),
-            liveSessionId,
-            queueEntryId: currentEntryId,
-            eventType: "QUALIFIED_PLAY",
-            timestamp: new Date(),
-          },
-        })
-        ?.catch?.(() => {});
+      await recordQualifyingPlay(tx, {
+        queueEntryId: currentEntryId,
+        liveSessionId,
+        hostUserId,
+        now,
+      });
     } else {
       // Restore near origin
       const originRank =
@@ -738,6 +769,7 @@ export class LiveSessionsService {
           tx,
           session.currentQueueEntryId,
           id,
+          session.hostId,
         );
       }
 
@@ -825,6 +857,7 @@ export class LiveSessionsService {
           tx,
           session.currentQueueEntryId,
           id,
+          session.hostId,
         );
       }
 
@@ -1342,12 +1375,17 @@ export class LiveSessionsService {
       if (!entry || entry.liveSessionId !== id)
         throw new NotFoundException("Queue entry not found");
 
+      const now = new Date();
+      // Only a play that reached 120s of continuous playback is a qualifying
+      // play; anything shorter still moves to history but is never counted.
+      const qualifies = hasQualifyingDuration(entry.loadedIntoPlayerAt, now);
+
       await tx.queueEntry.update({
         where: { id: entryId },
         data: {
           status: QueueStatus.MOVED_TO_HISTORY,
-          completedAt: new Date(),
-          movedToHistoryAt: new Date(),
+          completedAt: now,
+          movedToHistoryAt: now,
           wasPlayed: true,
           playbackCompleted: true,
           loadedIntoPlayerAt: null,
@@ -1358,25 +1396,20 @@ export class LiveSessionsService {
         data: { currentQueueStatus: QueueStatus.MOVED_TO_HISTORY },
       });
       if (sub?.sourceTrackId) {
-        await tx.track
-          .update({
-            where: { id: sub.sourceTrackId },
-            data: { lastPlayedAt: new Date() },
-          })
-          .catch(() => {});
+        await tx.track.updateMany({
+          where: { id: sub.sourceTrackId },
+          data: { lastPlayedAt: now },
+        });
       }
 
-      await (tx.playbackEvent as any)
-        ?.create?.({
-          data: {
-            id: generateUuidV7(),
-            liveSessionId: id,
-            queueEntryId: entryId,
-            eventType: "QUALIFIED_PLAY",
-            timestamp: new Date(),
-          },
-        })
-        ?.catch?.(() => {});
+      if (qualifies) {
+        await recordQualifyingPlay(tx, {
+          queueEntryId: entryId,
+          liveSessionId: id,
+          hostUserId: session.hostId,
+          now,
+        });
+      }
 
       const isCurrent = session.currentQueueEntryId === entryId;
       await tx.liveSession.update({
@@ -1506,14 +1539,15 @@ export class LiveSessionsService {
     const hostName =
       station.host?.user?.displayName || station.stationName;
 
-    // Query all queueEntries for sessions belonging to this station that were played in this window
+    // Counted plays on this station in the period. Whether a play counts
+    // (once per track, per host, per 4 hours) was decided when it was played.
     const playedEntries = await this.prisma.queueEntry.findMany({
       where: {
         liveSession: {
           stationId: station.id,
         },
-        wasPlayed: true,
-        completedAt: {
+        countedAsPlay: true,
+        countedPlayAt: {
           gte: period.startDate,
           lt: period.endDate,
         },
@@ -1528,20 +1562,20 @@ export class LiveSessionsService {
         },
       },
       orderBy: {
-        completedAt: "asc",
+        countedPlayAt: "asc",
       },
     });
 
-    // Group by track identifier
-    const trackMap = new Map<
+    const aggregateMap = new Map<
       string,
       {
         trackId: string;
         songName: string;
         artistName: string;
+        qualifyingPlayCount: number;
+        lastQualifyingPlayAt?: string;
         spotifyUrl?: string | null;
         artistIdentityId?: string | null;
-        events: { timestamp: Date; isPriority: boolean }[];
       }
     >();
 
@@ -1555,80 +1589,26 @@ export class LiveSessionsService {
         sub.trackSnapshot?.artistName ||
         sub.artistIdentity?.artistName ||
         "Unknown Artist";
-      const trackId = sub.sourceTrackId || `${songName}___${artistName}`;
-      let item = trackMap.get(trackId);
+      const trackId = sub.sourceTrackId || entry.playTrackKey || `${songName}___${artistName}`;
+      let item = aggregateMap.get(trackId);
       if (!item) {
-        let spotifyUrl: string | null = null;
-        let artistIdentityId: string | null = null;
-
-        if (sub.artistIdentity && !(sub.artistIdentity as any).deletedAt) {
-          artistIdentityId = sub.artistIdentity.id;
-          if (sub.artistIdentity.spotifyUrl) {
-            spotifyUrl = sub.artistIdentity.spotifyUrl;
-          }
-        }
-
+        const identity =
+          sub.artistIdentity && !sub.artistIdentity.deletedAt ? sub.artistIdentity : null;
         item = {
           trackId,
           songName,
           artistName,
-          spotifyUrl,
-          artistIdentityId,
-          events: [],
+          qualifyingPlayCount: 0,
+          spotifyUrl: identity?.spotifyUrl ?? null,
+          artistIdentityId: identity?.id ?? null,
         };
-        trackMap.set(trackId, item);
+        aggregateMap.set(trackId, item);
       }
-
-      item.events.push({
-        timestamp: entry.completedAt || new Date(),
-        isPriority: !!sub.isPriority,
-      });
+      item.qualifyingPlayCount++;
+      item.lastQualifyingPlayAt = (entry.countedPlayAt ?? entry.completedAt ?? new Date()).toISOString();
     }
 
-    // Apply 4-hour rate limit on normal plays; paid priority plays count immediately
-    const aggregates: {
-      trackId: string;
-      songName: string;
-      artistName: string;
-      qualifyingPlayCount: number;
-      lastQualifyingPlayAt?: string;
-      spotifyUrl?: string | null;
-      artistIdentityId?: string | null;
-    }[] = [];
-
-    for (const item of trackMap.values()) {
-      item.events.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
-
-      let qualifyingPlayCount = 0;
-      let lastQualifyingPlayAt: string | undefined = undefined;
-      let lastCountedNormalPlayTime = -Infinity;
-
-      for (const ev of item.events) {
-        const evTime = ev.timestamp.getTime();
-        if (ev.isPriority) {
-          qualifyingPlayCount++;
-          lastQualifyingPlayAt = ev.timestamp.toISOString();
-        } else {
-          if (evTime - lastCountedNormalPlayTime >= NORMAL_PLAY_RATE_LIMIT_MS) {
-            qualifyingPlayCount++;
-            lastQualifyingPlayAt = ev.timestamp.toISOString();
-            lastCountedNormalPlayTime = evTime;
-          }
-        }
-      }
-
-      if (qualifyingPlayCount > 0) {
-        aggregates.push({
-          trackId: item.trackId,
-          songName: item.songName,
-          artistName: item.artistName,
-          qualifyingPlayCount,
-          lastQualifyingPlayAt,
-          spotifyUrl: item.spotifyUrl,
-          artistIdentityId: item.artistIdentityId,
-        });
-      }
-    }
+    const aggregates = [...aggregateMap.values()];
 
     // Deterministic tie-breaking:
     // 1. play count DESC

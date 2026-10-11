@@ -2,36 +2,43 @@
   "name": "@platform/database",
   "version": "0.1.0",
   "private": true,
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
   },
   "files": [
     "dist",
-    "src"
+    "prisma",
+    "prisma.config.ts"
   ],
   "scripts": {
-    "build": "prisma generate --schema=./prisma/schema.prisma && tsc -b",
+    "build": "prisma generate && tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
-    "db:generate": "prisma generate --schema=./prisma/schema.prisma",
-    "db:migrate": "prisma migrate dev --schema=./prisma/schema.prisma"
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
+    "db:seed": "tsx prisma/seed.ts",
+    "test": "vitest run"
   },
   "dependencies": {
-    "@prisma/client": "^5.21.1",
+    "@platform/types": "*",
+    "@prisma/adapter-pg": "^7.10.0",
+    "@prisma/client": "^7.10.0",
+    "pg": "^8.23.1",
     "uuidv7": "^1.0.2",
-    "@platform/types": "*"
+    "prisma": "^7.10.0",
+    "tsx": "^4.19.1"
   },
   "devDependencies": {
     "@platform/config": "*",
-    "typescript": "^5.6.3",
-    "prisma": "^5.21.1",
     "@types/node": "^20.11.0",
-    "tsx": "^4.19.1",
-    "argon2": "^0.40.1"
-  },
-  "prisma": {
-    "seed": "tsx prisma/seed.ts"
+    "@types/pg": "^8.23.1",
+    "argon2": "^0.40.1",
+    "typescript": "^5.6.3"
   }
 }

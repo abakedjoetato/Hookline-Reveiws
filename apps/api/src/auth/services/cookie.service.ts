@@ -7,9 +7,12 @@ export const SESSION_COOKIE_NAME = "queue_sid";
 @Injectable()
 export class CookieService {
   private readonly isProduction: boolean;
+  /** Optional, e.g. ".example.com" when the API is on a sibling subdomain. */
+  private readonly cookieDomain: string | undefined;
 
   constructor(private configService: ConfigService) {
     this.isProduction = process.env.NODE_ENV === "production";
+    this.cookieDomain = process.env.COOKIE_DOMAIN || undefined;
   }
 
   createSessionCookie(sessionToken: string, maxAgeSeconds: number): string {
@@ -19,7 +22,7 @@ export class CookieService {
       sameSite: "lax", // Standard safe setting for general browser interactions
       path: "/",
       maxAge: maxAgeSeconds,
-      // domain could be configured here if necessary
+      domain: this.cookieDomain,
     });
   }
 
@@ -31,6 +34,7 @@ export class CookieService {
       path: "/",
       maxAge: 0,
       expires: new Date(0),
+      domain: this.cookieDomain,
     });
   }
 

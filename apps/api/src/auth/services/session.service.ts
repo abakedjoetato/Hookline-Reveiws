@@ -75,6 +75,12 @@ export class SessionService {
    * Caches permissions and updates last seen.
    */
   async validateSession(rawToken: string): Promise<AuthenticatedUser> {
+    return (await this.validateSessionWithId(rawToken)).user;
+  }
+
+  async validateSessionWithId(
+    rawToken: string,
+  ): Promise<{ user: AuthenticatedUser; sessionId: string }> {
     const tokenHash = hashToken(rawToken);
 
     const session = await this.sessionRepository.findByTokenHash(tokenHash);
@@ -96,25 +102,36 @@ export class SessionService {
     }
 
     // Update last seen asynchronously (fire-and-forget to avoid blocking the request)
-    this.sessionRepository.updateLastSeen(session.id).catch(() => {});
+    // Sliding idle window, capped by the absolute expiry (fire-and-forget)
+    const nextIdle = new Date(
+      Math.min(
+        now.getTime() + this.IDLE_EXPIRATION_DAYS * 24 * 60 * 60 * 1000,
+        session.absoluteExpiresAt.getTime(),
+      ),
+    );
+    this.sessionRepository.updateLastSeen(session.id, nextIdle).catch(() => {});
 
     // Resolve permissions once per request
     const roles = user.roleAssignments.map((r: any) => r.role as Role);
     const overrides = user.permissionAssignments.map((p: any) => ({
       permission: p.permission as AdminPermission,
-      type: p.type as PermissionOverrideType,
+      // Stored assignments are grants (the table has no type column)
+      type: (p.type as PermissionOverrideType) ?? PermissionOverrideType.GRANT,
     }));
     const permissions = resolveUserPermissions(roles, overrides);
 
     return {
-      id: user.id,
-      email: user.email,
-      username: user.username,
-      displayName: user.displayName,
-      accountStatus: user.accountStatus as AccountStatus,
-      emailVerified: user.emailVerified,
-      roles,
-      permissions,
+      sessionId: session.id,
+      user: {
+        id: user.id,
+        email: user.email,
+        username: user.username,
+        displayName: user.displayName,
+        accountStatus: user.accountStatus as AccountStatus,
+        emailVerified: user.emailVerified,
+        roles,
+        permissions,
+      },
     };
   }
 

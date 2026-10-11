@@ -48,6 +48,8 @@ describe("TracksService", () => {
     createPresignedUpload: vi.fn(),
     createPresignedDownload: vi.fn(),
     verifyObjectExists: vi.fn(),
+    headObject: vi.fn(),
+    deleteObject: vi.fn(),
   };
 
   const mockQueueService = {
@@ -168,6 +170,7 @@ describe("TracksService", () => {
       });
       mockMediaRepo.findCurrentByTrackId.mockResolvedValue(null); // No current media
       mockStorageService.verifyObjectExists.mockResolvedValue(true);
+      mockStorageService.headObject.mockResolvedValue({ contentLength: 1000, contentType: "audio/mpeg" });
       mockMediaRepo.create.mockResolvedValue({ id: "media1" });
 
       const result = await service.completeUpload("user1", "track1", "intent1");

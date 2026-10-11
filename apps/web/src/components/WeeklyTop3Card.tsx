@@ -139,8 +139,8 @@ export const WeeklyTop3Card: React.FC<WeeklyTop3CardProps> = ({
             Rankings are derived strictly from immutable server playback events. To count as a qualifying play, a track must complete at least <strong>120 seconds of continuous playback</strong> in the player.
           </p>
           <ul className="list-disc pl-5 space-y-1 text-zinc-400">
-            <li><strong>Normal plays</strong> are rate-limited to once every 4 hours per track to prevent duplicate manipulation.</li>
-            <li><strong>Paid priority plays</strong> count immediately upon 120s qualification.</li>
+            <li>A host can play a track <strong>as many times as they like</strong>.</li>
+            <li>A track counts as a play <strong>once every 4 hours per host</strong>. Replays inside that window still play, they just don&apos;t add to the count. Free and paid plays follow the same rule.</li>
             <li><strong>Saturday 00:00 America/New_York</strong> resets the weekly period deterministically.</li>
           </ul>
         </div>

@@ -33,7 +33,7 @@ To ensure a seamless setup, a lightweight provisioning sidecar service `thequeue
 
 Control scripts are configured at the repository root:
 
-- **Up**: `pnpm infrastructure:up` (Brings up all services in background).
-- **Down**: `pnpm infrastructure:down` (Shuts down and stops services).
-- **Logs**: `pnpm infrastructure:logs` (Streams container output).
-- **Reset**: `pnpm infrastructure:reset` (Warns developer and drops all local databases and volume attachments).
+- **Up**: `npm run infrastructure:up` (Brings up all services in background).
+- **Down**: `npm run infrastructure:down` (Shuts down and stops services).
+- **Logs**: `docker compose -f infrastructure/docker/docker-compose.yml logs -f` (Streams container output).
+- **Reset**: `infrastructure/scripts/reset-infrastructure.sh` (Warns developer and drops all local databases and volume attachments).

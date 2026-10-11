@@ -20,6 +20,7 @@ import {
   Sparkles,
   Lock,
   Compass,
+  DollarSign,
 } from "lucide-react";
 import { Role } from "@platform/types";
 
@@ -217,14 +218,24 @@ export function Navbar() {
 
                   <div className="py-1 text-xs">
                     {isHost ? (
-                      <Link
-                        href="/host/studio"
-                        onClick={() => setUserDropdownOpen(false)}
-                        className="flex items-center gap-2.5 px-4 py-2 text-amber-400 hover:bg-amber-950/40 hover:text-amber-300 font-semibold transition-colors"
-                      >
-                        <Radio className="h-4 w-4" />
-                        <span>Host Studio & Broadcast</span>
-                      </Link>
+                      <>
+                        <Link
+                          href="/host/studio"
+                          onClick={() => setUserDropdownOpen(false)}
+                          className="flex items-center gap-2.5 px-4 py-2 text-amber-400 hover:bg-amber-950/40 hover:text-amber-300 font-semibold transition-colors"
+                        >
+                          <Radio className="h-4 w-4" />
+                          <span>Host Studio & Broadcast</span>
+                        </Link>
+                        <Link
+                          href="/host/income"
+                          onClick={() => setUserDropdownOpen(false)}
+                          className="flex items-center gap-2.5 px-4 py-2 text-zinc-300 hover:bg-zinc-900 hover:text-zinc-100 transition-colors"
+                        >
+                          <DollarSign className="h-4 w-4 text-emerald-400" />
+                          <span>Income</span>
+                        </Link>
+                      </>
                     ) : (
                       <Link
                         href="/host/onboarding"
@@ -345,12 +356,20 @@ export function Navbar() {
                 Preferences
               </Link>
               {isHost ? (
-                <Link
-                  href="/host/studio"
-                  className="block px-3 py-2 text-sm text-amber-400 font-semibold hover:bg-amber-950/40 rounded-lg"
-                >
-                  Host Studio & Broadcast
-                </Link>
+                <>
+                  <Link
+                    href="/host/studio"
+                    className="block px-3 py-2 text-sm text-amber-400 font-semibold hover:bg-amber-950/40 rounded-lg"
+                  >
+                    Host Studio & Broadcast
+                  </Link>
+                  <Link
+                    href="/host/income"
+                    className="block px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-900 rounded-lg"
+                  >
+                    Income
+                  </Link>
+                </>
               ) : (
                 <Link
                   href="/host/onboarding"

@@ -1,0 +1,25 @@
+# Reverse proxy + automatic HTTPS (Let's Encrypt) for the production stack.
+# SITE_DOMAIN and MEDIA_DOMAIN come from the environment (see .env.production.example).
+
+{$SITE_DOMAIN} {
+	encode zstd gzip
+
+	# API and live-queue websockets go straight to the API
+	@api path /api/* /socket.io/*
+	handle @api {
+		reverse_proxy api:4000
+	}
+
+	handle {
+		reverse_proxy web:3000
+	}
+}
+
+# Browser uploads/downloads use presigned S3 URLs on this host.
+# Remove this block if you use AWS S3 / Cloudflare R2 instead of MinIO.
+{$MEDIA_DOMAIN} {
+	request_body {
+		max_size 100MB
+	}
+	reverse_proxy minio:9000
+}

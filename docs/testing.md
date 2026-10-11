@@ -43,5 +43,5 @@ To ensure tests remain fast, reproducible, and robust:
 
 All test commands are coordinated via root scripts:
 
-- **Run all unit/integration tests**: `pnpm test` (Runs `npx vitest run` across the workspace).
-- **Run E2E tests**: `pnpm test:e2e` (Triggers Playwright runs against built servers).
+- **Run all unit/integration tests**: `npm run test` (builds shared packages, then runs every workspace's tests; set `TEST_DATABASE_URL` to include the real-Postgres tests).
+- **Run E2E tests**: `npm run test:e2e` (Playwright smoke tests against a running stack; set `E2E_BASE_URL`).

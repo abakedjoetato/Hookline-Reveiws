@@ -24,6 +24,22 @@ import {
 import { MediaProcessingQueueService } from "./media-processing-queue.service";
 import { UploadIntentRepository } from "./intents/upload-intent.repository";
 
+const ALLOWED_AUDIO_MIME_TYPES = new Set([
+  "audio/mpeg",
+  "audio/mp3",
+  "audio/wav",
+  "audio/x-wav",
+  "audio/wave",
+  "audio/flac",
+  "audio/x-flac",
+  "audio/aac",
+  "audio/mp4",
+  "audio/x-m4a",
+  "audio/m4a",
+  "audio/ogg",
+  "audio/webm",
+]);
+
 @Injectable()
 export class TracksService {
   constructor(
@@ -58,12 +74,19 @@ export class TracksService {
     return identity.id;
   }
 
-  async createUploadUrl(userId: string, dto: CreateTrackUploadUrlDto) {
-    const uploadLimitStr = process.env.GLOBAL_UPLOAD_LIMIT_MB;
-    const uploadLimit = uploadLimitStr ? parseInt(uploadLimitStr, 10) : 50;
+  private uploadLimitBytes(): number {
+    const mb = parseInt(process.env.GLOBAL_UPLOAD_LIMIT_MB || "50", 10);
+    return (Number.isFinite(mb) && mb > 0 ? mb : 50) * 1024 * 1024;
+  }
 
-    if (dto.fileSize > uploadLimit * 1024 * 1024) {
+  async createUploadUrl(userId: string, dto: CreateTrackUploadUrlDto) {
+    if (dto.fileSize > this.uploadLimitBytes()) {
       throw new BadRequestException("File size exceeds limit.");
+    }
+    if (!ALLOWED_AUDIO_MIME_TYPES.has(dto.mimeType.toLowerCase())) {
+      throw new BadRequestException(
+        "Unsupported audio format. Upload MP3, WAV, FLAC, AAC/M4A or OGG.",
+      );
     }
 
     const artistIdentityId = await this.getOrCreateArtistIdentity(
@@ -137,9 +160,15 @@ export class TracksService {
       throw new NotFoundException("Track not found");
     }
 
-    const exists = await this.storageService.verifyObjectExists(
-      intent.objectKey,
-    );
+    // The presigned PUT can't enforce size, so check what actually landed
+    const head = await this.storageService.headObject(intent.objectKey);
+    const exists = Boolean(head);
+    if (head && head.contentLength > this.uploadLimitBytes()) {
+      await this.storageService.deleteObject(intent.objectKey).catch(() => undefined);
+      await this.intentRepo.updateStatus(intent.id, UploadIntentStatus.FAILED);
+      await this.trackRepo.update(trackId, { processingState: ProcessingState.FAILED });
+      throw new BadRequestException("Uploaded file exceeds the size limit");
+    }
     if (!exists) {
       await this.intentRepo.updateStatus(intent.id, UploadIntentStatus.FAILED);
       await this.trackRepo.update(trackId, {
@@ -378,9 +407,15 @@ export class TracksService {
       throw new NotFoundException("Track not found");
     }
 
-    const exists = await this.storageService.verifyObjectExists(
-      intent.objectKey,
-    );
+    // The presigned PUT can't enforce size, so check what actually landed
+    const head = await this.storageService.headObject(intent.objectKey);
+    const exists = Boolean(head);
+    if (head && head.contentLength > this.uploadLimitBytes()) {
+      await this.storageService.deleteObject(intent.objectKey).catch(() => undefined);
+      await this.intentRepo.updateStatus(intent.id, UploadIntentStatus.FAILED);
+      await this.trackRepo.update(trackId, { processingState: ProcessingState.FAILED });
+      throw new BadRequestException("Uploaded file exceeds the size limit");
+    }
     if (!exists) {
       await this.intentRepo.updateStatus(intent.id, UploadIntentStatus.FAILED);
       throw new BadRequestException("Upload object not found in storage");

@@ -63,3 +63,6 @@ playwright/.cache/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Prisma generated client
+packages/database/src/generated/

@@ -1,6 +1,7 @@
 import { Injectable, InternalServerErrorException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import Stripe from "stripe";
+import { splitPayment } from "@platform/config";
 
 @Injectable()
 export class StripeService {
@@ -21,6 +22,7 @@ export class StripeService {
       this.configService.get<string>("STRIPE_WEBHOOK_SECRET") || "";
 
     this.stripe = new Stripe(secretKey, {
+      // Pinned so Stripe changes can't silently alter response shapes
       apiVersion: "2024-06-20" as any,
       appInfo: {
         name: "TheQueue",
@@ -33,7 +35,7 @@ export class StripeService {
     connectedAccountId: string,
     metadata?: Record<string, string>,
   ): Promise<Stripe.PaymentIntent> {
-    const feeAmount = Math.round(amountCents * 0.15); // 15% platform fee
+    const feeAmount = splitPayment(amountCents).platformCents; // 15% platform fee
 
     return this.stripe.paymentIntents.create({
       amount: amountCents,
@@ -44,6 +46,49 @@ export class StripeService {
       },
       metadata,
     });
+  }
+
+  // --------------------------------------------------------------------------
+  // Stripe Connect (Express accounts for hosts)
+  // --------------------------------------------------------------------------
+
+  async createExpressAccount(params: {
+    email: string;
+    country?: string;
+    userId: string;
+    hostProfileId: string;
+    profileUrl?: string;
+  }): Promise<Stripe.Account> {
+    return this.stripe.accounts.create({
+      type: "express",
+      email: params.email,
+      ...(params.country ? { country: params.country } : {}),
+      capabilities: {
+        card_payments: { requested: true },
+        transfers: { requested: true },
+      },
+      business_profile: params.profileUrl ? { url: params.profileUrl } : undefined,
+      metadata: { userId: params.userId, hostProfileId: params.hostProfileId },
+    });
+  }
+
+  async createOnboardingLink(accountId: string, returnUrl: string, refreshUrl: string) {
+    return this.stripe.accountLinks.create({
+      account: accountId,
+      return_url: returnUrl,
+      refresh_url: refreshUrl,
+      type: "account_onboarding",
+    });
+  }
+
+  async retrieveAccount(accountId: string): Promise<Stripe.Account> {
+    return this.stripe.accounts.retrieve(accountId);
+  }
+
+  /** One-time link into the host's Stripe Express dashboard. */
+  async createDashboardLoginLink(accountId: string): Promise<string> {
+    const link = await this.stripe.accounts.createLoginLink(accountId);
+    return link.url;
   }
 
   public verifyWebhookSignature(

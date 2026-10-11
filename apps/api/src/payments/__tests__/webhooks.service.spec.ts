@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { Test, TestingModule } from "@nestjs/testing";
+import { ModuleRef } from "@nestjs/core";
 import { WebhooksService } from "../webhooks.service";
 import { PrismaClient, PaymentStatus, QueueStatus } from "@platform/database";
 import { QueueOrderingService } from "../../live-sessions/queue-ordering/queue-ordering.service";
@@ -24,6 +25,22 @@ describe("WebhooksService", () => {
     },
     ledgerTransaction: {
       create: vi.fn(),
+      findUnique: vi.fn().mockResolvedValue(null),
+      update: vi.fn(),
+    },
+    ledgerAccount: {
+      findMany: vi.fn().mockResolvedValue([
+        { id: "acc1", code: "PAYMENT_CLEARING" },
+        { id: "acc2", code: "HOST_PAYABLE" },
+        { id: "acc3", code: "PLATFORM_COMMISSION" },
+      ]),
+    },
+    ledgerEntry: {
+      createMany: vi.fn(),
+    },
+    hostEarning: {
+      findFirst: vi.fn().mockResolvedValue(null),
+      create: vi.fn(),
     },
     queueEntry: {
       findMany: vi.fn().mockResolvedValue([]),
@@ -33,7 +50,7 @@ describe("WebhooksService", () => {
       update: vi.fn(),
     },
     liveSession: {
-      update: vi.fn(),
+      update: vi.fn().mockResolvedValue({ lastEventSequence: 1 }),
     },
     queueEvent: {
       create: vi.fn(),
@@ -66,6 +83,7 @@ describe("WebhooksService", () => {
         WebhooksService,
         { provide: PrismaClient, useValue: mockPrisma },
         { provide: QueueOrderingService, useValue: mockQueueOrderingService },
+        { provide: ModuleRef, useValue: { get: vi.fn() } },
       ],
     }).compile();
 
@@ -90,10 +108,16 @@ describe("WebhooksService", () => {
     mockPrisma.payment.findUnique.mockResolvedValue({
       id: "pay_1",
       status: "CREATED",
+      grossAmountCents: 1000,
+      hostAllocationCents: 850,
+      platformAllocationCents: 150,
+      currency: "USD",
+      submissionId: "sub_1",
       submission: {
         id: "sub_1",
         liveSessionId: "ls_1",
         queueEntry: { id: "qe_1", priorityRank: 5 },
+        liveSession: { id: "ls_1", station: { hostId: "host_profile_1" } },
       },
     });
 
@@ -144,10 +168,16 @@ describe("WebhooksService", () => {
     mockPrisma.payment.findUnique.mockResolvedValue({
       id: "pay_1",
       status: "CREATED",
+      grossAmountCents: 1000,
+      hostAllocationCents: 850,
+      platformAllocationCents: 150,
+      currency: "USD",
+      submissionId: "sub_1",
       submission: {
         id: "sub_1",
         liveSessionId: "ls_1",
         queueEntry: { id: "qe_1", priorityRank: 5 },
+        liveSession: { id: "ls_1", station: { hostId: "host_profile_1" } },
       },
     });
 

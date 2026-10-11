@@ -9,7 +9,6 @@ import { IdempotencyModule } from "../common/idempotency/idempotency.module";
 import { PaymentsModule } from "../payments/payments.module";
 import { AuthProtectionModule } from "../auth/protection/auth-protection.module";
 import { AuthModule } from "../auth/auth.module";
-import { PrismaClient } from "@platform/database";
 
 @Module({
   imports: [
@@ -23,10 +22,6 @@ import { PrismaClient } from "@platform/database";
   providers: [
     SubmissionsService,
     SubmissionEligibilityService,
-    {
-      provide: PrismaClient,
-      useValue: new PrismaClient(),
-    },
   ],
   exports: [SubmissionsService, SubmissionEligibilityService],
 })

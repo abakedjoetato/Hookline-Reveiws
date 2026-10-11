@@ -1,3 +1,4 @@
+import { appendQueueEvent } from "../live-sessions/queue-events";
 import {
   Injectable,
   NotFoundException,
@@ -288,9 +289,7 @@ export class AdminSubmissionsService {
           });
 
           // 3. Record Immutable QueueEvent with eventType ADMIN_REMOVE
-          await tx.queueEvent.create({
-            data: {
-              id: generateUuidV7(),
+          await appendQueueEvent(tx, {
               queueEntryId: submission.queueEntry.id,
               liveSessionId: submission.liveSessionId,
               actingUserId: adminUserId,
@@ -298,8 +297,7 @@ export class AdminSubmissionsService {
               previousState: previousStatus,
               newState: QueueStatus.REMOVED,
               reason: dto.reason,
-            },
-          });
+            });
         }
 
         // 4. Record AdminAuditLog

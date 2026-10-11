@@ -24,6 +24,7 @@ describe("LiveSessions Integration Tests", () => {
   let hostUser: any;
   let otherUser: any;
   let station: any;
+  let hostProfileId: string;
   let track: any;
   let artistIdentity: any;
 
@@ -41,7 +42,9 @@ describe("LiveSessions Integration Tests", () => {
     // Provide mocked data to emulate a db response
     hostUser = { id: generateUuidV7() };
     otherUser = { id: generateUuidV7() };
-    station = { id: generateUuidV7(), hostId: hostUser.id };
+    // Station.hostId references the HostProfile id, not the user id
+    hostProfileId = generateUuidV7();
+    station = { id: generateUuidV7(), hostId: hostProfileId };
   });
 
   afterAll(async () => {
@@ -62,7 +65,7 @@ describe("LiveSessions Integration Tests", () => {
   });
 
   it("should enforce active session concurrency", async () => {
-    vi.spyOn(prisma, "$queryRaw").mockResolvedValue([{ id: "host1" }]);
+    vi.spyOn(prisma, "$queryRaw").mockResolvedValue([{ id: hostProfileId }]);
     vi.spyOn(prisma.station, "findUnique").mockResolvedValue(station as any);
 
     // On first call to findFirst, return null. On second call, return active session.

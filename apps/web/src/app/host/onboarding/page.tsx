@@ -92,10 +92,14 @@ export default function HostOnboardingPage() {
     }
   }, [isAuthenticated, authLoading]);
 
-  // Handle Stripe callback URL params
+  // Returning from Stripe onboarding: re-check the account with Stripe.
+  // "refresh" means the onboarding link expired; send them back to Stripe.
   React.useEffect(() => {
-    if (searchParams.get("stripe_connect") === "success") {
+    const result = searchParams.get("stripe_connect");
+    if (result === "return") {
       handleVerifyStripe();
+    } else if (result === "refresh") {
+      handleConnectStripe();
     }
   }, [searchParams]);
 
@@ -159,12 +163,16 @@ export default function HostOnboardingPage() {
     setIsVerifyingStripe(true);
     setError(null);
     try {
-      await api.host.verifyStripeTest();
-      setSuccessMessage("Stripe Connect account connected and verified!");
+      const status = await api.host.syncStripeStatus();
+      if (status.isComplete) {
+        setSuccessMessage("Stripe account connected. You can receive payouts.");
+      } else if (status.connected) {
+        setError("Stripe still needs a few details. Click Connect with Stripe to finish.");
+      }
       await loadStatus();
       await refreshAuth();
     } catch (err: any) {
-      setError(err?.message || "Failed to verify Stripe connection");
+      setError(err?.message || "Could not check your Stripe account");
     } finally {
       setIsVerifyingStripe(false);
     }
@@ -610,7 +618,7 @@ export default function HostOnboardingPage() {
                     ) : (
                       <Check className="h-4 w-4" />
                     )}
-                    Simulate Express Verification
+                    Refresh Stripe status
                   </Button>
                 </>
               ) : (

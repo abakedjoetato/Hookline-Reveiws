@@ -2,7 +2,7 @@
 
 ## Status
 
-Approved
+Superseded by ADR 0029 (single web application)
 
 ## Context
 

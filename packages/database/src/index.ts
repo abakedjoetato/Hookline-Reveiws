@@ -1,42 +1,67 @@
-import { PrismaClient } from "@prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
 import { uuidv7 } from "uuidv7";
+import { PrismaClient as GeneratedPrismaClient } from "./generated/client";
 
-// Export Prisma Client types and enums
-export * from "@prisma/client";
+// Export Prisma model types, enums and the Prisma namespace
+export * from "./generated/client";
+export * from "./generated/enums";
+
+type GeneratedOptions = ConstructorParameters<typeof GeneratedPrismaClient>[0];
+type PrismaClientOptions = Omit<GeneratedOptions, "adapter"> & {
+  /** Overrides DATABASE_URL. */
+  connectionString?: string;
+};
+
+function resolveConnectionString(explicit?: string): string {
+  const url = explicit ?? process.env.DATABASE_URL;
+  if (!url) {
+    throw new Error("DATABASE_URL is not set; cannot create a database client.");
+  }
+  return url;
+}
+
+/**
+ * PrismaClient wired to Postgres through the `pg` driver adapter.
+ * `new PrismaClient()` works anywhere, reading DATABASE_URL.
+ * In the API, inject the single shared instance (PrismaModule) instead of
+ * constructing new ones, so the app keeps one connection pool.
+ */
+export class PrismaClient extends GeneratedPrismaClient {
+  constructor(options: PrismaClientOptions = {}) {
+    const { connectionString, ...rest } = options;
+    const adapter = new PrismaPg({
+      connectionString: resolveConnectionString(connectionString),
+      max: Number(process.env.DATABASE_POOL_SIZE ?? 10),
+    });
+    super({ ...(rest as object), adapter } as GeneratedOptions);
+  }
+}
 
 // 1. Centralized UUIDv7 generator
 export function generateUuidV7(): string {
   return uuidv7();
 }
 
-// 2. Global PrismaClient Instance Lifecycle Management
+// 2. Global PrismaClient Instance Lifecycle Management (lazy, so importing this
+//    package never requires DATABASE_URL unless a client is actually used)
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
-export const prisma =
-  globalForPrisma.prisma ??
-  new PrismaClient({
-    log:
-      process.env.NODE_ENV === "development"
-        ? ["query", "error", "warn"]
-        : ["error"],
-  });
-
-if (process.env.NODE_ENV !== "production") {
-  globalForPrisma.prisma = prisma;
-}
-
-// 3. Database connectivity and health check helper
-export async function testDbConnection(): Promise<boolean> {
-  try {
-    await prisma.$queryRaw`SELECT 1`;
-    return true;
-  } catch (error) {
-    console.error("❌ Database connectivity check failed:", error);
-    return false;
+export function getPrisma(): PrismaClient {
+  if (!globalForPrisma.prisma) {
+    globalForPrisma.prisma = new PrismaClient({
+      log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
+    });
   }
+  return globalForPrisma.prisma;
 }
+
+export const prisma: PrismaClient = new Proxy({} as PrismaClient, {
+  get(_target, prop, receiver) {
+    return Reflect.get(getPrisma(), prop, receiver);
+  },
+});
 
 // 4. Test Database Safety Guard (Prevents destructive scripts against prod/dev)
 export function assertTestDatabase(): void {
@@ -235,188 +260,3 @@ export function redactSecretsFromLog<T extends Record<string, any>>(obj: T): T {
   }
   return redacted;
 }
-
-// ============================================================================
-// SECTION 19: LEGAL ACCEPTANCE PERSISTENCE HELPERS
-// ============================================================================
-
-export interface EnsureLegalDocumentVersionParams {
-  slug: string;
-  title: string;
-  versionString: string;
-  content?: string;
-}
-
-export async function ensureLegalDocumentAndVersion(
-  params: EnsureLegalDocumentVersionParams,
-): Promise<{ documentId: string; versionId: string }> {
-  try {
-    // 1. Find or create the root legal document by unique slug
-    let doc = await prisma.legalDocument.findUnique({
-      where: { slug: params.slug },
-    });
-
-    if (!doc) {
-      const newDocId = generateUuidV7();
-      doc = await prisma.legalDocument.upsert({
-        where: { slug: params.slug },
-        create: {
-          id: newDocId,
-          slug: params.slug,
-          title: params.title,
-        },
-        update: {
-          title: params.title,
-        },
-      });
-    }
-
-    // 2. Find or create the version record for this document
-    let version = await prisma.legalDocumentVersion.findUnique({
-      where: {
-        documentId_versionString: {
-          documentId: doc.id,
-          versionString: params.versionString,
-        },
-      },
-    });
-
-    if (!version) {
-      const newVersionId = generateUuidV7();
-      version = await prisma.legalDocumentVersion.upsert({
-        where: {
-          documentId_versionString: {
-            documentId: doc.id,
-            versionString: params.versionString,
-          },
-        },
-        create: {
-          id: newVersionId,
-          documentId: doc.id,
-          versionString: params.versionString,
-          content:
-            params.content ||
-            `Official ${params.title} (v${params.versionString}) content.`,
-          publishedAt: new Date(),
-        },
-        update: {},
-      });
-    }
-
-    return { documentId: doc.id, versionId: version.id };
-  } catch (error) {
-    throw normalizeDatabaseError(error);
-  }
-}
-
-export interface PersistLegalAcceptanceInput {
-  userId: string;
-  documentSlug?: string;
-  documentTitle?: string;
-  versionString: string;
-  acceptanceSource: string;
-  ipAddress: string;
-  userAgent?: string;
-}
-
-export async function persistLegalAcceptanceToDb(
-  params: PersistLegalAcceptanceInput,
-) {
-  try {
-    const slug = params.documentSlug || "terms";
-    const title =
-      params.documentTitle ||
-      (slug === "terms" ? "Terms of Service" : "Privacy Policy");
-
-    const { versionId } = await ensureLegalDocumentAndVersion({
-      slug,
-      title,
-      versionString: params.versionString,
-    });
-
-    // Idempotency check on @@unique([userId, versionId])
-    const existing = await prisma.legalAcceptance.findUnique({
-      where: {
-        userId_versionId: {
-          userId: params.userId,
-          versionId,
-        },
-      },
-      include: {
-        version: {
-          include: {
-            document: true,
-          },
-        },
-      },
-    });
-
-    if (existing) {
-      return existing;
-    }
-
-    const id = generateUuidV7();
-    return await prisma.legalAcceptance.create({
-      data: {
-        id,
-        userId: params.userId,
-        versionId,
-        acceptanceSource: params.acceptanceSource,
-        ipAddress: params.ipAddress,
-        userAgent: params.userAgent || null,
-        acceptedAt: new Date(),
-      },
-      include: {
-        version: {
-          include: {
-            document: true,
-          },
-        },
-      },
-    });
-  } catch (error) {
-    throw normalizeDatabaseError(error);
-  }
-}
-
-export async function getDbLegalAcceptancesForUser(userId: string) {
-  try {
-    return await prisma.legalAcceptance.findMany({
-      where: { userId },
-      include: {
-        version: {
-          include: {
-            document: true,
-          },
-        },
-      },
-      orderBy: { acceptedAt: "asc" },
-    });
-  } catch (error) {
-    throw normalizeDatabaseError(error);
-  }
-}
-
-export async function hasUserAcceptedCurrentVersionInDb(
-  userId: string,
-  slug: string,
-  versionString: string,
-): Promise<boolean> {
-  try {
-    const count = await prisma.legalAcceptance.count({
-      where: {
-        userId,
-        version: {
-          versionString,
-          document: {
-            slug,
-          },
-        },
-      },
-    });
-    return count > 0;
-  } catch (error) {
-    throw normalizeDatabaseError(error);
-  }
-}
-
