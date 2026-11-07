@@ -18,9 +18,9 @@ pids
 # Directory for instrumented dirs created by nyc
 .nyc_output
 
-# Gatsby Files
+# Caches (a bare "public" rule used to live here and silently ignored
+# apps/api/src/public and any Next.js public/ folder — don't re-add it)
 .cache/
-public
 
 # Active LTS historical ports
 node_modules/

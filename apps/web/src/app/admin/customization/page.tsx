@@ -154,9 +154,9 @@ export default function AdminCustomizationPage() {
     try {
       await api.admin.updateCustomization({
         siteName,
-        primaryLogoUrl: primaryLogoUrl.trim() || undefined,
-        alternateLogoUrl: alternateLogoUrl.trim() || undefined,
-        faviconUrl: faviconUrl.trim() || undefined,
+        primaryLogoUrl: primaryLogoUrl.trim() || null,
+        alternateLogoUrl: alternateLogoUrl.trim() || null,
+        faviconUrl: faviconUrl.trim() || null,
         tokens,
       });
 
